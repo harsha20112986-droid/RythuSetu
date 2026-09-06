@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import FarmerProfile
 from app.schemas import FarmerProfileCreate, FarmerProfileResponse
+from app.scheme_engine import find_matching_schemes
 
 router = APIRouter(prefix="/api/v1")
 
@@ -21,6 +22,20 @@ def create_farmer_profile(payload: FarmerProfileCreate, db: Session = Depends(ge
 def get_farmer_profile(farmer_id: int, db: Session = Depends(get_db)):
     farmer = db.get(FarmerProfile, farmer_id)
     if farmer is None:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Farmer profile not found")
     return farmer
+
+
+@router.get("/schemes")
+def get_schemes(
+    state: str = Query(..., min_length=2),
+    crop: str = Query(..., min_length=2),
+    season: str = Query(..., min_length=2),
+):
+    return {
+        "state": state,
+        "crop": crop,
+        "season": season,
+        "disclaimer": "Matches are guidance only. They do not confirm official eligibility or benefits.",
+        "schemes": find_matching_schemes(state=state, crop=crop, season=season),
+    }
