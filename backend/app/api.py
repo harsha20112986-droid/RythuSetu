@@ -10,6 +10,7 @@ from app.loss_engine import ALLOWED_DAMAGE_TYPES, build_next_step
 from app.models import CropLossReport, FarmerProfile
 from app.schemas import FarmerProfileCreate, FarmerProfileResponse
 from app.scheme_engine import find_matching_schemes
+from app.weather_engine import get_climate_risk
 
 router = APIRouter(prefix="/api/v1")
 UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads"
@@ -62,6 +63,21 @@ def get_benefit_estimate(
         season=season,
         land_area_acres=land_area_acres,
     )
+
+
+@router.get("/climate/risk")
+def get_climate_risk_endpoint(
+    state: str = Query(..., min_length=2),
+    district: str = Query(..., min_length=2),
+    crop: str = Query(..., min_length=2),
+    season: str = Query(..., min_length=2),
+):
+    try:
+        return get_climate_risk(state=state, district=district, crop=crop, season=season)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Weather service unavailable: {exc}") from exc
 
 
 @router.post("/crop-loss", status_code=201)
