@@ -3,818 +3,98 @@ import { useEffect, useState, type FormEvent } from "react";
 const API_BASE = "http://localhost:8000/api/v1";
 
 type Page = "home" | "onboarding" | "dashboard" | "schemes" | "benefits" | "loss";
-
-type FormState = {
-  name: string;
-  language: string;
-  state: string;
-  district: string;
-  mandal: string;
-  village: string;
-  crop: string;
-  season: string;
-  land_area_acres: string;
-};
-
-type SavedFarmer = { id: number; form: FormState };
-
-type Scheme = {
-  id: string;
-  name: string;
-  category: string;
-  scope: string;
-  icon: string;
-  summary: string;
-  benefit: string;
-  eligibility_note: string;
-  official_url: string;
-  last_verified: string;
-  match_label: string;
-  reasons: string[];
-};
-
-type BenefitItem = {
-  id: string;
-  name: string;
-  category: string;
-  type: string;
-  estimated_amount: number | null;
-  calculation: string;
-  basis: string;
-  official_url: string;
-  last_verified: string;
-};
-
-type BenefitEstimate = {
-  estimated_total: number;
-  items: BenefitItem[];
+type FormState = { name: string; language: string; state: string; district: string; mandal: string; village: string; crop: string; season: string; land_area_acres: string };
+type Farmer = { id: number; form: FormState };
+type Scheme = { id: string; name: string; category: string; scope: string; icon: string; summary: string; benefit: string; eligibility_note: string; official_url: string; last_verified: string; match_label: string; reasons: string[] };
+type BenefitItem = { id: string; name: string; category: string; type: string; estimated_amount: number | null; calculation: string; basis: string; official_url: string; last_verified: string };
+type BenefitData = { estimated_total: number; items: BenefitItem[]; disclaimer: string };
+type LossReport = { id: number; crop: string; damage_type: string; loss_date: string; affected_area_acres: number; damage_percent: number; description: string; evidence_filename: string | null; status: string; submitted_at: string; next_step: string };
+type ClimateData = {
+  location: { name: string; state?: string | null; latitude: number; longitude: number };
+  current: { time: string; temperature_c: number; apparent_temperature_c: number; humidity_percent: number; precipitation_mm: number; wind_speed_kmh: number; wind_gust_kmh: number; weather_code: number };
+  today_forecast: { date: string; max_temperature_c: number; rain_probability_percent: number; precipitation_sum_mm: number; max_wind_gust_kmh: number };
+  risk: { level: string; score: number; factors: string[]; suggested_action: string };
+  profile_context: { crop: string; season: string; district: string; state: string };
+  source: string;
   disclaimer: string;
 };
 
-type LossReport = {
-  id: number;
-  crop: string;
-  damage_type: string;
-  loss_date: string;
-  affected_area_acres: number;
-  damage_percent: number;
-  description: string;
-  evidence_filename: string | null;
-  status: string;
-  submitted_at: string;
-  next_step: string;
-};
-
 const states = ["Andhra Pradesh", "Telangana"];
-const districts: Record<string, string[]> = {
-  "Andhra Pradesh": ["Anantapur", "Kurnool", "Guntur", "Krishna"],
-  Telangana: ["Hyderabad", "Warangal", "Nizamabad", "Karimnagar"],
-};
+const districts: Record<string, string[]> = { "Andhra Pradesh": ["Anantapur", "Kurnool", "Guntur", "Krishna"], Telangana: ["Hyderabad", "Warangal", "Nizamabad", "Karimnagar"] };
 const crops = ["Groundnut", "Rice", "Cotton", "Maize", "Chilli", "Pigeon Pea"];
 const seasons = ["Kharif", "Rabi", "Summer"];
 const damageTypes = ["Flood / Heavy Rain", "Drought / Heat", "Pest Attack", "Crop Disease", "Hail / Storm", "Other"];
 
 function App() {
   const [page, setPage] = useState<Page>("home");
-  const [farmer, setFarmer] = useState<SavedFarmer | null>(null);
-  const [form, setForm] = useState<FormState>({
-    name: "",
-    language: "English",
-    state: "Andhra Pradesh",
-    district: "Anantapur",
-    mandal: "",
-    village: "",
-    crop: "Groundnut",
-    season: "Kharif",
-    land_area_acres: "",
-  });
+  const [farmer, setFarmer] = useState<Farmer | null>(null);
+  const [form, setForm] = useState<FormState>({ name: "", language: "English", state: "Andhra Pradesh", district: "Anantapur", mandal: "", village: "", crop: "Groundnut", season: "Kharif", land_area_acres: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("rythusetu_farmer");
-    if (!stored) return;
-    try {
-      const data = JSON.parse(stored) as SavedFarmer;
-      setFarmer(data);
-      setForm(data.form);
-    } catch {
-      localStorage.removeItem("rythusetu_farmer");
-    }
+    const raw = localStorage.getItem("rythusetu_farmer");
+    if (!raw) return;
+    try { const saved = JSON.parse(raw) as Farmer; setFarmer(saved); setForm(saved.form); } catch { localStorage.removeItem("rythusetu_farmer"); }
   }, []);
 
-  const update = (field: keyof FormState, value: string) => {
-    setForm((current) => ({ ...current, [field]: value }));
-    setError("");
-  };
+  const update = (field: keyof FormState, value: string) => { setForm((old) => ({ ...old, [field]: value })); setError(""); };
 
-  const saveProfile = async (event: FormEvent) => {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
+  const saveProfile = async (e: FormEvent) => {
+    e.preventDefault(); setSaving(true); setError("");
     try {
-      const response = await fetch(`${API_BASE}/farmers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, land_area_acres: Number(form.land_area_acres) }),
-      });
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(body?.detail?.[0]?.msg || body?.detail || "Unable to save profile");
-      }
-      const saved: SavedFarmer = { id: body.id, form };
-      setFarmer(saved);
-      localStorage.setItem("rythusetu_farmer", JSON.stringify(saved));
-      setPage("dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setSaving(false);
-    }
+      const r = await fetch(`${API_BASE}/farmers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, land_area_acres: Number(form.land_area_acres) }) });
+      const b = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(b?.detail?.[0]?.msg || b?.detail || "Unable to save profile");
+      const saved = { id: b.id, form } as Farmer;
+      setFarmer(saved); localStorage.setItem("rythusetu_farmer", JSON.stringify(saved)); setPage("dashboard");
+    } catch (err) { setError(err instanceof Error ? err.message : "Something went wrong"); } finally { setSaving(false); }
   };
 
-  return (
-    <main className="min-h-screen bg-stone-50 text-stone-900">
-      <Header
-        page={page}
-        hasProfile={Boolean(farmer)}
-        onHome={() => setPage("home")}
-        onDashboard={() => setPage(farmer ? "dashboard" : "onboarding")}
-      />
-
-      {page === "home" && (
-        <Home
-          hasProfile={Boolean(farmer)}
-          onStart={() => setPage("onboarding")}
-          onDashboard={() => setPage("dashboard")}
-        />
-      )}
-
-      {page === "onboarding" && (
-        <Onboarding
-          form={form}
-          farmer={farmer}
-          saving={saving}
-          error={error}
-          update={update}
-          onSubmit={saveProfile}
-          onBack={() => setPage(farmer ? "dashboard" : "home")}
-        />
-      )}
-
-      {page === "dashboard" && farmer && (
-        <Dashboard
-          farmer={farmer}
-          onEdit={() => setPage("onboarding")}
-          onSchemes={() => setPage("schemes")}
-          onBenefits={() => setPage("benefits")}
-          onLoss={() => setPage("loss")}
-        />
-      )}
-
-      {page === "schemes" && farmer && (
-        <SchemeFinder farmer={farmer} onBack={() => setPage("dashboard")} />
-      )}
-
-      {page === "benefits" && farmer && (
-        <BenefitEstimator farmer={farmer} onBack={() => setPage("dashboard")} />
-      )}
-
-      {page === "loss" && farmer && (
-        <CropLossReporter farmer={farmer} onBack={() => setPage("dashboard")} />
-      )}
-
-      <footer className="mx-auto max-w-6xl px-5 py-8 text-sm text-stone-500 lg:px-8">
-        RythuSetu is a support and guidance platform. Benefit estimates are informational and do not replace official government or insurance decisions.
-      </footer>
-    </main>
-  );
+  return <main className="min-h-screen bg-stone-50 text-stone-900">
+    <Header page={page} hasProfile={Boolean(farmer)} onHome={() => setPage("home")} onDashboard={() => setPage(farmer ? "dashboard" : "onboarding")} />
+    {page === "home" && <Home hasProfile={Boolean(farmer)} onStart={() => setPage("onboarding")} onDashboard={() => setPage("dashboard")} />}
+    {page === "onboarding" && <Onboarding form={form} farmer={farmer} saving={saving} error={error} update={update} onSubmit={saveProfile} onBack={() => setPage(farmer ? "dashboard" : "home")} />}
+    {page === "dashboard" && farmer && <Dashboard farmer={farmer} onEdit={() => setPage("onboarding")} onSchemes={() => setPage("schemes")} onBenefits={() => setPage("benefits")} onLoss={() => setPage("loss")} />}
+    {page === "schemes" && farmer && <SchemeFinder farmer={farmer} onBack={() => setPage("dashboard")} />}
+    {page === "benefits" && farmer && <BenefitEstimator farmer={farmer} onBack={() => setPage("dashboard")} />}
+    {page === "loss" && farmer && <CropLossReporter farmer={farmer} onBack={() => setPage("dashboard")} />}
+    <footer className="mx-auto max-w-6xl px-5 py-8 text-sm text-stone-500 lg:px-8">RythuSetu is a support and guidance platform. Benefit estimates are informational and do not replace official government or insurance decisions.</footer>
+  </main>;
 }
 
-function Header({
-  page,
-  hasProfile,
-  onHome,
-  onDashboard,
-}: {
-  page: Page;
-  hasProfile: boolean;
-  onHome: () => void;
-  onDashboard: () => void;
-}) {
-  return (
-    <header className="border-b border-stone-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 lg:px-8">
-        <button onClick={onHome} className="flex items-center gap-3 text-left">
-          <div className="grid size-11 place-items-center rounded-2xl bg-green-700 text-xl">🌾</div>
-          <div>
-            <p className="text-lg font-bold">RythuSetu</p>
-            <p className="text-xs text-stone-500">Your AI Bridge to Farmer Support</p>
-          </div>
-        </button>
-        <div className="flex items-center gap-2">
-          {hasProfile && page !== "dashboard" && (
-            <button
-              onClick={onDashboard}
-              className="hidden rounded-xl bg-green-50 px-4 py-2 text-sm font-semibold text-green-800 sm:block"
-            >
-              My Dashboard
-            </button>
-          )}
-          <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-800">
-            Dashboard v0.6
-          </span>
-        </div>
-      </div>
-    </header>
-  );
+function Header({ page, hasProfile, onHome, onDashboard }: { page: Page; hasProfile: boolean; onHome: () => void; onDashboard: () => void }) {
+  return <header className="border-b border-stone-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 lg:px-8"><button onClick={onHome} className="flex items-center gap-3 text-left"><div className="grid size-11 place-items-center rounded-2xl bg-green-700 text-xl">🌾</div><div><p className="text-lg font-bold">RythuSetu</p><p className="text-xs text-stone-500">Your AI Bridge to Farmer Support</p></div></button><div className="flex items-center gap-2">{hasProfile && page !== "dashboard" && <button onClick={onDashboard} className="hidden rounded-xl bg-green-50 px-4 py-2 text-sm font-semibold text-green-800 sm:block">My Dashboard</button>}<span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-800">Dashboard v0.7</span></div></div></header>;
 }
 
 function Home({ hasProfile, onStart, onDashboard }: { hasProfile: boolean; onStart: () => void; onDashboard: () => void }) {
-  const features = [
-    ["🌦️", "Climate Risk", "Understand weather and climate risks affecting your crops."],
-    ["📋", "Scheme Finder", "Find relevant government support and understand eligibility."],
-    ["💰", "Benefit Estimator", "See an explainable estimate of potential eligible benefits."],
-    ["🌱", "Crop Loss", "Report crop damage with evidence and track what happens next."],
-  ];
-
-  return (
-    <>
-      <section className="mx-auto grid max-w-6xl gap-10 px-5 py-14 lg:grid-cols-[1.2fr_0.8fr] lg:px-8 lg:py-20">
-        <div className="flex flex-col justify-center">
-          <span className="mb-4 w-fit rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">
-            AI-Powered Farmer Support Platform
-          </span>
-          <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl">
-            Know your risk. Know your benefits. Know what to do next.
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-600">
-            RythuSetu brings climate risk insights, crop-loss guidance, government schemes, and next-step support together in one farmer-friendly platform.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <button onClick={hasProfile ? onDashboard : onStart} className="rounded-xl bg-green-700 px-5 py-3 font-semibold text-white hover:bg-green-800">
-              {hasProfile ? "Open My Dashboard" : "Get Started"}
-            </button>
-            {hasProfile ? (
-              <button onClick={onStart} className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold">
-                Update Profile
-              </button>
-            ) : (
-              <a href="#features" className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold">
-                Explore Features
-              </a>
-            )}
-          </div>
-          {hasProfile && <p className="mt-4 text-sm font-medium text-green-700">✓ Your farmer profile is ready for personalized support.</p>}
-        </div>
-
-        <div className="rounded-3xl bg-green-900 p-6 text-white shadow-xl sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-200">Farmer home</p>
-          <div className="mt-6 rounded-2xl bg-white/10 p-5">
-            <p className="text-sm text-green-100">Good morning 👋</p>
-            <p className="mt-1 text-2xl font-bold">Your farm support snapshot</p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl bg-white/10 p-4">
-                <p className="text-xs text-green-100">Weather risk</p>
-                <p className="mt-1 text-xl font-bold">On dashboard</p>
-              </div>
-              <div className="rounded-2xl bg-white/10 p-4">
-                <p className="text-xs text-green-100">Farmer profile</p>
-                <p className="mt-1 text-xl font-bold">{hasProfile ? "Saved" : "Not started"}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="features" className="border-y border-stone-200 bg-white">
-        <div className="mx-auto max-w-6xl px-5 py-14 lg:px-8">
-          <p className="text-sm font-semibold text-green-700">What we are building</p>
-          <h2 className="mt-2 text-3xl font-bold">One place for the next right action.</h2>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {features.map(([icon, title, description]) => (
-              <article key={title} className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
-                <div className="text-2xl">{icon}</div>
-                <h3 className="mt-4 font-bold">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-stone-600">{description}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-    </>
-  );
+  const features = [["🌦️", "Live Climate Risk", "See location-aware weather conditions and an explainable risk signal."], ["📋", "Scheme Finder", "Find relevant government support and understand eligibility."], ["💰", "Benefit Estimator", "See an explainable estimate of potential eligible benefits."], ["🌱", "Crop Loss", "Report crop damage with evidence and track what happens next."]];
+  return <><section className="mx-auto grid max-w-6xl gap-10 px-5 py-14 lg:grid-cols-[1.2fr_0.8fr] lg:px-8 lg:py-20"><div className="flex flex-col justify-center"><span className="mb-4 w-fit rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">AI-Powered Farmer Support Platform</span><h1 className="max-w-3xl text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl">Know your risk. Know your benefits. Know what to do next.</h1><p className="mt-6 max-w-2xl text-lg leading-8 text-stone-600">RythuSetu brings climate risk insights, crop-loss guidance, government schemes, and next-step support together in one farmer-friendly platform.</p><div className="mt-8 flex flex-wrap gap-3"><button onClick={hasProfile ? onDashboard : onStart} className="rounded-xl bg-green-700 px-5 py-3 font-semibold text-white hover:bg-green-800">{hasProfile ? "Open My Dashboard" : "Get Started"}</button>{hasProfile ? <button onClick={onStart} className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold">Update Profile</button> : <a href="#features" className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold">Explore Features</a>}</div>{hasProfile && <p className="mt-4 text-sm font-medium text-green-700">✓ Your farmer profile is ready for personalized support.</p>}</div><div className="rounded-3xl bg-green-900 p-6 text-white shadow-xl sm:p-8"><p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-200">Farmer home</p><div className="mt-6 rounded-2xl bg-white/10 p-5"><p className="text-sm text-green-100">Good morning 👋</p><p className="mt-1 text-2xl font-bold">Your farm support snapshot</p><div className="mt-6 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-white/10 p-4"><p className="text-xs text-green-100">Climate</p><p className="mt-1 text-xl font-bold">Live</p></div><div className="rounded-2xl bg-white/10 p-4"><p className="text-xs text-green-100">Farmer profile</p><p className="mt-1 text-xl font-bold">{hasProfile ? "Saved" : "Not started"}</p></div></div></div></div></section><section id="features" className="border-y border-stone-200 bg-white"><div className="mx-auto max-w-6xl px-5 py-14 lg:px-8"><p className="text-sm font-semibold text-green-700">What we are building</p><h2 className="mt-2 text-3xl font-bold">One place for the next right action.</h2><div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{features.map(([icon,title,description])=><article key={title} className="rounded-2xl border border-stone-200 bg-stone-50 p-5"><div className="text-2xl">{icon}</div><h3 className="mt-4 font-bold">{title}</h3><p className="mt-2 text-sm leading-6 text-stone-600">{description}</p></article>)}</div></div></section></>;
 }
 
-function Onboarding({
-  form,
-  farmer,
-  saving,
-  error,
-  update,
-  onSubmit,
-  onBack,
-}: {
-  form: FormState;
-  farmer: SavedFarmer | null;
-  saving: boolean;
-  error: string;
-  update: (field: keyof FormState, value: string) => void;
-  onSubmit: (event: FormEvent) => void;
-  onBack: () => void;
-}) {
-  return (
-    <section className="mx-auto max-w-3xl px-5 py-10 lg:px-8 lg:py-14">
-      <button onClick={onBack} className="mb-6 text-sm font-semibold text-green-700">← Back</button>
-      <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-9">
-        <p className="text-sm font-semibold text-green-700">Farmer profile</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight">Tell us about your farm</h1>
-        <p className="mt-3 leading-7 text-stone-600">
-          Your profile lets RythuSetu personalize climate, scheme, benefit, and crop-loss guidance.
-        </p>
-
-        <form onSubmit={onSubmit} className="mt-8 space-y-6">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Farmer name" value={form.name} onChange={(v) => update("name", v)} placeholder="Enter your name" required />
-            <SelectField label="Preferred language" value={form.language} options={["English", "Telugu", "Hindi"]} onChange={(v) => update("language", v)} />
-          </div>
-
-          <div className="border-t border-stone-100 pt-6">
-            <p className="font-bold">Farm location</p>
-            <div className="mt-4 grid gap-5 sm:grid-cols-2">
-              <SelectField
-                label="State"
-                value={form.state}
-                options={states}
-                onChange={(value) => {
-                  update("state", value);
-                  update("district", districts[value][0]);
-                }}
-              />
-              <SelectField label="District" value={form.district} options={districts[form.state]} onChange={(v) => update("district", v)} />
-              <Field label="Mandal" value={form.mandal} onChange={(v) => update("mandal", v)} placeholder="Enter mandal" required />
-              <Field label="Village" value={form.village} onChange={(v) => update("village", v)} placeholder="Enter village" required />
-            </div>
-          </div>
-
-          <div className="border-t border-stone-100 pt-6">
-            <p className="font-bold">Farm details</p>
-            <div className="mt-4 grid gap-5 sm:grid-cols-2">
-              <SelectField label="Main crop" value={form.crop} options={crops} onChange={(v) => update("crop", v)} />
-              <SelectField label="Season" value={form.season} options={seasons} onChange={(v) => update("season", v)} />
-              <Field label="Land area (acres)" type="number" min="0.1" step="0.1" value={form.land_area_acres} onChange={(v) => update("land_area_acres", v)} placeholder="e.g. 2.5" required />
-            </div>
-          </div>
-
-          {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-          <button disabled={saving} className="w-full rounded-xl bg-green-700 px-5 py-3.5 font-bold text-white hover:bg-green-800 disabled:opacity-60">
-            {saving ? "Saving profile…" : farmer ? "Save New Profile & Open Dashboard" : "Save & Open Dashboard"}
-          </button>
-          <p className="text-center text-xs text-stone-500">No Aadhaar or other unnecessary sensitive identifier is required for this step.</p>
-        </form>
-      </div>
-    </section>
-  );
+function Onboarding({ form, farmer, saving, error, update, onSubmit, onBack }: { form: FormState; farmer: Farmer | null; saving: boolean; error: string; update: (field: keyof FormState, value: string) => void; onSubmit: (e: FormEvent) => void; onBack: () => void }) {
+  return <section className="mx-auto max-w-3xl px-5 py-10 lg:px-8 lg:py-14"><button onClick={onBack} className="mb-6 text-sm font-semibold text-green-700">← Back</button><div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-9"><p className="text-sm font-semibold text-green-700">Farmer profile</p><h1 className="mt-2 text-3xl font-black tracking-tight">Tell us about your farm</h1><p className="mt-3 leading-7 text-stone-600">Your profile lets RythuSetu personalize climate, scheme, benefit, and crop-loss guidance.</p><form onSubmit={onSubmit} className="mt-8 space-y-6"><div className="grid gap-5 sm:grid-cols-2"><Field label="Farmer name" value={form.name} onChange={(v)=>update("name",v)} placeholder="Enter your name" required/><SelectField label="Preferred language" value={form.language} options={["English","Telugu","Hindi"]} onChange={(v)=>update("language",v)}/></div><div className="border-t border-stone-100 pt-6"><p className="font-bold">Farm location</p><div className="mt-4 grid gap-5 sm:grid-cols-2"><SelectField label="State" value={form.state} options={states} onChange={(v)=>{update("state",v);update("district",districts[v][0]);}}/><SelectField label="District" value={form.district} options={districts[form.state]} onChange={(v)=>update("district",v)}/><Field label="Mandal" value={form.mandal} onChange={(v)=>update("mandal",v)} placeholder="Enter mandal" required/><Field label="Village" value={form.village} onChange={(v)=>update("village",v)} placeholder="Enter village" required/></div></div><div className="border-t border-stone-100 pt-6"><p className="font-bold">Farm details</p><div className="mt-4 grid gap-5 sm:grid-cols-2"><SelectField label="Main crop" value={form.crop} options={crops} onChange={(v)=>update("crop",v)}/><SelectField label="Season" value={form.season} options={seasons} onChange={(v)=>update("season",v)}/><Field label="Land area (acres)" type="number" min="0.1" step="0.1" value={form.land_area_acres} onChange={(v)=>update("land_area_acres",v)} placeholder="e.g. 2.5" required/></div></div>{error&&<div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}<button disabled={saving} className="w-full rounded-xl bg-green-700 px-5 py-3.5 font-bold text-white hover:bg-green-800 disabled:opacity-60">{saving?"Saving profile…":farmer?"Save New Profile & Open Dashboard":"Save & Open Dashboard"}</button><p className="text-center text-xs text-stone-500">No Aadhaar or other unnecessary sensitive identifier is required for this step.</p></form></div></section>;
 }
 
-function Dashboard({ farmer, onEdit, onSchemes, onBenefits, onLoss }: { farmer: SavedFarmer; onEdit: () => void; onSchemes: () => void; onBenefits: () => void; onLoss: () => void }) {
-  const { form } = farmer;
-
-  return (
-    <section className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-12">
-      <div className="flex flex-col gap-4 rounded-3xl bg-green-900 p-6 text-white shadow-xl sm:p-8 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-200">Farmer dashboard</p>
-          <h1 className="mt-2 text-3xl font-black sm:text-4xl">Namaste, {form.name} 👋</h1>
-          <p className="mt-2 text-green-100">{form.village}, {form.mandal}, {form.district} · {form.state}</p>
-        </div>
-        <button onClick={onEdit} className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold ring-1 ring-white/20">Edit profile</button>
-      </div>
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card icon="🌱" label="Main crop" value={form.crop} detail={`${form.season} season`} />
-        <Card icon="📐" label="Farm area" value={`${Number(form.land_area_acres).toFixed(1)} acres`} detail="Profile value" />
-        <Card icon="📍" label="Location" value={form.district} detail={form.state} />
-        <Card icon="🗣️" label="Language" value={form.language} detail="Preferred" />
-      </div>
-
-      <div className="mt-8 grid gap-5 lg:grid-cols-[1.4fr_0.8fr]">
-        <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-7">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-green-700">Climate risk</p>
-              <h2 className="mt-1 text-2xl font-black">Moderate attention needed</h2>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-stone-600">Demo assessment only. Live weather and crop-specific risk scoring will be connected next.</p>
-            </div>
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">DEMO DATA</span>
-          </div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            <Metric label="Temperature" value="32°C" />
-            <Metric label="Rain chance" value="20%" />
-            <Metric label="Heat stress" value="Medium" />
-          </div>
-          <div className="mt-6 rounded-2xl bg-stone-50 p-5">
-            <p className="text-sm font-bold">Suggested action</p>
-            <p className="mt-2 text-sm leading-6 text-stone-600">Check crop moisture regularly and watch for heat-stress symptoms. This demo is not an official weather or disaster declaration.</p>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-7">
-          <p className="text-sm font-semibold text-green-700">Next actions</p>
-          <h2 className="mt-1 text-2xl font-black">Your support toolkit</h2>
-          <div className="mt-5 space-y-3">
-            <button onClick={onSchemes} className="block w-full text-left"><Action icon="📋" title="Find schemes" subtitle="Relevant government support" /></button>
-            <button onClick={onBenefits} className="block w-full text-left"><Action icon="💰" title="Estimate benefits" subtitle="Explainable eligibility estimate" /></button>
-            <button onClick={onLoss} className="block w-full text-left"><Action icon="🌱" title="Report crop loss" subtitle="Evidence + tracking workflow" /></button>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-green-100 bg-green-50 px-5 py-4 text-sm text-green-900">
-        <strong>Profile ID #{farmer.id}.</strong> Your saved profile will personalize RythuSetu features.
-      </div>
-    </section>
-  );
+function Dashboard({ farmer,onEdit,onSchemes,onBenefits,onLoss }: { farmer: Farmer; onEdit:()=>void; onSchemes:()=>void; onBenefits:()=>void; onLoss:()=>void }) {
+  const [climate,setClimate]=useState<ClimateData|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState("");
+  useEffect(()=>{const controller=new AbortController();const load=async()=>{setLoading(true);setError("");try{const q=new URLSearchParams({state:farmer.form.state,district:farmer.form.district,crop:farmer.form.crop,season:farmer.form.season});const r=await fetch(`${API_BASE}/climate/risk?${q}`,{signal:controller.signal});const b=await r.json().catch(()=>null);if(!r.ok)throw new Error(b?.detail||"Unable to load climate data");setClimate(b);}catch(e){if(e instanceof DOMException&&e.name==="AbortError")return;setError(e instanceof Error?e.message:"Unable to load climate data");}finally{setLoading(false);}};load();return()=>controller.abort();},[farmer.form.state,farmer.form.district,farmer.form.crop,farmer.form.season]);
+  const risk=climate?.risk.level||"Loading"; const riskClass=risk==="High"?"bg-red-50 text-red-800":risk==="Moderate"?"bg-amber-50 text-amber-900":"bg-green-50 text-green-800";
+  return <section className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-12"><div className="flex flex-col gap-4 rounded-3xl bg-green-900 p-6 text-white shadow-xl sm:p-8 md:flex-row md:items-end md:justify-between"><div><p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-200">Farmer dashboard</p><h1 className="mt-2 text-3xl font-black sm:text-4xl">Namaste, {farmer.form.name} 👋</h1><p className="mt-2 text-green-100">{farmer.form.village}, {farmer.form.mandal}, {farmer.form.district} · {farmer.form.state}</p></div><button onClick={onEdit} className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold ring-1 ring-white/20">Edit profile</button></div><div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Card icon="🌱" label="Main crop" value={farmer.form.crop} detail={`${farmer.form.season} season`}/><Card icon="📐" label="Farm area" value={`${Number(farmer.form.land_area_acres).toFixed(1)} acres`} detail="Profile value"/><Card icon="📍" label="Location" value={farmer.form.district} detail={farmer.form.state}/><Card icon="🗣️" label="Language" value={farmer.form.language} detail="Preferred"/></div><div className="mt-8 grid gap-5 lg:grid-cols-[1.4fr_0.8fr]"><div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-7"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-green-700">Live climate risk</p><h2 className="mt-1 text-2xl font-black">{loading?"Loading local conditions…":`${risk} attention`}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-stone-600">Weather data is fetched for your selected district. The risk label is an informational RythuSetu heuristic, not an official warning.</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${riskClass}`}>{loading?"LIVE…":"LIVE WEATHER"}</span></div>{error&&<div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}{climate&&!loading&&!error&&<><div className="mt-6 grid gap-4 sm:grid-cols-3"><Metric label="Temperature" value={`${climate.current.temperature_c}°C`}/><Metric label="Rain chance" value={`${climate.today_forecast.rain_probability_percent}%`}/><Metric label="Risk score" value={`${climate.risk.score}/10`}/></div><div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl border border-stone-200 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Humidity</p><p className="mt-2 text-2xl font-black">{climate.current.humidity_percent}%</p><p className="mt-1 text-xs text-stone-500">Feels like {climate.current.apparent_temperature_c}°C</p></div><div className="rounded-2xl border border-stone-200 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Today forecast</p><p className="mt-2 text-2xl font-black">{climate.today_forecast.max_temperature_c}°C</p><p className="mt-1 text-xs text-stone-500">Rain {climate.today_forecast.precipitation_sum_mm} mm · gusts {climate.today_forecast.max_wind_gust_kmh} km/h</p></div></div><div className="mt-5 rounded-2xl bg-stone-50 p-5"><p className="text-sm font-bold">Suggested action</p><p className="mt-2 text-sm leading-6 text-stone-600">{climate.risk.suggested_action}</p><p className="mt-3 text-xs text-stone-400">Source: {climate.source} · {climate.location.name}</p></div></>}</div><div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-7"><p className="text-sm font-semibold text-green-700">Next actions</p><h2 className="mt-1 text-2xl font-black">Your support toolkit</h2><div className="mt-5 space-y-3"><button onClick={onSchemes} className="block w-full text-left"><Action icon="📋" title="Find schemes" subtitle="Relevant government support"/></button><button onClick={onBenefits} className="block w-full text-left"><Action icon="💰" title="Estimate benefits" subtitle="Explainable eligibility estimate"/></button><button onClick={onLoss} className="block w-full text-left"><Action icon="🌱" title="Report crop loss" subtitle="Evidence + tracking workflow"/></button></div></div></div><div className="mt-6 rounded-2xl border border-green-100 bg-green-50 px-5 py-4 text-sm text-green-900"><strong>Profile ID #{farmer.id}.</strong> Your saved profile now powers live climate, scheme, benefit, and crop-loss guidance.</div></section>;
 }
 
-function SchemeFinder({ farmer, onBack }: { farmer: SavedFarmer; onBack: () => void }) {
-  const [schemes, setSchemes] = useState<Scheme[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+function SchemeFinder({farmer,onBack}:{farmer:Farmer;onBack:()=>void}){const[schemes,setSchemes]=useState<Scheme[]>([]);const[loading,setLoading]=useState(true);const[error,setError]=useState("");useEffect(()=>{const load=async()=>{try{const q=new URLSearchParams({state:farmer.form.state,crop:farmer.form.crop,season:farmer.form.season});const r=await fetch(`${API_BASE}/schemes?${q}`);const b=await r.json();if(!r.ok)throw new Error(b?.detail||"Unable to load schemes");setSchemes(b.schemes||[]);}catch(e){setError(e instanceof Error?e.message:"Unable to load schemes");}finally{setLoading(false);}};load();},[farmer]);return <section className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-12"><button onClick={onBack} className="mb-6 text-sm font-semibold text-green-700">← Back to dashboard</button><div className="rounded-3xl bg-green-900 p-6 text-white shadow-xl"><p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-200">Scheme finder</p><h1 className="mt-2 text-3xl font-black">Support matched to your farm</h1><p className="mt-3 text-green-100">Based on {farmer.form.state}, {farmer.form.crop}, and {farmer.form.season}.</p></div><div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900"><strong>Important:</strong> RythuSetu ranks potentially relevant schemes. Final eligibility and benefit decisions belong to the official authority.</div>{loading&&<Loading text="Finding relevant schemes…"/>}{error&&<ErrorBox text={error}/>} {!loading&&!error&&<div className="mt-8 grid gap-5 lg:grid-cols-2">{schemes.map(s=><article key={s.id} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><div className="flex gap-4"><div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-stone-100 text-2xl">{s.icon}</div><div><span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-800">{s.match_label}</span><h2 className="mt-3 text-xl font-black">{s.name}</h2><p className="text-sm font-semibold text-green-700">{s.category}</p></div></div><p className="mt-5 text-sm leading-6 text-stone-600">{s.summary}</p><div className="mt-4 rounded-2xl bg-stone-50 p-4"><p className="text-xs font-bold uppercase text-stone-500">Potential benefit</p><p className="mt-2 font-bold">{s.benefit}</p></div><p className="mt-4 text-sm font-bold">Why it appeared</p><ul className="mt-2 space-y-1 text-sm text-stone-600">{s.reasons.map(r=><li key={r}>✓ {r}</li>)}</ul><div className="mt-4 rounded-2xl border border-stone-200 p-4 text-sm"><b>Eligibility note</b><p className="mt-2 leading-6 text-stone-600">{s.eligibility_note}</p></div><div className="mt-5 flex items-center justify-between gap-3"><span className="text-xs text-stone-400">Source checked: {s.last_verified}</span><a href={s.official_url} target="_blank" rel="noreferrer" className="rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-white">Open official site ↗</a></div></article>)}</div>}</section>}
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const q = new URLSearchParams({ state: farmer.form.state, crop: farmer.form.crop, season: farmer.form.season });
-        const response = await fetch(`${API_BASE}/schemes?${q.toString()}`);
-        const body = await response.json();
-        if (!response.ok) throw new Error(body?.detail || "Unable to load schemes");
-        setSchemes(body.schemes ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to load schemes");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [farmer.form.state, farmer.form.crop, farmer.form.season]);
+function BenefitEstimator({farmer,onBack}:{farmer:Farmer;onBack:()=>void}){const[data,setData]=useState<BenefitData|null>(null);const[loading,setLoading]=useState(true);const[error,setError]=useState("");useEffect(()=>{const load=async()=>{try{const q=new URLSearchParams({state:farmer.form.state,crop:farmer.form.crop,season:farmer.form.season,land_area_acres:farmer.form.land_area_acres});const r=await fetch(`${API_BASE}/benefits/estimate?${q}`);const b=await r.json();if(!r.ok)throw new Error(b?.detail||"Unable to estimate benefits");setData(b);}catch(e){setError(e instanceof Error?e.message:"Unable to estimate benefits");}finally{setLoading(false);}};load();},[farmer]);return <section className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-12"><button onClick={onBack} className="mb-6 text-sm font-semibold text-green-700">← Back to dashboard</button><div className="rounded-3xl bg-green-900 p-6 text-white shadow-xl"><p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-200">Benefit estimator</p><h1 className="mt-2 text-3xl font-black">What support could this profile qualify for?</h1><p className="mt-2 text-sm text-green-100">Estimate based on {farmer.form.state}, {farmer.form.crop}, and {farmer.form.land_area_acres} acres.</p></div><div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900"><b>Important:</b> This is an informational estimate, not a guaranteed payment or insurance claim. Official eligibility, records, exclusions, enrollment, verification and assessed losses determine actual outcomes.</div>{loading&&<Loading text="Calculating potential support…"/>}{error&&<ErrorBox text={error}/>} {data&&!loading&&!error&&<><div className="mt-5 rounded-3xl border border-green-100 bg-green-50 p-6"><p className="text-sm text-green-800">Potential annual support covered by fixed rules</p><p className="mt-1 text-4xl font-black text-green-800">₹{data.estimated_total.toLocaleString("en-IN")}</p><p className="mt-2 text-xs text-green-900">Only schemes with a responsible fixed or area-based calculation are included.</p></div><div className="mt-6 grid gap-5 lg:grid-cols-2">{data.items.map(item=><article key={item.id} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><p className="text-sm font-semibold text-green-700">{item.category}</p><h2 className="mt-1 text-xl font-black">{item.name}</h2><div className="mt-5 rounded-2xl bg-stone-50 p-4"><p className="text-xs font-bold uppercase text-stone-500">Calculation</p><p className="mt-2 font-bold">{item.calculation}</p></div><p className="mt-4 text-sm leading-6 text-stone-600"><b>Basis:</b> {item.basis}</p><div className="mt-5 flex items-center justify-between"><span className="text-xs text-stone-400">Source checked: {item.last_verified}</span><a href={item.official_url} target="_blank" rel="noreferrer" className="rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-white">Verify officially ↗</a></div></article>)}</div><div className="mt-5 rounded-2xl border border-stone-200 bg-white p-5 text-sm leading-6 text-stone-600"><b>What can change the actual amount?</b><p className="mt-1">Government rules, land-record verification, family-level eligibility, scheme exclusions, enrollment status, notified areas/crops, and insurance loss assessment can change the final outcome.</p></div></>}</section>}
 
-  return (
-    <section className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-12">
-      <button onClick={onBack} className="mb-6 text-sm font-semibold text-green-700">← Back to dashboard</button>
-      <div className="rounded-3xl bg-green-900 p-6 text-white shadow-xl sm:p-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-200">Scheme finder</p>
-        <h1 className="mt-2 text-3xl font-black sm:text-4xl">Support matched to your farm</h1>
-        <p className="mt-3 text-green-100">Based on {farmer.form.state}, {farmer.form.crop}, and {farmer.form.season}.</p>
-      </div>
+function CropLossReporter({farmer,onBack}:{farmer:Farmer;onBack:()=>void}){const[reports,setReports]=useState<LossReport[]>([]);const[loading,setLoading]=useState(true);const[submitting,setSubmitting]=useState(false);const[message,setMessage]=useState("");const[error,setError]=useState("");const[damageType,setDamageType]=useState(damageTypes[0]);const[lossDate,setLossDate]=useState(new Date().toISOString().slice(0,10));const[area,setArea]=useState("");const[percent,setPercent]=useState("50");const[description,setDescription]=useState("");const[file,setFile]=useState<File|null>(null);const load=async()=>{try{setLoading(true);const r=await fetch(`${API_BASE}/crop-loss?farmer_id=${farmer.id}`);const b=await r.json();if(!r.ok)throw new Error(b?.detail||"Unable to load reports");setReports(b.reports||[]);}catch(e){setError(e instanceof Error?e.message:"Unable to load reports");}finally{setLoading(false);}};useEffect(()=>{load();},[farmer.id]);const submit=async(e:FormEvent)=>{e.preventDefault();setSubmitting(true);setError("");setMessage("");try{const body=new FormData();body.append("farmer_id",String(farmer.id));body.append("crop",farmer.form.crop);body.append("damage_type",damageType);body.append("loss_date",lossDate);body.append("affected_area_acres",area);body.append("damage_percent",percent);body.append("description",description);if(file)body.append("evidence",file);const r=await fetch(`${API_BASE}/crop-loss`,{method:"POST",body});const b=await r.json();if(!r.ok)throw new Error(b?.detail||"Unable to submit report");setMessage(`Report #${b.id} submitted successfully.`);setArea("");setPercent("50");setDescription("");setFile(null);await load();}catch(e){setError(e instanceof Error?e.message:"Unable to submit report");}finally{setSubmitting(false);}};return <section className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-12"><button onClick={onBack} className="mb-6 text-sm font-semibold text-green-700">← Back to dashboard</button><div className="rounded-3xl bg-green-900 p-6 text-white shadow-xl"><p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-200">Crop loss</p><h1 className="mt-2 text-3xl font-black">Report crop damage</h1><p className="mt-2 text-sm text-green-100">Submit farmer-reported damage with optional photo evidence and track the report status.</p></div><div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900"><b>Important:</b> Your damage percentage is a farmer report, not an official loss assessment. Government or insurance authorities determine final outcomes.</div><div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.8fr]"><form onSubmit={submit} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><p className="text-sm font-semibold text-green-700">New loss report</p><div className="mt-5 grid gap-5 sm:grid-cols-2"><Field label="Crop" value={farmer.form.crop} onChange={()=>{}}/><SelectField label="Damage type" value={damageType} options={damageTypes} onChange={setDamageType}/><Field label="Date of loss" type="date" value={lossDate} onChange={setLossDate} required/><Field label="Affected area (acres)" type="number" min="0.1" step="0.1" value={area} onChange={setArea} placeholder={`Up to ${farmer.form.land_area_acres}`} required/><Field label="Farmer-reported damage (%)" type="number" min="0" max="100" step="1" value={percent} onChange={setPercent} required/></div><label className="mt-5 block"><span className="mb-2 block text-sm font-semibold text-stone-700">What happened?</span><textarea value={description} onChange={e=>setDescription(e.target.value)} rows={5} minLength={5} maxLength={2000} required placeholder="Describe the damage, when it happened, and what you observed." className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100"/></label><label className="mt-5 block"><span className="mb-2 block text-sm font-semibold text-stone-700">Photo evidence (optional)</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0]||null)} className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm"/><span className="mt-1 block text-xs text-stone-500">JPG, PNG or WebP · max 8 MB</span></label>{error&&<div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}{message&&<div className="mt-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{message}</div>}<button disabled={submitting} className="mt-6 w-full rounded-xl bg-green-700 px-5 py-3.5 font-bold text-white hover:bg-green-800 disabled:opacity-60">{submitting?"Submitting…":"Submit Loss Report"}</button></form><div><h2 className="text-xl font-black">My reports</h2>{loading&&<Loading text="Loading reports…"/>}{!loading&&reports.length===0&&<div className="mt-4 rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-600">No crop-loss reports yet.</div>}{!loading&&reports.map(r=><article key={r.id} className="mt-4 rounded-3xl border border-stone-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-green-700">Report #{r.id}</p><h3 className="mt-1 font-black">{r.crop} · {r.damage_type}</h3></div><span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-800">{r.status}</span></div><div className="mt-4 grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-stone-50 p-3"><b>{r.affected_area_acres} acres</b><p className="text-xs text-stone-500">Affected area</p></div><div className="rounded-xl bg-stone-50 p-3"><b>{r.damage_percent}%</b><p className="text-xs text-stone-500">Farmer-reported</p></div></div><p className="mt-4 text-sm leading-6 text-stone-600">{r.description}</p><div className="mt-4 rounded-2xl border border-stone-200 p-4 text-sm"><b>Next step</b><p className="mt-1 leading-6 text-stone-600">{r.next_step}</p></div>{r.evidence_filename&&<p className="mt-3 text-xs text-stone-400">Evidence stored with report.</p>}</article>)}</div></div></div></section>}
 
-      <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
-        <strong>Important:</strong> RythuSetu ranks potentially relevant schemes. Final eligibility and benefit decisions belong to the official authority.
-      </div>
-
-      {loading && <Loading text="Finding relevant schemes…" />}
-      {error && <ErrorBox text={error} />}
-
-      {!loading && !error && (
-        <div className="mt-8 grid gap-5 lg:grid-cols-2">
-          {schemes.map((scheme) => (
-            <article key={scheme.id} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-7">
-              <div className="flex gap-4">
-                <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-stone-100 text-2xl">{scheme.icon}</div>
-                <div>
-                  <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-800">{scheme.match_label}</span>
-                  <h2 className="mt-3 text-xl font-black">{scheme.name}</h2>
-                  <p className="text-sm font-semibold text-green-700">{scheme.category}</p>
-                </div>
-              </div>
-              <p className="mt-5 text-sm leading-6 text-stone-600">{scheme.summary}</p>
-              <div className="mt-4 rounded-2xl bg-stone-50 p-4">
-                <p className="text-xs font-bold uppercase text-stone-500">Potential benefit</p>
-                <p className="mt-2 font-bold">{scheme.benefit}</p>
-              </div>
-              <p className="mt-4 text-sm font-bold">Why it appeared</p>
-              <ul className="mt-2 space-y-1 text-sm text-stone-600">
-                {scheme.reasons.map((reason) => <li key={reason}>✓ {reason}</li>)}
-              </ul>
-              <div className="mt-4 rounded-2xl border border-stone-200 p-4 text-sm">
-                <b>Eligibility note</b>
-                <p className="mt-2 leading-6 text-stone-600">{scheme.eligibility_note}</p>
-              </div>
-              <div className="mt-5 flex items-center justify-between gap-3">
-                <span className="text-xs text-stone-400">Source checked: {scheme.last_verified}</span>
-                <a href={scheme.official_url} target="_blank" rel="noreferrer" className="rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-white">Open official site ↗</a>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function BenefitEstimator({ farmer, onBack }: { farmer: SavedFarmer; onBack: () => void }) {
-  const [data, setData] = useState<BenefitEstimate | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const q = new URLSearchParams({
-          state: farmer.form.state,
-          crop: farmer.form.crop,
-          season: farmer.form.season,
-          land_area_acres: farmer.form.land_area_acres,
-        });
-        const response = await fetch(`${API_BASE}/benefits/estimate?${q.toString()}`);
-        const body = await response.json();
-        if (!response.ok) throw new Error(body?.detail || "Unable to estimate benefits");
-        setData(body);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to estimate benefits");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [farmer.form.state, farmer.form.crop, farmer.form.season, farmer.form.land_area_acres]);
-
-  return (
-    <section className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-12">
-      <button onClick={onBack} className="mb-6 text-sm font-semibold text-green-700">← Back to dashboard</button>
-      <div className="rounded-3xl bg-green-900 p-6 text-white shadow-xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-200">Benefit estimator</p>
-        <h1 className="mt-2 text-3xl font-black">What support could this profile qualify for?</h1>
-        <p className="mt-2 text-sm text-green-100">Estimate based on {farmer.form.state}, {farmer.form.crop}, and {farmer.form.land_area_acres} acres.</p>
-      </div>
-      <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
-        <b>Important:</b> This is an informational estimate, not a guaranteed payment or insurance claim. Official eligibility, records, exclusions, enrollment, verification and assessed losses determine actual outcomes.
-      </div>
-      {loading && <Loading text="Calculating potential support…" />}
-      {error && <ErrorBox text={error} />}
-      {data && !loading && !error && (
-        <>
-          <div className="mt-5 rounded-3xl border border-green-100 bg-green-50 p-6">
-            <p className="text-sm text-green-800">Potential annual support covered by fixed rules</p>
-            <p className="mt-1 text-4xl font-black text-green-800">₹{data.estimated_total.toLocaleString("en-IN")}</p>
-            <p className="mt-2 text-xs text-green-900">Only schemes with a responsible fixed or area-based calculation are included.</p>
-          </div>
-          <div className="mt-6 grid gap-5 lg:grid-cols-2">
-            {data.items.map((item) => (
-              <article key={item.id} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-                <p className="text-sm font-semibold text-green-700">{item.category}</p>
-                <h2 className="mt-1 text-xl font-black">{item.name}</h2>
-                <div className="mt-5 rounded-2xl bg-stone-50 p-4">
-                  <p className="text-xs font-bold uppercase text-stone-500">Calculation</p>
-                  <p className="mt-2 font-bold">{item.calculation}</p>
-                </div>
-                <p className="mt-4 text-sm leading-6 text-stone-600"><b>Basis:</b> {item.basis}</p>
-                <div className="mt-5 flex items-center justify-between">
-                  <span className="text-xs text-stone-400">Source checked: {item.last_verified}</span>
-                  <a href={item.official_url} target="_blank" rel="noreferrer" className="rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-white">Verify officially ↗</a>
-                </div>
-              </article>
-            ))}
-          </div>
-          <div className="mt-5 rounded-2xl border border-stone-200 bg-white p-5 text-sm leading-6 text-stone-600">
-            <b>What can change the actual amount?</b>
-            <p className="mt-1">Government rules, land-record verification, family-level eligibility, scheme exclusions, enrollment status, notified areas/crops, and insurance loss assessment can change the final outcome.</p>
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
-function CropLossReporter({ farmer, onBack }: { farmer: SavedFarmer; onBack: () => void }) {
-  const [reports, setReports] = useState<LossReport[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [damageType, setDamageType] = useState(damageTypes[0]);
-  const [lossDate, setLossDate] = useState(new Date().toISOString().slice(0, 10));
-  const [area, setArea] = useState("");
-  const [percent, setPercent] = useState("50");
-  const [description, setDescription] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-
-  const loadReports = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/crop-loss?farmer_id=${farmer.id}`);
-      const body = await response.json();
-      if (!response.ok) throw new Error(body?.detail || "Unable to load reports");
-      setReports(body.reports ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load reports");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadReports();
-  }, [farmer.id]);
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    setSubmitting(true);
-    setError("");
-    setMessage("");
-
-    try {
-      const body = new FormData();
-      body.append("farmer_id", String(farmer.id));
-      body.append("crop", farmer.form.crop);
-      body.append("damage_type", damageType);
-      body.append("loss_date", lossDate);
-      body.append("affected_area_acres", area);
-      body.append("damage_percent", percent);
-      body.append("description", description);
-      if (file) body.append("evidence", file);
-
-      const response = await fetch(`${API_BASE}/crop-loss`, { method: "POST", body });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result?.detail || "Unable to submit report");
-
-      setMessage(`Report #${result.id} submitted successfully.`);
-      setArea("");
-      setPercent("50");
-      setDescription("");
-      setFile(null);
-      await loadReports();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to submit report");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <section className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-12">
-      <button onClick={onBack} className="mb-6 text-sm font-semibold text-green-700">← Back to dashboard</button>
-      <div className="rounded-3xl bg-green-900 p-6 text-white shadow-xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-200">Crop loss</p>
-        <h1 className="mt-2 text-3xl font-black">Report crop damage</h1>
-        <p className="mt-2 text-sm text-green-100">Submit farmer-reported damage with optional photo evidence and track the report status.</p>
-      </div>
-
-      <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
-        <b>Important:</b> Your damage percentage is a farmer report, not an official loss assessment. Government or insurance authorities determine final outcomes.
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.8fr]">
-        <form onSubmit={submit} className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold text-green-700">New loss report</p>
-          <div className="mt-5 grid gap-5 sm:grid-cols-2">
-            <Field label="Crop" value={farmer.form.crop} onChange={() => undefined} />
-            <SelectField label="Damage type" value={damageType} options={damageTypes} onChange={setDamageType} />
-            <Field label="Date of loss" type="date" value={lossDate} onChange={setLossDate} required />
-            <Field label="Affected area (acres)" type="number" min="0.1" step="0.1" value={area} onChange={setArea} placeholder={`Up to ${farmer.form.land_area_acres}`} required />
-            <Field label="Farmer-reported damage (%)" type="number" min="0" max="100" step="1" value={percent} onChange={setPercent} required />
-          </div>
-
-          <label className="mt-5 block">
-            <span className="mb-2 block text-sm font-semibold text-stone-700">What happened?</span>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={5}
-              minLength={5}
-              maxLength={2000}
-              required
-              placeholder="Describe the damage, when it happened, and what you observed."
-              className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100"
-            />
-          </label>
-
-          <label className="mt-5 block">
-            <span className="mb-2 block text-sm font-semibold text-stone-700">Photo evidence (optional)</span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm"
-            />
-            <span className="mt-1 block text-xs text-stone-500">JPG, PNG or WebP · max 8 MB</span>
-          </label>
-
-          {error && <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-          {message && <div className="mt-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{message}</div>}
-
-          <button disabled={submitting} className="mt-6 w-full rounded-xl bg-green-700 px-5 py-3.5 font-bold text-white hover:bg-green-800 disabled:opacity-60">
-            {submitting ? "Submitting…" : "Submit Loss Report"}
-          </button>
-        </form>
-
-        <div>
-          <h2 className="text-xl font-black">My reports</h2>
-          {loading && <Loading text="Loading reports…" />}
-          {!loading && reports.length === 0 && (
-            <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-600">No crop-loss reports yet.</div>
-          )}
-          {!loading && reports.map((report) => (
-            <article key={report.id} className="mt-4 rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold text-green-700">Report #{report.id}</p>
-                  <h3 className="mt-1 font-black">{report.crop} · {report.damage_type}</h3>
-                </div>
-                <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-800">{report.status}</span>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl bg-stone-50 p-3"><b>{report.affected_area_acres} acres</b><p className="text-xs text-stone-500">Affected area</p></div>
-                <div className="rounded-xl bg-stone-50 p-3"><b>{report.damage_percent}%</b><p className="text-xs text-stone-500">Farmer-reported</p></div>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-stone-600">{report.description}</p>
-              <div className="mt-4 rounded-2xl border border-stone-200 p-4 text-sm">
-                <b>Next step</b>
-                <p className="mt-1 leading-6 text-stone-600">{report.next_step}</p>
-              </div>
-              {report.evidence_filename && <p className="mt-3 text-xs text-stone-400">Evidence stored with report.</p>}
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Card({ icon, label, value, detail }: { icon: string; label: string; value: string; detail: string }) {
-  return (
-    <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-      <div className="flex justify-between"><span className="text-xl">{icon}</span><span className="text-xs text-stone-400">{detail}</span></div>
-      <p className="mt-4 text-sm text-stone-500">{label}</p>
-      <p className="mt-1 truncate text-lg font-bold">{value}</p>
-    </article>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-stone-200 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">{label}</p>
-      <p className="mt-2 text-2xl font-black">{value}</p>
-    </div>
-  );
-}
-
-function Action({ icon, title, subtitle }: { icon: string; title: string; subtitle: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-stone-200 p-4">
-      <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-stone-100 text-lg">{icon}</div>
-      <div>
-        <p className="font-bold">{title}</p>
-        <p className="mt-1 text-xs text-stone-500">{subtitle}</p>
-      </div>
-      <span className="ml-auto rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-bold text-stone-600">Open</span>
-    </div>
-  );
-}
-
-function Field({ label, value, onChange, placeholder, type = "text", min, step, required = false }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string; min?: string; step?: string; required?: boolean }) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-semibold text-stone-700">{label}</span>
-      <input
-        required={required}
-        type={type}
-        min={min}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        readOnly={label === "Crop"}
-        className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100 read-only:bg-stone-50"
-      />
-    </label>
-  );
-}
-
-function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-semibold text-stone-700">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100"
-      >
-        {options.map((option) => <option key={option}>{option}</option>)}
-      </select>
-    </label>
-  );
-}
-
-function Loading({ text }: { text: string }) {
-  return <div className="mt-8 rounded-3xl border border-stone-200 bg-white p-8 text-center text-stone-600">{text}</div>;
-}
-
-function ErrorBox({ text }: { text: string }) {
-  return <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{text}</div>;
-}
+function Card({icon,label,value,detail}:{icon:string;label:string;value:string;detail:string}){return <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"><div className="flex justify-between"><span className="text-xl">{icon}</span><span className="text-xs text-stone-400">{detail}</span></div><p className="mt-4 text-sm text-stone-500">{label}</p><p className="mt-1 truncate text-lg font-bold">{value}</p></article>}
+function Metric({label,value}:{label:string;value:string}){return <div className="rounded-2xl border border-stone-200 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-stone-500">{label}</p><p className="mt-2 text-2xl font-black">{value}</p></div>}
+function Action({icon,title,subtitle}:{icon:string;title:string;subtitle:string}){return <div className="flex items-center gap-3 rounded-2xl border border-stone-200 p-4"><div className="grid size-11 shrink-0 place-items-center rounded-xl bg-stone-100 text-lg">{icon}</div><div><p className="font-bold">{title}</p><p className="mt-1 text-xs text-stone-500">{subtitle}</p></div><span className="ml-auto rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-bold text-stone-600">Open</span></div>}
+function Field({label,value,onChange,placeholder,type="text",min,step,required=false}:{label:string;value:string;onChange:(value:string)=>void;placeholder?:string;type?:string;min?:string;step?:string;required?:boolean}){return <label className="block"><span className="mb-2 block text-sm font-semibold text-stone-700">{label}</span><input required={required} type={type} min={min} step={step} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} readOnly={!onChange} className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100 read-only:bg-stone-50"/></label>}
+function SelectField({label,value,options,onChange}:{label:string;value:string;options:string[];onChange:(value:string)=>void}){return <label className="block"><span className="mb-2 block text-sm font-semibold text-stone-700">{label}</span><select value={value} onChange={e=>onChange(e.target.value)} className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100">{options.map(o=><option key={o}>{o}</option>)}</select></label>}
+function Loading({text}:{text:string}){return <div className="mt-8 rounded-3xl border border-stone-200 bg-white p-8 text-center text-stone-600">{text}</div>}
+function ErrorBox({text}:{text:string}){return <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{text}</div>}
 
 export default App;
