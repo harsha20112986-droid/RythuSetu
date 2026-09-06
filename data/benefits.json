@@ -1,0 +1,33 @@
+[
+  {
+    "id": "pm-kisan",
+    "name": "PM-KISAN",
+    "category": "Income Support",
+    "calculation": "fixed",
+    "annual_amount": 6000,
+    "basis": "Per eligible landholding farmer family per year, subject to official eligibility and exclusions.",
+    "official_url": "https://pmkisan.gov.in/",
+    "last_verified": "2026-09-06"
+  },
+  {
+    "id": "rythu-bharosa",
+    "name": "Rythu Bharosa",
+    "category": "Farm Investment Support",
+    "calculation": "per_acre",
+    "annual_amount_per_acre": 12000,
+    "states": ["Telangana"],
+    "basis": "₹12,000 per acre per year for eligible agricultural land, subject to current Telangana scheme rules and verification.",
+    "official_url": "https://rythubharosa.telangana.gov.in/",
+    "last_verified": "2026-09-06"
+  },
+  {
+    "id": "pmfby",
+    "name": "Pradhan Mantri Fasal Bima Yojana (PMFBY)",
+    "category": "Crop Insurance",
+    "calculation": "variable",
+    "annual_amount": null,
+    "basis": "No fixed benefit is estimated. Claim outcomes depend on notified crop/area, policy terms, premium, and assessed loss.",
+    "official_url": "https://pmfby.gov.in/",
+    "last_verified": "2026-09-06"
+  }
+]
