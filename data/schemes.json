@@ -1,0 +1,41 @@
+[
+  {
+    "id": "pm-kisan",
+    "name": "PM-KISAN",
+    "category": "Income Support",
+    "scope": "Central",
+    "icon": "🌾",
+    "summary": "Income support for eligible land-holding farmer families.",
+    "benefit": "₹6,000 per year in three equal instalments",
+    "eligibility_note": "Eligibility is decided under the official scheme rules; exclusions and state verification apply.",
+    "match": {"states": ["All"], "crops": ["All"]},
+    "official_url": "https://pmkisan.gov.in/",
+    "last_verified": "2026-09-06"
+  },
+  {
+    "id": "rythu-bharosa",
+    "name": "Rythu Bharosa",
+    "category": "Farm Investment Support",
+    "scope": "Telangana",
+    "icon": "🌱",
+    "summary": "Telangana agricultural investment support for eligible farmers.",
+    "benefit": "Current Telangana government pages describe ₹12,000 per acre per year, subject to the scheme rules.",
+    "eligibility_note": "State-level eligibility and farmer/land verification apply.",
+    "match": {"states": ["Telangana"], "crops": ["All"]},
+    "official_url": "https://rythubharosa.telangana.gov.in/",
+    "last_verified": "2026-09-06"
+  },
+  {
+    "id": "pmfby",
+    "name": "Pradhan Mantri Fasal Bima Yojana (PMFBY)",
+    "category": "Crop Insurance",
+    "scope": "Central",
+    "icon": "🛡️",
+    "summary": "Crop insurance support for notified crops/areas under the scheme and applicable policy terms.",
+    "benefit": "Insurance protection against covered crop losses; claim amount depends on notified crop, area, policy and loss assessment.",
+    "eligibility_note": "Availability depends on notified crop/area/season and applicable enrollment rules.",
+    "match": {"states": ["All"], "crops": ["Rice", "Groundnut", "Cotton", "Maize", "Chilli", "Pigeon Pea", "All"]},
+    "official_url": "https://pmfby.gov.in/",
+    "last_verified": "2026-09-06"
+  }
+]
