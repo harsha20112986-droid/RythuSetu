@@ -1,13 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
+from app.benefit_engine import estimate_benefits
 from app.db import get_db
-from app.models import FarmerProfile
+from app.loss_engine import ALLOWED_DAMAGE_TYPES, build_next_step
+from app.models import CropLossReport, FarmerProfile
 from app.schemas import FarmerProfileCreate, FarmerProfileResponse
 from app.scheme_engine import find_matching_schemes
-from app.benefit_engine import estimate_benefits
 
 router = APIRouter(prefix="/api/v1")
+UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
 @router.post("/farmers", response_model=FarmerProfileResponse, status_code=201)
@@ -55,3 +62,103 @@ def get_benefit_estimate(
         season=season,
         land_area_acres=land_area_acres,
     )
+
+
+@router.post("/crop-loss", status_code=201)
+async def create_crop_loss_report(
+    farmer_id: int = Form(...),
+    crop: str = Form(...),
+    damage_type: str = Form(...),
+    loss_date: str = Form(...),
+    affected_area_acres: float = Form(..., gt=0),
+    damage_percent: float = Form(..., ge=0, le=100),
+    description: str = Form(..., min_length=5, max_length=2000),
+    evidence: UploadFile | None = File(default=None),
+    db: Session = Depends(get_db),
+):
+    farmer = db.get(FarmerProfile, farmer_id)
+    if farmer is None:
+        raise HTTPException(status_code=404, detail="Farmer profile not found")
+    if damage_type not in ALLOWED_DAMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Unsupported damage type")
+    if affected_area_acres > farmer.land_area_acres:
+        raise HTTPException(status_code=400, detail="Affected area cannot exceed the farmer profile area")
+
+    saved_filename = None
+    if evidence is not None:
+        if evidence.content_type not in ALLOWED_IMAGE_TYPES:
+            raise HTTPException(status_code=400, detail="Evidence must be a JPG, PNG, or WebP image")
+        suffix = Path(evidence.filename or "photo.jpg").suffix.lower()
+        if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
+            raise HTTPException(status_code=400, detail="Evidence must be a JPG, PNG, or WebP image")
+        saved_filename = f"loss_{farmer_id}_{uuid4().hex}{suffix}"
+        destination = UPLOAD_DIR / saved_filename
+        contents = await evidence.read()
+        if len(contents) > 8 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Evidence image must be 8 MB or smaller")
+        destination.write_bytes(contents)
+
+    report = CropLossReport(
+        farmer_id=farmer_id,
+        crop=crop,
+        damage_type=damage_type,
+        loss_date=loss_date,
+        affected_area_acres=affected_area_acres,
+        damage_percent=damage_percent,
+        description=description,
+        evidence_filename=saved_filename,
+        status="Submitted",
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    return {
+        "id": report.id,
+        "farmer_id": report.farmer_id,
+        "crop": report.crop,
+        "damage_type": report.damage_type,
+        "loss_date": report.loss_date,
+        "affected_area_acres": report.affected_area_acres,
+        "damage_percent": report.damage_percent,
+        "description": report.description,
+        "evidence_filename": report.evidence_filename,
+        "status": report.status,
+        "submitted_at": report.submitted_at,
+        "next_step": build_next_step(report.status),
+        "disclaimer": "Farmer-reported damage is not an official loss assessment.",
+    }
+
+
+@router.get("/crop-loss")
+def get_crop_loss_reports(farmer_id: int = Query(..., gt=0), db: Session = Depends(get_db)):
+    farmer = db.get(FarmerProfile, farmer_id)
+    if farmer is None:
+        raise HTTPException(status_code=404, detail="Farmer profile not found")
+
+    reports = (
+        db.query(CropLossReport)
+        .filter(CropLossReport.farmer_id == farmer_id)
+        .order_by(CropLossReport.submitted_at.desc())
+        .all()
+    )
+    return {
+        "farmer_id": farmer_id,
+        "reports": [
+            {
+                "id": report.id,
+                "crop": report.crop,
+                "damage_type": report.damage_type,
+                "loss_date": report.loss_date,
+                "affected_area_acres": report.affected_area_acres,
+                "damage_percent": report.damage_percent,
+                "description": report.description,
+                "evidence_filename": report.evidence_filename,
+                "status": report.status,
+                "submitted_at": report.submitted_at,
+                "next_step": build_next_step(report.status),
+            }
+            for report in reports
+        ],
+        "disclaimer": "Farmer-reported damage is not an official loss assessment.",
+    }
