@@ -74,12 +74,38 @@ export type LossReport = {
   next_step: string;
 };
 
+export type HourlyForecastItem = {
+  time: string;
+  temperature_c: number;
+  rain_probability_percent: number;
+  weather_code: number;
+  condition_text: string;
+  icon: string;
+};
+
+export type DailyForecastItem = {
+  date: string;
+  day_name: string;
+  min_temperature_c: number;
+  max_temperature_c: number;
+  rain_probability_percent: number;
+  precipitation_sum_mm: number;
+  weather_code: number;
+  condition_text: string;
+  icon: string;
+  uv_index: number;
+};
+
 export type ClimateData = {
   location: {
     name: string;
+    district?: string;
+    headquarters?: string;
+    telugu_name?: string;
     state?: string | null;
     latitude: number;
     longitude: number;
+    source_type?: string;
   };
   current: {
     time: string;
@@ -90,14 +116,24 @@ export type ClimateData = {
     wind_speed_kmh: number;
     wind_gust_kmh: number;
     weather_code: number;
+    condition_text?: string;
+    icon?: string;
+    cloud_cover_percent?: number;
   };
   today_forecast: {
     date: string;
+    min_temperature_c?: number;
     max_temperature_c: number;
     rain_probability_percent: number;
     precipitation_sum_mm: number;
     max_wind_gust_kmh: number;
+    condition_text?: string;
+    icon?: string;
+    sunrise?: string;
+    sunset?: string;
   };
+  hourly_forecast?: HourlyForecastItem[];
+  daily_forecast?: DailyForecastItem[];
   risk: {
     level: string;
     score: number;

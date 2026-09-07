@@ -18,6 +18,9 @@ import {
   Edit3,
   Building2,
   FlaskConical,
+  MapPin,
+  Clock,
+  Calendar,
 } from "lucide-react";
 import { type Farmer, type ClimateData, type BroadcastAlert, API_BASE } from "../types";
 
@@ -196,21 +199,29 @@ export function Dashboard({
       </div>
 
       {/* 2. Live Weather Station Card */}
-      <div className="mt-8 rounded-3xl border border-slate-200/90 bg-white p-6 sm:p-8 shadow-sm">
+      <div className="mt-8 rounded-3xl border border-slate-200/90 bg-white p-6 sm:p-8 shadow-sm overflow-hidden">
+        {/* Card Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-extrabold uppercase tracking-wider text-sky-700 flex items-center gap-1.5">
                 <CloudRain className="size-4" />
-                Live Telemetry Weather Station
+                Live Meteorological Station
               </span>
               <span className="size-1 rounded-full bg-slate-300"></span>
-              <span className="text-xs font-semibold text-slate-500">
-                Source: Open-Meteo API
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Real-Time Satellite Radar
               </span>
+              {climate?.location && (
+                <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                  <MapPin className="size-3 text-slate-400" />
+                  {climate.location.latitude.toFixed(2)}°N, {climate.location.longitude.toFixed(2)}°E
+                </span>
+              )}
             </div>
 
-            <h2 className="mt-1 text-xl sm:text-2xl font-black text-slate-900">
+            <h2 className="mt-2 text-xl sm:text-2xl font-black text-slate-900">
               {loading
                 ? "Connecting to Weather Radar..."
                 : error
@@ -219,15 +230,17 @@ export function Dashboard({
             </h2>
             <p className="mt-1 text-xs text-slate-500">
               {climate
-                ? `Real-time conditions for ${climate.location.name}, ${farmer.form.state}.`
+                ? `Hyper-local telemetry for ${climate.location.name}, ${farmer.form.state}.`
                 : "Fetching local meteorological metrics..."}
             </p>
           </div>
 
           {!loading && !error && (
-            <span className={`rounded-full px-3.5 py-1.5 text-xs font-black border self-start sm:self-auto ${riskBadge.bg}`}>
-              {riskBadge.label}
-            </span>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className={`rounded-full px-3.5 py-1.5 text-xs font-black border ${riskBadge.bg}`}>
+                {riskBadge.label}
+              </span>
+            </div>
           )}
         </div>
 
@@ -247,13 +260,137 @@ export function Dashboard({
 
         {climate && !loading && !error && (
           <div className="mt-6 space-y-6">
+            {/* Google Weather Style Primary Banner */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 p-6 sm:p-7 text-white shadow-md">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none -mr-16 -mt-16" />
+              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-sky-100 uppercase tracking-wider mb-1">
+                    <span>Current Observation</span>
+                    <span>•</span>
+                    <span>{climate.current.time ? new Date(climate.current.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Live'}</span>
+                  </div>
+                  <div className="flex items-baseline gap-4">
+                    <span className="text-5xl sm:text-6xl font-black tracking-tight">
+                      {climate.current.temperature_c}°C
+                    </span>
+                    <span className="text-3xl sm:text-4xl" title={climate.current.condition_text || "Weather"}>
+                      {climate.current.icon || "⛅"}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-lg font-bold text-sky-100 flex items-center gap-2">
+                    <span>{climate.current.condition_text || "Fair Weather"}</span>
+                    <span className="text-sm font-normal text-sky-200">
+                      (Feels like {climate.current.apparent_temperature_c}°C)
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs text-sky-100 font-medium flex items-center gap-3">
+                    {climate.today_forecast.min_temperature_c !== undefined && (
+                      <span>Min: <strong className="text-white">{climate.today_forecast.min_temperature_c}°C</strong></span>
+                    )}
+                    <span>Max: <strong className="text-white">{climate.today_forecast.max_temperature_c}°C</strong></span>
+                    <span>•</span>
+                    <span>Rain Chance: <strong className="text-white">{climate.today_forecast.rain_probability_percent}%</strong></span>
+                  </div>
+                </div>
+
+                <div className="sm:text-right flex flex-col sm:items-end justify-center border-t sm:border-t-0 border-white/20 pt-4 sm:pt-0">
+                  <div className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-xs px-3 py-1.5 rounded-xl text-xs font-bold border border-white/20">
+                    <MapPin className="size-3.5 text-sky-200" />
+                    <span>{climate.location.name}</span>
+                  </div>
+                  <div className="mt-2 text-xs text-sky-200 space-y-0.5">
+                    <p>Humidity: <strong className="text-white">{climate.current.humidity_percent}%</strong></p>
+                    <p>Wind: <strong className="text-white">{climate.current.wind_speed_kmh} km/h</strong></p>
+                    {climate.today_forecast.sunrise && (
+                      <p className="text-[11px] opacity-80">
+                        Sunrise {new Date(climate.today_forecast.sunrise).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Sunset {new Date(climate.today_forecast.sunset || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Next 12 Hours Forecast Strip (Google Weather Style) */}
+            {climate.hourly_forecast && climate.hourly_forecast.length > 0 && (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <div className="flex items-center justify-between mb-3 text-xs font-bold text-slate-700">
+                  <span className="flex items-center gap-1.5 text-slate-900">
+                    <Clock className="size-3.5 text-sky-600" />
+                    Hourly Forecast (Next 12 Hours)
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-medium">Scroll horizontally →</span>
+                </div>
+                <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
+                  {climate.hourly_forecast.map((h, idx) => (
+                    <div
+                      key={idx}
+                      className="shrink-0 w-20 flex flex-col items-center justify-between p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs text-center transition hover:border-sky-300 hover:shadow-xs"
+                    >
+                      <span className="text-[11px] font-bold text-slate-600">{idx === 0 ? "Now" : h.time}</span>
+                      <span className="text-2xl my-1.5" title={h.condition_text}>
+                        {h.icon}
+                      </span>
+                      <span className="text-xs font-black text-slate-900">{h.temperature_c}°</span>
+                      {h.rain_probability_percent > 0 ? (
+                        <span className="mt-1 text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded-full">
+                          💧{h.rain_probability_percent}%
+                        </span>
+                      ) : (
+                        <span className="mt-1 text-[10px] text-slate-400">0%</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 3-Day Forecast Cards */}
+            {climate.daily_forecast && climate.daily_forecast.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 mb-3">
+                  <Calendar className="size-3.5 text-indigo-600" />
+                  3-Day Outlook & Rainfall Probability
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {climate.daily_forecast.map((day, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs hover:shadow-xs transition flex flex-col justify-between"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="text-xs font-black text-slate-900 block">{day.day_name}</span>
+                          <span className="text-[11px] text-slate-500">{day.date}</span>
+                        </div>
+                        <span className="text-2xl" title={day.condition_text}>{day.icon}</span>
+                      </div>
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-slate-600 font-semibold">{day.condition_text}</span>
+                          <span className="font-black text-slate-900">
+                            {day.min_temperature_c}° - {day.max_temperature_c}°C
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50/80 px-2.5 py-1 rounded-lg">
+                          <span>Rain Chance: <strong>{day.rain_probability_percent}%</strong></span>
+                          <span>Precip: <strong>{day.precipitation_sum_mm} mm</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Metric Tiles Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               <MetricTile
                 icon={<Thermometer className="size-4 text-amber-500" />}
                 label="Temperature"
-                value={`${climate.current.temperature_c}\u00B0C`}
-                sub={`Feels ${climate.current.apparent_temperature_c}\u00B0C`}
+                value={`${climate.current.temperature_c}°C`}
+                sub={`Feels ${climate.current.apparent_temperature_c}°C`}
               />
               <MetricTile
                 icon={<CloudRain className="size-4 text-sky-500" />}
