@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.conversation_memory import add_exchange, get_history
 from app.llm_assistant import build_llm_reply
 
 
@@ -99,6 +100,7 @@ def build_assistant_reply(
     benefits: dict | None,
 ) -> dict:
     lang = _language_name(language)
+    history = get_history(farmer.id)
 
     answer = build_llm_reply(
         question=question,
@@ -107,6 +109,7 @@ def build_assistant_reply(
         climate=climate,
         schemes=schemes,
         benefits=benefits,
+        history=history,
     )
 
     llm_used = answer is not None
@@ -120,6 +123,8 @@ def build_assistant_reply(
             schemes=schemes,
             benefits=benefits,
         )
+
+    add_exchange(farmer.id, question, answer)
 
     return {
         "language": lang,
@@ -137,6 +142,7 @@ def build_assistant_reply(
             "scheme_count": len(schemes),
             "benefits_used": benefits is not None,
             "llm_used": llm_used,
+            "conversation_memory_used": bool(history),
         },
         "disclaimer": "Assistant guidance is informational. Verify important weather, scheme, insurance, and benefit decisions with the relevant official authority.",
     }
