@@ -1,4 +1,12 @@
-export const API_BASE = "http://localhost:8000/api/v1";
+const getApiBase = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === "string" && envUrl.trim()) {
+    return `${envUrl.trim().replace(/\/+$/, "")}/api/v1`;
+  }
+  return "http://localhost:8000/api/v1";
+};
+
+export const API_BASE = getApiBase();
 
 export type Page = "home" | "onboarding" | "dashboard" | "schemes" | "benefits" | "loss" | "doctor" | "admin" | "mandi" | "fertilizer";
 
