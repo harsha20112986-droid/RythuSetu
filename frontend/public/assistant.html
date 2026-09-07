@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RythuSetu Krishi Assistant</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1c1917;background:#fafaf9}
+    *{box-sizing:border-box}body{margin:0;background:#fafaf9}.app{min-height:100vh;display:flex;flex-direction:column}.top{padding:18px 18px 14px;background:#14532d;color:#fff}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#bbf7d0}.title{margin:6px 0 4px;font-size:23px;font-weight:900}.sub{font-size:12px;color:#dcfce7}.controls{display:flex;gap:8px;margin-top:14px}.lang{border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;border-radius:10px;padding:7px 10px;font-weight:700;cursor:pointer}.lang.active{background:#fff;color:#14532d}.context{padding:12px 18px;background:#ecfdf5;border-bottom:1px solid #d1fae5;color:#166534;font-size:12px}.messages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:10px}.msg{max-width:88%;padding:11px 13px;border-radius:16px;font-size:13px;line-height:1.55;white-space:pre-wrap}.assistant{align-self:flex-start;background:#fff;border:1px solid #e7e5e4}.user{align-self:flex-end;background:#166534;color:#fff}.chips{display:flex;flex-wrap:wrap;gap:7px;padding:0 16px 12px}.chip{border:1px solid #d6d3d1;background:#fff;border-radius:999px;padding:8px 11px;font-size:11px;font-weight:700;color:#44403c;cursor:pointer}.composer{padding:12px 14px 14px;background:#fff;border-top:1px solid #e7e5e4}.row{display:flex;gap:8px}.input{flex:1;min-width:0;border:1px solid #d6d3d1;border-radius:14px;padding:11px 13px;font:inherit;outline:none}.input:focus{border-color:#16a34a;box-shadow:0 0 0 3px #dcfce7}.send{border:0;border-radius:14px;padding:0 15px;background:#15803d;color:#fff;font-weight:800;cursor:pointer}.send:disabled{opacity:.55;cursor:default}.fine{margin-top:8px;font-size:10px;line-height:1.4;color:#78716c}.error{padding:8px 0;color:#b91c1c;font-size:11px}
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="eyebrow">RythuSetu</div>
+    <div class="title">Krishi Assistant</div>
+    <div class="sub">Farmer-focused help using your saved profile and live RythuSetu context.</div>
+    <div class="controls" id="langs">
+      <button class="lang active" data-lang="English">English</button>
+      <button class="lang" data-lang="Telugu">తెలుగు</button>
+      <button class="lang" data-lang="Hindi">हिन्दी</button>
+    </div>
+  </div>
+  <div class="context" id="context">Loading farmer profile…</div>
+  <div class="messages" id="messages"></div>
+  <div class="chips" id="chips">
+    <button class="chip" data-q="What is my weather risk today?">Weather risk</button>
+    <button class="chip" data-q="Which schemes match my farm?">Find schemes</button>
+    <button class="chip" data-q="How much support could I get?">Estimate support</button>
+    <button class="chip" data-q="How do I report crop loss?">Report crop loss</button>
+  </div>
+  <div class="composer">
+    <div id="error" class="error"></div>
+    <div class="row">
+      <input id="input" class="input" placeholder="Ask about weather, schemes, benefits, or crop loss…" maxlength="500">
+      <button id="send" class="send">Ask</button>
+    </div>
+    <div class="fine">Guidance is informational. Verify important weather, scheme, insurance, and benefit decisions with the relevant official authority.</div>
+  </div>
+</div>
+<script>
+const API = '/api/v1';
+let language = 'English';
+let farmerId = null;
+const messages = document.getElementById('messages');
+const input = document.getElementById('input');
+const send = document.getElementById('send');
+const errorBox = document.getElementById('error');
+const context = document.getElementById('context');
+
+function addMessage(text, role){
+  const el=document.createElement('div');
+  el.className='msg '+role;
+  el.textContent=text;
+  messages.appendChild(el);
+  messages.scrollTop=messages.scrollHeight;
+}
+
+function getFarmer(){
+  try{
+    const raw=localStorage.getItem('rythusetu_farmer');
+    if(!raw) return null;
+    const data=JSON.parse(raw);
+    if(!data || !data.id || !data.form) return null;
+    return data;
+  }catch{return null}
+}
+
+function setLanguage(next){
+  language=next;
+  document.querySelectorAll('.lang').forEach(btn=>btn.classList.toggle('active',btn.dataset.lang===next));
+  input.placeholder= next==='Telugu' ? 'వాతావరణం, పథకాలు లేదా పంట నష్టం గురించి అడగండి…' : next==='Hindi' ? 'मौसम, योजनाओं या फसल नुकसान के बारे में पूछें…' : 'Ask about weather, schemes, benefits, or crop loss…';
+}
+
+async function ask(question){
+  const q=question.trim();
+  if(!q || !farmerId) return;
+  errorBox.textContent=''; addMessage(q,'user'); input.value=''; send.disabled=true;
+  try{
+    const response=await fetch(`${API}/assistant/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({farmer_id:farmerId,question:q,language})});
+    const body=await response.json().catch(()=>null);
+    if(!response.ok) throw new Error(body?.detail||'Assistant request failed');
+    addMessage(body.answer||'No answer returned.','assistant');
+  }catch(err){errorBox.textContent=err instanceof Error?err.message:'Unable to reach the assistant.';}
+  finally{send.disabled=false;input.focus();}
+}
+
+document.querySelectorAll('.lang').forEach(btn=>btn.addEventListener('click',()=>setLanguage(btn.dataset.lang)));
+document.querySelectorAll('.chip').forEach(btn=>btn.addEventListener('click',()=>ask(btn.dataset.q)));
+send.addEventListener('click',()=>ask(input.value));
+input.addEventListener('keydown',e=>{if(e.key==='Enter') ask(input.value)});
+
+const farmer=getFarmer();
+if(farmer){
+  farmerId=farmer.id;
+  const f=farmer.form;
+  context.textContent=`${f.name} · ${f.crop} · ${f.season} · ${f.land_area_acres} acres · ${f.district}, ${f.state}`;
+  addMessage(`Namaste ${f.name}! I’m your RythuSetu Krishi Assistant. Ask me about weather, schemes, estimated support, or crop-loss reporting.`,'assistant');
+}else{
+  context.textContent='No saved farmer profile found. Return to RythuSetu and complete onboarding first.';
+  send.disabled=true;
+  addMessage('Please complete your farmer profile first so the assistant can personalize its guidance.','assistant');
+}
+</script>
+</body>
+</html>
