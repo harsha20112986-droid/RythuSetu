@@ -1,4 +1,4 @@
-import { useState, useMemo, type FormEvent } from "react";
+import { useState, useMemo, useEffect, type FormEvent } from "react";
 import {
   MapPin,
   Sprout,
@@ -20,8 +20,11 @@ import {
   getDistrictsForState,
   getMandalsForDistrict,
   getVillagesForMandal,
+  fetchOfficialVillages,
   type CropCategory,
   type CropItem,
+  type VillageInfo,
+  API_BASE,
 } from "../types";
 
 const CROP_CATEGORIES: CropCategory[] = [
@@ -72,9 +75,52 @@ export function Onboarding({
     return getVillagesForMandal(form.state, form.district, form.mandal);
   }, [form.state, form.district, form.mandal]);
 
+  const [officialVillages, setOfficialVillages] = useState<VillageInfo[]>([]);
+  const [loadingVillages, setLoadingVillages] = useState(false);
+  const [villageSearch, setVillageSearch] = useState("");
+
+  useEffect(() => {
+    if (!form.state || !form.district || !form.mandal) {
+      setOfficialVillages([]);
+      return;
+    }
+    let active = true;
+    setLoadingVillages(true);
+    fetchOfficialVillages(API_BASE, form.state, form.district, form.mandal)
+      .then((items) => {
+        if (active) {
+          setOfficialVillages(items);
+          setLoadingVillages(false);
+        }
+      })
+      .catch(() => {
+        if (active) setLoadingVillages(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [form.state, form.district, form.mandal]);
+
+  const displayVillages: VillageInfo[] = useMemo(() => {
+    if (officialVillages.length > 0) return officialVillages;
+    return availableVillages.map((v) => ({ village: v, native: "", pincode: "", code: "" }));
+  }, [officialVillages, availableVillages]);
+
+  const filteredVillages = useMemo(() => {
+    const q = villageSearch.trim().toLowerCase();
+    if (!q) return displayVillages;
+    return displayVillages.filter((v) => {
+      return (
+        v.village.toLowerCase().includes(q) ||
+        (v.native && v.native.toLowerCase().includes(q)) ||
+        (v.pincode && v.pincode.includes(q))
+      );
+    });
+  }, [displayVillages, villageSearch]);
+
   // Is current mandal or village a custom write-in?
   const isCustomMandal = Boolean(form.mandal && !availableMandals.includes(form.mandal));
-  const isCustomVillage = Boolean(form.village && !availableVillages.includes(form.village));
+  const isCustomVillage = Boolean(form.village && !displayVillages.some((v) => v.village === form.village));
 
   const [showCustomMandalInput, setShowCustomMandalInput] = useState(isCustomMandal);
   const [showCustomVillageInput, setShowCustomVillageInput] = useState(isCustomVillage);
@@ -349,7 +395,14 @@ export function Onboarding({
               <div>
                 <label className="block">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-slate-700">Village / Grama (Optional)</span>
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <span>Village / Grama</span>
+                      {loadingVillages && (
+                        <span className="text-[10px] text-emerald-600 font-semibold animate-pulse">
+                          (Loading LGD...)
+                        </span>
+                      )}
+                    </span>
                     {!showCustomVillageInput && (
                       <button
                         type="button"
@@ -360,45 +413,92 @@ export function Onboarding({
                       </button>
                     )}
                   </div>
-                  {!showCustomVillageInput && availableVillages.length > 0 ? (
-                    <select
-                      value={form.village}
-                      onChange={(e) => handleVillageChange(e.target.value)}
-                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition cursor-pointer"
-                    >
-                      <option value="">-- Select Village --</option>
-                      {availableVillages.map((v) => (
-                        <option key={v} value={v}>
-                          {v}
-                        </option>
-                      ))}
-                      <option value="__custom__">+ Other / Enter Custom Village</option>
-                    </select>
+                  {!showCustomVillageInput ? (
+                    <div className="space-y-2">
+                      {displayVillages.length > 8 && (
+                        <div className="relative">
+                          <Search className="size-3.5 absolute left-3 top-2.5 text-slate-400" />
+                          <input
+                            type="text"
+                            value={villageSearch}
+                            onChange={(e) => setVillageSearch(e.target.value)}
+                            placeholder={`Search ${displayVillages.length} villages (English / తెలుగు / PIN)...`}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-emerald-600 focus:bg-white transition"
+                          />
+                        </div>
+                      )}
+
+                      <select
+                        value={form.village}
+                        onChange={(e) => handleVillageChange(e.target.value)}
+                        className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition cursor-pointer"
+                      >
+                        <option value="">-- Select Village ({filteredVillages.length} available) --</option>
+                        {filteredVillages.map((v) => (
+                          <option key={`${v.village}_${v.code}`} value={v.village}>
+                            {v.village}{v.native ? ` (${v.native})` : ""}{v.pincode ? ` • PIN: ${v.pincode}` : ""}{v.code ? ` • LGD: ${v.code}` : ""}
+                          </option>
+                        ))}
+                        <option value="__custom__">+ Other / Enter Custom Village</option>
+                      </select>
+                    </div>
                   ) : (
                     <div className="space-y-1.5">
                       <input
                         type="text"
                         value={form.village}
                         onChange={(e) => update("village", e.target.value)}
-                        placeholder="Type your Village or Grama"
-                        className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition"
+                        placeholder="Type your Village, Thanda, or Habitation"
+                        className="w-full rounded-2xl border border-emerald-600 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:ring-4 focus:ring-emerald-100 transition"
                       />
-                      {availableVillages.length > 0 && (
+                      {displayVillages.length > 0 && (
                         <button
                           type="button"
                           onClick={() => {
                             setShowCustomVillageInput(false);
-                            if (availableVillages[0]) update("village", availableVillages[0]);
+                            if (displayVillages[0]) update("village", displayVillages[0].village);
                           }}
                           className="text-[11px] text-slate-500 hover:text-emerald-700 cursor-pointer"
                         >
-                          ← Choose from official village list
+                          ← Choose from official LGD village list ({displayVillages.length})
                         </button>
                       )}
                     </div>
                   )}
                 </label>
               </div>
+            </div>
+
+            {/* LGD Official Hierarchy Status Banner */}
+            <div className="mt-4 rounded-2xl bg-emerald-50/90 border border-emerald-200 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-700 text-white px-2.5 py-0.5 rounded-full shadow-2xs">
+                  🏛️ Official Govt LGD
+                </span>
+                <span className="text-emerald-950 font-bold text-[11px] sm:text-xs">
+                  {form.state} ({availableDistricts.length} Districts) ➔ {form.district} ({availableMandals.length} Mandals) ➔ {form.mandal} ({displayVillages.length} Villages)
+                </span>
+              </div>
+
+              {form.village && (
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-emerald-900">
+                  {displayVillages.find((v) => v.village === form.village)?.native && (
+                    <span className="bg-white px-2.5 py-0.5 rounded-lg border border-emerald-300 shadow-2xs">
+                      తెలుగు: {displayVillages.find((v) => v.village === form.village)?.native}
+                    </span>
+                  )}
+                  {displayVillages.find((v) => v.village === form.village)?.pincode && (
+                    <span className="bg-white px-2.5 py-0.5 rounded-lg border border-emerald-300 shadow-2xs">
+                      PIN: {displayVillages.find((v) => v.village === form.village)?.pincode}
+                    </span>
+                  )}
+                  {displayVillages.find((v) => v.village === form.village)?.code && (
+                    <span className="bg-white px-2.5 py-0.5 rounded-lg border border-emerald-300 shadow-2xs">
+                      LGD Code: {displayVillages.find((v) => v.village === form.village)?.code}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

@@ -163,8 +163,10 @@ export {
   getDistrictsForState,
   getMandalsForDistrict,
   getVillagesForMandal,
+  fetchOfficialVillages,
   type CropItem,
   type CropCategory,
+  type VillageInfo,
 } from "./regionalData";
 
 import { EXHAUSTIVE_CROPS, ALL_STATES, getDistrictsForState } from "./regionalData";

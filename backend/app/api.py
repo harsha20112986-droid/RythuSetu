@@ -688,3 +688,62 @@ def generate_delivery_pass(payload: FactoryDeliveryPassRequest):
         quantity_qtl=payload.quantity_qtl,
         delivery_date=payload.delivery_date,
     )
+
+
+# -------------------------------------------------------------
+# 5. Local Government Directory (LGD) Official Location APIs
+# -------------------------------------------------------------
+from app.location_engine import (
+    get_states as lgd_get_states,
+    get_districts as lgd_get_districts,
+    get_mandals as lgd_get_mandals,
+    get_villages as lgd_get_villages,
+    search_locations as lgd_search_locations,
+    get_location_stats as lgd_get_stats
+)
+
+@router.get("/locations/states")
+def api_list_states():
+    """Lists all official states from LGD."""
+    return {"states": lgd_get_states()}
+
+@router.get("/locations/districts")
+def api_list_districts(state: str = Query(..., min_length=1)):
+    """Lists all official districts for a state."""
+    return {"state": state, "districts": lgd_get_districts(state)}
+
+@router.get("/locations/mandals")
+def api_list_mandals(state: str = Query(..., min_length=1), district: str = Query(..., min_length=1)):
+    """Lists all official mandals for a district."""
+    return {
+        "state": state,
+        "district": district,
+        "mandals": lgd_get_mandals(state, district)
+    }
+
+@router.get("/locations/villages")
+def api_list_villages(
+    state: str = Query(..., min_length=1),
+    district: str = Query(..., min_length=1),
+    mandal: str = Query(..., min_length=1)
+):
+    """Lists all official villages for a mandal with native name, pincode, and LGD code."""
+    return {
+        "state": state,
+        "district": district,
+        "mandal": mandal,
+        "villages": lgd_get_villages(state, district, mandal)
+    }
+
+@router.get("/locations/search")
+def api_search_locations(q: str = Query(..., min_length=1), state: str = ""):
+    """Live search across villages, mandals, and pincodes."""
+    return {
+        "query": q,
+        "results": lgd_search_locations(q, state=state if state else None)
+    }
+
+@router.get("/locations/stats")
+def api_location_stats():
+    """Returns total counts of districts, mandals, and villages in LGD."""
+    return lgd_get_stats()
