@@ -98,8 +98,30 @@ class AssistantRequest(BaseModel):
 
 @router.post("/farmers", response_model=FarmerProfileResponse, status_code=201)
 def create_farmer_profile(payload: FarmerProfileCreate, db: Session = Depends(get_db)):
-    farmer = FarmerProfile(**payload.model_dump())
+    data = payload.model_dump()
+    if not data.get("mandal"):
+        data["mandal"] = data.get("district", "General")
+    if not data.get("village"):
+        data["village"] = data.get("district", "General")
+    farmer = FarmerProfile(**data)
     db.add(farmer)
+    db.commit()
+    db.refresh(farmer)
+    return farmer
+
+
+@router.put("/farmers/{farmer_id}", response_model=FarmerProfileResponse)
+def update_farmer_profile(farmer_id: int, payload: FarmerProfileCreate, db: Session = Depends(get_db)):
+    farmer = db.get(FarmerProfile, farmer_id)
+    if farmer is None:
+        raise HTTPException(status_code=404, detail="Farmer profile not found")
+    data = payload.model_dump()
+    if not data.get("mandal"):
+        data["mandal"] = data.get("district", "General")
+    if not data.get("village"):
+        data["village"] = data.get("district", "General")
+    for key, value in data.items():
+        setattr(farmer, key, value)
     db.commit()
     db.refresh(farmer)
     return farmer
@@ -111,6 +133,7 @@ def get_farmer_profile(farmer_id: int, db: Session = Depends(get_db)):
     if farmer is None:
         raise HTTPException(status_code=404, detail="Farmer profile not found")
     return farmer
+
 
 
 @router.get("/schemes")

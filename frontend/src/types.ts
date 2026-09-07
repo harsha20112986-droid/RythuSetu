@@ -272,6 +272,7 @@ export type AuthUser = {
   designation?: string;
   district?: string;
   state?: string;
+  farmer_profile_id?: number | null;
 };
 
 export type AdminStats = {

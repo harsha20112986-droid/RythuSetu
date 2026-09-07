@@ -1,31 +1,34 @@
 import { type FormEvent } from "react";
-import { Sparkles, MapPin, Sprout, AlertTriangle, ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { MapPin, Sprout, AlertTriangle, ArrowLeft, ArrowRight, Check, UserCheck, ShieldAlert } from "lucide-react";
 import {
   type FormState,
-  type Farmer,
+  type AuthUser,
   states,
   districts,
   cropOptions,
   seasons,
-  REGIONAL_PROFILES,
 } from "../types";
 
 export function Onboarding({
   form,
-    saving,
+  saving,
   error,
   update,
   onSubmit,
   onBack,
-  onSelectPreset,
+  currentUser,
+  isEditing,
+  onOpenLogin,
 }: {
   form: FormState;
-    saving: boolean;
+  saving: boolean;
   error: string;
   update: (field: keyof FormState, value: string) => void;
   onSubmit: (e: FormEvent) => void;
   onBack: () => void;
-  onSelectPreset: (f: Farmer) => void;
+  currentUser?: AuthUser | null;
+  isEditing?: boolean;
+  onOpenLogin?: () => void;
 }) {
   return (
     <section className="mx-auto max-w-3xl px-5 py-10 lg:px-8 lg:py-14">
@@ -39,13 +42,21 @@ export function Onboarding({
           <span>Back</span>
         </button>
 
-        <button
-          onClick={() => onSelectPreset(REGIONAL_PROFILES[0].farmer)}
-          className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/90 px-3.5 py-1.5 rounded-2xl transition cursor-pointer shadow-2xs"
-        >
-          <Sparkles className="size-3.5 text-amber-600" />
-          <span>Autofill Telangana Smallholder Standards</span>
-        </button>
+        {currentUser ? (
+          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/90 px-3.5 py-1.5 rounded-2xl shadow-2xs">
+            <UserCheck className="size-3.5 text-emerald-600" />
+            <span>Registered Farmer: {currentUser.name}</span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenLogin}
+            className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/90 px-3.5 py-1.5 rounded-2xl transition cursor-pointer shadow-2xs"
+          >
+            <ShieldAlert className="size-3.5 text-amber-600" />
+            <span>Sign In / Register Required</span>
+          </button>
+        )}
       </div>
 
       <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm sm:p-9">
@@ -55,10 +66,10 @@ export function Onboarding({
           </div>
           <div>
             <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-700">
-              Farmer Profile Setup
+              {isEditing ? "Update Farm Profile" : "Farmer Profile Setup"}
             </p>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900">
-              Tell us about your farm
+              {isEditing ? "Update your farm details" : "Tell us about your farm"}
             </h1>
           </div>
         </div>
@@ -66,6 +77,22 @@ export function Onboarding({
         <p className="mt-3 text-sm leading-relaxed text-slate-600">
           Your profile allows RythuSetu to accurately map your local weather conditions, match eligible state and central schemes, and compute estimated financial assistance.
         </p>
+
+        {!currentUser && (
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="size-4 text-amber-600 shrink-0" />
+              <span>Registration Required: Please sign in or register an account to setup and save your farm profile.</span>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenLogin}
+              className="shrink-0 px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+            >
+              Sign In / Register
+            </button>
+          </div>
+        )}
 
         <form onSubmit={onSubmit} className="mt-8 space-y-7">
           {/* Farmer Name & Language */}
@@ -76,7 +103,7 @@ export function Onboarding({
                 type="text"
                 value={form.name}
                 onChange={(e) => update("name", e.target.value)}
-                placeholder="e.g. Kishan Rao"
+                placeholder="e.g. Krishna Rao"
                 required
                 className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition"
               />
@@ -245,6 +272,7 @@ export function Onboarding({
                   max="100"
                   value={form.land_area_acres}
                   onChange={(e) => update("land_area_acres", e.target.value)}
+                  placeholder="e.g. 3.5"
                   required
                   className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition"
                 />
@@ -292,7 +320,7 @@ export function Onboarding({
                 <span>Saving Profile & Fetching Telemetry...</span>
               ) : (
                 <>
-                  <span>Save Profile & Open Dashboard</span>
+                  <span>{isEditing ? "Update Profile & Open Dashboard" : "Save Profile & Open Dashboard"}</span>
                   <ArrowRight className="size-4" />
                 </>
               )}

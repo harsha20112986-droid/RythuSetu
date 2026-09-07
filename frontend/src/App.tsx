@@ -27,20 +27,23 @@ export function App() {
   const [page, setPage] = useState<Page>("home");
   const [farmer, setFarmer] = useState<Farmer | null>(null);
   const [form, setForm] = useState<FormState>({
-    name: "Kishan Rao",
+    name: "",
     language: "English",
     state: "Telangana",
     district: "Warangal",
-    mandal: "Narsampet",
-    village: "Chennaraopet",
+    mandal: "",
+    village: "",
     crop: "Cotton",
     season: "Kharif",
-    land_area_acres: "3.5",
+    land_area_acres: "",
   });
 
   // Role authentication state
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginModalNotice, setLoginModalNotice] = useState<string>("");
+  const [loginModalTab, setLoginModalTab] = useState<"login" | "register">("login");
+  const [pendingTargetPage, setPendingTargetPage] = useState<Page | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -124,18 +127,57 @@ export function App() {
     setPage("dashboard");
   };
 
+  const handleRequestFarmProfile = () => {
+    if (!currentUser) {
+      setLoginModalNotice("Please register or sign in first to set up your farm profile.");
+      setLoginModalTab("register");
+      setPendingTargetPage("onboarding");
+      setLoginModalOpen(true);
+      return;
+    }
+
+    if (currentUser.role === "admin") {
+      setPage("admin");
+      return;
+    }
+
+    setPage("onboarding");
+  };
+
   const handleLoginSuccess = (user: AuthUser, farmerProfile?: Farmer) => {
     setCurrentUser(user);
+    setLoginModalNotice("");
+
     if (farmerProfile) {
       setFarmer(farmerProfile);
       setForm(farmerProfile.form);
       setAssistantLanguage(farmerProfile.form.language || "English");
+    } else {
+      // For a newly registered farmer who has not set up their farm yet,
+      // populate their registered name and state/district while keeping
+      // mandal, village, and land area empty so placeholders are visible.
+      setForm((prev) => ({
+        ...prev,
+        name: user.name || prev.name,
+        state: user.state || prev.state,
+        district: user.district || prev.district,
+      }));
     }
+
     if (user.role === "admin") {
       setPage("admin");
+    } else if (farmerProfile) {
+      if (pendingTargetPage && pendingTargetPage !== "onboarding") {
+        setPage(pendingTargetPage);
+      } else {
+        setPage("dashboard");
+      }
     } else {
-      setPage("dashboard");
+      // Newly registered farmer: open Farm Profile Setup directly!
+      setPage("onboarding");
     }
+
+    setPendingTargetPage(null);
   };
 
   const handleLogout = () => {
@@ -147,16 +189,28 @@ export function App() {
 
   const saveProfile = async (event: FormEvent) => {
     event.preventDefault();
+    if (!currentUser) {
+      setLoginModalNotice("Please register or sign in first to save your farm profile.");
+      setLoginModalTab("register");
+      setPendingTargetPage("onboarding");
+      setLoginModalOpen(true);
+      return;
+    }
+
     setSaving(true);
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE}/farmers`, {
-        method: "POST",
+      const isUpdate = Boolean(farmer?.id);
+      const url = isUpdate ? `${API_BASE}/farmers/${farmer!.id}` : `${API_BASE}/farmers`;
+      const method = isUpdate ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          land_area_acres: Number(form.land_area_acres),
+          land_area_acres: Number(form.land_area_acres) || 1.0,
         }),
       });
 
@@ -177,6 +231,17 @@ export function App() {
 
       setFarmer(saved);
       localStorage.setItem("rythusetu_farmer", JSON.stringify(saved));
+
+      // Link farmer_profile_id to currentUser if not yet linked
+      if (currentUser && !currentUser.farmer_profile_id) {
+        const updatedUser: AuthUser = {
+          ...currentUser,
+          farmer_profile_id: body.id,
+        };
+        setCurrentUser(updatedUser);
+        localStorage.setItem("rythusetu_user", JSON.stringify(updatedUser));
+      }
+
       setPage("dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save profile");
@@ -186,6 +251,20 @@ export function App() {
   };
 
   const handleNavigate = (targetPage: "schemes" | "benefits" | "loss") => {
+    if (!currentUser) {
+      const label =
+        targetPage === "loss"
+          ? "PMFBY Crop Loss Claims"
+          : targetPage === "schemes"
+            ? "Government Scheme Finder"
+            : "Financial Benefit Estimator";
+      setLoginModalNotice(`Please register or sign in first to access ${label}.`);
+      setLoginModalTab("register");
+      setPendingTargetPage(targetPage);
+      setLoginModalOpen(true);
+      return;
+    }
+
     if (farmer) {
       setPage(targetPage);
     } else {
@@ -251,8 +330,13 @@ export function App() {
         setLanguage={setAssistantLanguage}
         onOpenIvr={() => setIvrOpen(true)}
         currentUser={currentUser}
-        onOpenLogin={() => setLoginModalOpen(true)}
+        onOpenLogin={() => {
+          setLoginModalNotice("");
+          setLoginModalTab("login");
+          setLoginModalOpen(true);
+        }}
         onLogout={handleLogout}
+        onRequestFarmProfile={handleRequestFarmProfile}
       />
 
       <div className="flex-1 pb-16">
@@ -268,7 +352,7 @@ export function App() {
         {page === "home" && (
           <Home
             farmer={farmer}
-            onStart={() => setPage("onboarding")}
+            onStart={handleRequestFarmProfile}
             onDashboard={() => setPage("dashboard")}
             onSelectPreset={handleSelectPreset}
             onNavigate={handleNavigate}
@@ -283,7 +367,14 @@ export function App() {
             update={update}
             onSubmit={saveProfile}
             onBack={() => setPage(farmer ? "dashboard" : "home")}
-            onSelectPreset={handleSelectPreset}
+            currentUser={currentUser}
+            isEditing={Boolean(farmer?.id)}
+            onOpenLogin={() => {
+              setLoginModalNotice("Please register or sign in first to set up your farm profile.");
+              setLoginModalTab("register");
+              setPendingTargetPage("onboarding");
+              setLoginModalOpen(true);
+            }}
           />
         )}
 
@@ -365,8 +456,13 @@ export function App() {
       {/* Login & Registration Modal */}
       <LoginModal
         open={loginModalOpen}
-        onClose={() => setLoginModalOpen(false)}
+        onClose={() => {
+          setLoginModalOpen(false);
+          setLoginModalNotice("");
+        }}
         onLoginSuccess={handleLoginSuccess}
+        notice={loginModalNotice}
+        initialTab={loginModalTab}
       />
 
       {/* Footer */}

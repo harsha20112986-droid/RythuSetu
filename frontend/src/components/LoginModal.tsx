@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Lock, User, ShieldCheck, ArrowRight, X, AlertCircle, UserPlus, LogIn } from "lucide-react";
 import { type AuthUser, type Farmer, API_BASE } from "../types";
 
@@ -6,12 +6,22 @@ export function LoginModal({
   open,
   onClose,
   onLoginSuccess,
+  notice,
+  initialTab = "login",
 }: {
   open: boolean;
   onClose: () => void;
   onLoginSuccess: (user: AuthUser, farmerProfile?: Farmer) => void;
+  notice?: string;
+  initialTab?: "login" | "register";
 }) {
-  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
+  const [activeTab, setActiveTab] = useState<"login" | "register">(initialTab);
+
+  useEffect(() => {
+    if (open && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [open, initialTab]);
   
   // Sign In state
   const [username, setUsername] = useState("");
@@ -27,7 +37,7 @@ export function LoginModal({
   const [regVillage, setRegVillage] = useState("");
   const [regCrop, setRegCrop] = useState("Cotton");
   const [regSeason] = useState("Kharif");
-  const [regAcres, setRegAcres] = useState("3.0");
+  const [regAcres, setRegAcres] = useState("");
   const [regPhone, setRegPhone] = useState("");
   const [regPassword, setRegPassword] = useState("");
 
@@ -206,6 +216,13 @@ export function LoginModal({
         </div>
 
         <div className="p-6">
+          {notice && (
+            <div className="mb-4 flex items-center gap-2.5 rounded-2xl bg-amber-50 p-3.5 border border-amber-200 text-amber-900 text-xs font-semibold">
+              <AlertCircle className="size-4 text-amber-600 shrink-0" />
+              <span>{notice}</span>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 flex items-center gap-2 rounded-xl bg-red-50 p-3 border border-red-200 text-red-700 text-xs font-semibold">
               <AlertCircle className="size-4 shrink-0" />
@@ -294,7 +311,7 @@ export function LoginModal({
                     required
                     value={regName}
                     onChange={(e) => setRegName(e.target.value)}
-                    placeholder="Your legal name"
+                    placeholder="e.g. Krishna Rao"
                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
@@ -417,9 +434,10 @@ export function LoginModal({
                       <input
                         type="number"
                         step="0.1"
-                        min="0.5"
+                        min="0.1"
                         value={regAcres}
                         onChange={(e) => setRegAcres(e.target.value)}
+                        placeholder="e.g. 3.5"
                         className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>

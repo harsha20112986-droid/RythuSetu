@@ -11,6 +11,7 @@ export function Header({
   currentUser,
   onOpenLogin,
   onLogout,
+  onRequestFarmProfile,
 }: {
   page: Page;
   setPage: (p: Page) => void;
@@ -21,6 +22,7 @@ export function Header({
   currentUser: AuthUser | null;
   onOpenLogin: () => void;
   onLogout: () => void;
+  onRequestFarmProfile?: () => void;
 }) {
   const isAdmin = currentUser?.role === "admin";
 
@@ -180,14 +182,22 @@ export function Header({
                 </>
               ) : (
                 <button
-                  onClick={() => setPage("onboarding")}
+                  onClick={() => {
+                    if (onRequestFarmProfile) {
+                      onRequestFarmProfile();
+                    } else if (!currentUser) {
+                      onOpenLogin();
+                    } else {
+                      setPage("onboarding");
+                    }
+                  }}
                   className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
                     page === "onboarding"
                       ? "bg-white text-emerald-950 shadow-xs"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  Register Farm
+                  Set Up Farm Profile
                 </button>
               )}
             </>
