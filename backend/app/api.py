@@ -2,8 +2,10 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.assistant_engine import build_assistant_reply
 from app.benefit_engine import estimate_benefits
 from app.db import get_db
 from app.loss_engine import ALLOWED_DAMAGE_TYPES, build_next_step
@@ -16,6 +18,12 @@ router = APIRouter(prefix="/api/v1")
 UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+
+class AssistantRequest(BaseModel):
+    farmer_id: int = Field(gt=0)
+    question: str = Field(min_length=1, max_length=500)
+    language: str = Field(default="English", min_length=2, max_length=20)
 
 
 @router.post("/farmers", response_model=FarmerProfileResponse, status_code=201)
@@ -78,6 +86,45 @@ def get_climate_risk_endpoint(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Weather service unavailable: {exc}") from exc
+
+
+@router.post("/assistant/chat")
+def assistant_chat(payload: AssistantRequest, db: Session = Depends(get_db)):
+    farmer = db.get(FarmerProfile, payload.farmer_id)
+    if farmer is None:
+        raise HTTPException(status_code=404, detail="Farmer profile not found")
+
+    climate = None
+    try:
+        climate = get_climate_risk(
+            state=farmer.state,
+            district=farmer.district,
+            crop=farmer.crop,
+            season=farmer.season,
+        )
+    except Exception:
+        climate = None
+
+    schemes = find_matching_schemes(
+        state=farmer.state,
+        crop=farmer.crop,
+        season=farmer.season,
+    )
+    benefits = estimate_benefits(
+        state=farmer.state,
+        crop=farmer.crop,
+        season=farmer.season,
+        land_area_acres=farmer.land_area_acres,
+    )
+
+    return build_assistant_reply(
+        question=payload.question,
+        language=payload.language,
+        farmer=farmer,
+        climate=climate,
+        schemes=schemes,
+        benefits=benefits,
+    )
 
 
 @router.post("/crop-loss", status_code=201)
