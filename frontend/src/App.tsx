@@ -17,6 +17,9 @@ import { CropLossReporter } from "./components/CropLossReporter";
 import { CropDoctor } from "./components/CropDoctor";
 import { MandiPrices } from "./components/MandiPrices";
 import { FertilizerOptimizer } from "./components/FertilizerOptimizer";
+import { CropRecommendation } from "./components/CropRecommendation";
+import { ColdStorageFinder } from "./components/ColdStorageFinder";
+import { DirectFactoryMarket } from "./components/DirectFactoryMarket";
 import { IvrModal } from "./components/IvrModal";
 import { KrishiAssistant } from "./components/KrishiAssistant";
 import { LoginModal } from "./components/LoginModal";
@@ -250,26 +253,32 @@ export function App() {
     }
   };
 
-  const handleNavigate = (targetPage: "schemes" | "benefits" | "loss") => {
-    if (!currentUser) {
-      const label =
-        targetPage === "loss"
-          ? "PMFBY Crop Loss Claims"
-          : targetPage === "schemes"
-            ? "Government Scheme Finder"
-            : "Financial Benefit Estimator";
-      setLoginModalNotice(`Please register or sign in first to access ${label}.`);
-      setLoginModalTab("register");
-      setPendingTargetPage(targetPage);
-      setLoginModalOpen(true);
+  const handleNavigate = (targetPage: Page) => {
+    if (targetPage === "schemes" || targetPage === "benefits" || targetPage === "loss") {
+      if (!currentUser) {
+        const label =
+          targetPage === "loss"
+            ? "PMFBY Crop Loss Claims"
+            : targetPage === "schemes"
+              ? "Government Scheme Finder"
+              : "Financial Benefit Estimator";
+        setLoginModalNotice(`Please register or sign in first to access ${label}.`);
+        setLoginModalTab("register");
+        setPendingTargetPage(targetPage);
+        setLoginModalOpen(true);
+        return;
+      }
+
+      if (farmer) {
+        setPage(targetPage);
+      } else {
+        setPage("onboarding");
+      }
       return;
     }
 
-    if (farmer) {
-      setPage(targetPage);
-    } else {
-      setPage("onboarding");
-    }
+    // Direct access to open agri tools
+    setPage(targetPage);
   };
 
   const sendAssistantMessage = async (customText?: string) => {
@@ -390,6 +399,9 @@ export function App() {
             onOpenIvr={() => setIvrOpen(true)}
             onMandi={() => setPage("mandi")}
             onFertilizer={() => setPage("fertilizer")}
+            onRecommendation={() => setPage("recommendation")}
+            onStorage={() => setPage("storage")}
+            onFactory={() => setPage("factory")}
           />
         )}
 
@@ -433,6 +445,27 @@ export function App() {
           <CropLossReporter
             farmer={farmer}
             onBack={() => setPage("dashboard")}
+          />
+        )}
+
+        {page === "recommendation" && (
+          <CropRecommendation
+            farmer={farmer}
+            onBack={() => setPage(farmer ? "dashboard" : "home")}
+          />
+        )}
+
+        {page === "storage" && (
+          <ColdStorageFinder
+            farmer={farmer}
+            onBack={() => setPage(farmer ? "dashboard" : "home")}
+          />
+        )}
+
+        {page === "factory" && (
+          <DirectFactoryMarket
+            farmer={farmer}
+            onBack={() => setPage(farmer ? "dashboard" : "home")}
           />
         )}
       </div>

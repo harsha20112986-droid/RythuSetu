@@ -12,8 +12,12 @@ import {
   CheckCircle2,
   Sliders,
   ShieldCheck,
+  Camera,
+  TrendingUp,
+  Warehouse,
+  Truck,
 } from "lucide-react";
-import { type Farmer } from "../types";
+import { type Farmer, type Page } from "../types";
 
 export function Home({
   farmer,
@@ -26,7 +30,7 @@ export function Home({
   onStart: () => void;
   onDashboard: () => void;
   onSelectPreset: (f: Farmer) => void;
-  onNavigate: (page: "schemes" | "benefits" | "loss") => void;
+  onNavigate: (page: Page) => void;
 }) {
   const [teaserAcres, setTeaserAcres] = useState<number>(3.5);
 
@@ -396,6 +400,186 @@ export function Home({
                   className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 py-2.5 text-xs font-bold transition cursor-pointer"
                 >
                   <span>File Loss Notice</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </article>
+
+            {/* Card 5: AI Crop Doctor & Leaf Pathology */}
+            <article className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between group">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-600" />
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="grid size-12 place-items-center rounded-2xl bg-teal-50 border border-teal-200/80 text-teal-700 shadow-2xs group-hover:scale-110 transition-transform">
+                    <Camera className="size-6" />
+                  </div>
+                  <span className="rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-[9px] font-extrabold text-teal-800 uppercase tracking-wider">
+                    Vision + Ask AI
+                  </span>
+                </div>
+
+                <h3 className="mt-5 font-black text-xl text-slate-900">Crop Doctor Clinic</h3>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Diagnose diseases via leaf photo upload or natural language symptoms. Certified chemical dosages and 14-day recovery roadmap.
+                </p>
+
+                <div className="mt-4 space-y-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-teal-600 shrink-0" />
+                    <span>Leaf image upload or symptom voice/text</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-teal-600 shrink-0" />
+                    <span>CIBRC chemical + bio-organic sprays</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-teal-600 shrink-0" />
+                    <span>14-day step-by-step recovery schedule</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <button
+                  onClick={() => onNavigate("doctor")}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 py-2.5 text-xs font-bold transition cursor-pointer"
+                >
+                  <span>Open Plant Clinic</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </article>
+
+            {/* Card 6: Smart Crop Recommendation */}
+            <article className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between group">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 to-green-700" />
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="grid size-12 place-items-center rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-700 shadow-2xs group-hover:scale-110 transition-transform">
+                    <TrendingUp className="size-6" />
+                  </div>
+                  <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[9px] font-extrabold text-emerald-800 uppercase tracking-wider">
+                    Sowing Advisory
+                  </span>
+                </div>
+
+                <h3 className="mt-5 font-black text-xl text-slate-900">Crop Recommendation</h3>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Discover top crops suited to your soil, water source, and district with yield targets, market rates, and profit per acre math.
+                </p>
+
+                <div className="mt-4 space-y-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                    <span>Soil & irrigation match scoring</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                    <span>Cost vs Revenue net profit analysis</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                    <span>Complete Package of Practices (POP)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <button
+                  onClick={() => onNavigate("recommendation")}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 py-2.5 text-xs font-bold transition cursor-pointer"
+                >
+                  <span>Explore Crop Choices</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </article>
+
+            {/* Card 7: Post-Harvest AC Godowns */}
+            <article className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between group">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-cyan-400 to-blue-600" />
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="grid size-12 place-items-center rounded-2xl bg-cyan-50 border border-cyan-200/80 text-cyan-700 shadow-2xs group-hover:scale-110 transition-transform">
+                    <Warehouse className="size-6" />
+                  </div>
+                  <span className="rounded-full bg-cyan-50 border border-cyan-200 px-2.5 py-0.5 text-[9px] font-extrabold text-cyan-800 uppercase tracking-wider">
+                    Post-Harvest
+                  </span>
+                </div>
+
+                <h3 className="mt-5 font-black text-xl text-slate-900">AC Godowns & Cold Chain</h3>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Store chilli, cotton, and spices in verified cold godowns across AP & Telangana. Get instant e-NWR pledge loans up to 75%.
+                </p>
+
+                <div className="mt-4 space-y-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-cyan-600 shrink-0" />
+                    <span>Avoid peak distress selling</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-cyan-600 shrink-0" />
+                    <span>Live bay availability & monthly tariffs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-cyan-600 shrink-0" />
+                    <span>Instant bay reservation pass</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <button
+                  onClick={() => onNavigate("storage")}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-cyan-50 hover:bg-cyan-100 text-cyan-800 py-2.5 text-xs font-bold transition cursor-pointer"
+                >
+                  <span>Find Cold Storage</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </article>
+
+            {/* Card 8: Direct Farm-to-Factory (Rythu Direct) */}
+            <article className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between group">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 to-yellow-600" />
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="grid size-12 place-items-center rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-700 shadow-2xs group-hover:scale-110 transition-transform">
+                    <Truck className="size-6" />
+                  </div>
+                  <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[9px] font-extrabold text-amber-800 uppercase tracking-wider">
+                    Zero Broker
+                  </span>
+                </div>
+
+                <h3 className="mt-5 font-black text-xl text-slate-900">Rythu Direct (Mills)</h3>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Bypass middlemen. Sell directly to ginning mills, rice mills, and spice exporters at 5-8% above mandi rates with electronic gate passes.
+                </p>
+
+                <div className="mt-4 space-y-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-amber-600 shrink-0" />
+                    <span>0% broker/middleman commissions</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-amber-600 shrink-0" />
+                    <span>Transparent quality specs & test labs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-amber-600 shrink-0" />
+                    <span>Generate mill unloading gate entry pass</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <button
+                  onClick={() => onNavigate("factory")}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 py-2.5 text-xs font-bold transition cursor-pointer"
+                >
+                  <span>Connect to Factories</span>
                   <ArrowRight className="size-3.5" />
                 </button>
               </div>

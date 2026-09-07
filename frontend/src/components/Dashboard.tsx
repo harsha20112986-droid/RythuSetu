@@ -21,6 +21,9 @@ import {
   MapPin,
   Clock,
   Calendar,
+  Warehouse,
+  TrendingUp,
+  Truck,
 } from "lucide-react";
 import { type Farmer, type ClimateData, type BroadcastAlert, API_BASE } from "../types";
 
@@ -35,6 +38,9 @@ export function Dashboard({
   onOpenIvr,
   onMandi,
   onFertilizer,
+  onRecommendation,
+  onStorage,
+  onFactory,
 }: {
   farmer: Farmer;
   onEdit: () => void;
@@ -46,6 +52,9 @@ export function Dashboard({
   onOpenIvr: () => void;
   onMandi: () => void;
   onFertilizer: () => void;
+  onRecommendation?: () => void;
+  onStorage?: () => void;
+  onFactory?: () => void;
 }) {
   const [climate, setClimate] = useState<ClimateData | null>(null);
   const [alerts, setAlerts] = useState<BroadcastAlert[]>([]);
@@ -624,6 +633,72 @@ export function Dashboard({
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white py-2.5 text-xs font-bold transition cursor-pointer"
             >
               <span>Optimize Dosage</span>
+              <ArrowRight className="size-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card 8: Smart Crop Recommendation & POP */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+          <div>
+            <div className="grid size-12 place-items-center rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700">
+              <TrendingUp className="size-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-black text-slate-900">Crop Recommendation</h3>
+            <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+              Find the most profitable crops to sow based on soil type, water source, and district with full POP & pesticide schedules.
+            </p>
+          </div>
+          <div className="mt-6 pt-4 border-t border-slate-100">
+            <button
+              onClick={onRecommendation}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 text-xs font-bold transition cursor-pointer"
+            >
+              <span>Explore Crop Advisory</span>
+              <ArrowRight className="size-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card 9: Cold Storages & AC Godowns */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+          <div>
+            <div className="grid size-12 place-items-center rounded-2xl bg-cyan-50 border border-cyan-200 text-cyan-700">
+              <Warehouse className="size-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-black text-slate-900">AC Godowns & Cold Chains</h3>
+            <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+              Preserve chilli, cotton, and turmeric in CWC/private AC godowns. Access e-NWR pledge loans up to 75% to prevent distress selling.
+            </p>
+          </div>
+          <div className="mt-6 pt-4 border-t border-slate-100">
+            <button
+              onClick={onStorage}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-cyan-700 hover:bg-cyan-800 text-white py-2.5 text-xs font-bold transition cursor-pointer"
+            >
+              <span>Book Storage Bay</span>
+              <ArrowRight className="size-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card 10: Rythu Direct (Farm-to-Factory Zero Broker) */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+          <div>
+            <div className="grid size-12 place-items-center rounded-2xl bg-amber-50 border border-amber-200 text-amber-700">
+              <Truck className="size-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-black text-slate-900">Rythu Direct (Factory Link)</h3>
+            <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+              Sell directly to ginning mills, modern rice mills, and spice exporters at premium rates with 0% broker deductions and instant gate passes.
+            </p>
+          </div>
+          <div className="mt-6 pt-4 border-t border-slate-100">
+            <button
+              onClick={onFactory}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white py-2.5 text-xs font-bold transition cursor-pointer"
+            >
+              <span>Direct Mill Contracts</span>
               <ArrowRight className="size-3.5" />
             </button>
           </div>

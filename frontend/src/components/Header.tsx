@@ -68,7 +68,7 @@ export function Header({
         </button>
 
         {/* Center Nav - Role-specific */}
-        <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/70 shadow-inner overflow-x-auto max-w-xl">
+        <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/70 shadow-inner overflow-x-auto max-w-2xl">
           {isAdmin ? (
             /* Admin Officer Navigation */
             <>
@@ -98,7 +98,7 @@ export function Header({
             <>
               <button
                 onClick={() => setPage("home")}
-                className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
                   page === "home"
                     ? "bg-white text-emerald-950 shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -107,41 +107,79 @@ export function Header({
                 Home
               </button>
 
+              {farmer && (
+                <button
+                  onClick={() => setPage("dashboard")}
+                  className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
+                    page === "dashboard"
+                      ? "bg-white text-emerald-950 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Dashboard
+                </button>
+              )}
+
+              <button
+                onClick={() => setPage("recommendation")}
+                className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
+                  page === "recommendation"
+                    ? "bg-white text-emerald-950 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Crop Advisory
+              </button>
+
+              <button
+                onClick={() => setPage("doctor")}
+                className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
+                  page === "doctor"
+                    ? "bg-white text-emerald-950 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Crop Doctor
+              </button>
+
+              <button
+                onClick={() => setPage("mandi")}
+                className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
+                  page === "mandi"
+                    ? "bg-white text-emerald-950 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Mandi Rates
+              </button>
+
+              <button
+                onClick={() => setPage("storage")}
+                className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
+                  page === "storage"
+                    ? "bg-white text-emerald-950 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                AC Godowns
+              </button>
+
+              <button
+                onClick={() => setPage("factory")}
+                className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
+                  page === "factory"
+                    ? "bg-white text-emerald-950 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Direct Mills
+              </button>
+
               {farmer ? (
                 <>
                   <button
-                    onClick={() => setPage("dashboard")}
-                    className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                      page === "dashboard"
-                        ? "bg-white text-emerald-950 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Dashboard
-                  </button>
-                  <button
-                    onClick={() => setPage("mandi")}
-                    className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                      page === "mandi"
-                        ? "bg-white text-emerald-950 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Mandi Rates
-                  </button>
-                  <button
-                    onClick={() => setPage("fertilizer")}
-                    className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                      page === "fertilizer"
-                        ? "bg-white text-emerald-950 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Fertilizer NPK
-                  </button>
-                  <button
                     onClick={() => setPage("schemes")}
-                    className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                    className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
                       page === "schemes"
                         ? "bg-white text-emerald-950 shadow-xs"
                         : "text-slate-600 hover:text-slate-900"
@@ -150,34 +188,14 @@ export function Header({
                     Schemes
                   </button>
                   <button
-                    onClick={() => setPage("benefits")}
-                    className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                      page === "benefits"
-                        ? "bg-white text-emerald-950 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Benefits
-                  </button>
-                  <button
-                    onClick={() => setPage("doctor")}
-                    className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                      page === "doctor"
-                        ? "bg-white text-emerald-950 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Crop Doctor
-                  </button>
-                  <button
                     onClick={() => setPage("loss")}
-                    className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                    className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
                       page === "loss"
                         ? "bg-white text-emerald-950 shadow-xs"
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    PMFBY Claims
+                    PMFBY
                   </button>
                 </>
               ) : (
@@ -191,10 +209,10 @@ export function Header({
                       setPage("onboarding");
                     }
                   }}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
                     page === "onboarding"
                       ? "bg-white text-emerald-950 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
+                      : "bg-emerald-600 text-white hover:bg-emerald-700"
                   }`}
                 >
                   Set Up Farm Profile

@@ -574,3 +574,117 @@ def fertilizer_plan(payload: FertilizerPlanRequest):
         soil_type=payload.soil_type,
         acres=payload.land_area_acres,
     )
+
+
+# -------------------------------------------------------------
+# 1. Smart Crop Recommendation & POP Protocol
+# -------------------------------------------------------------
+from app.recommendation_engine import recommend_crops
+
+class CropRecommendationRequest(BaseModel):
+    state: str = "Telangana"
+    district: str = "Warangal"
+    soil_type: str = "Black Cotton Clay"
+    season: str = "Kharif"
+    water_source: str = "Borewell / Semi-irrigated"
+
+@router.post("/crops/recommend")
+def get_crop_recommendations(payload: CropRecommendationRequest):
+    """Recommends optimal crops with full fertilizer & pesticide POP."""
+    return {
+        "state": payload.state,
+        "district": payload.district,
+        "soil_type": payload.soil_type,
+        "season": payload.season,
+        "water_source": payload.water_source,
+        "recommendations": recommend_crops(
+            state=payload.state,
+            district=payload.district,
+            soil_type=payload.soil_type,
+            season=payload.season,
+            water_source=payload.water_source,
+        ),
+    }
+
+# -------------------------------------------------------------
+# 2. Dual-Mode Crop Doctor: Symptom & Pathogen Diagnosis
+# -------------------------------------------------------------
+from app.vision_engine import diagnose_symptoms
+
+class SymptomDiagnosisRequest(BaseModel):
+    crop: str = "Cotton"
+    symptoms: str
+    language: str = "English"
+
+@router.post("/crop-doctor/diagnose-symptoms")
+def diagnose_crop_symptoms(payload: SymptomDiagnosisRequest):
+    """Diagnoses disease & pests from farmer text description or symptom query."""
+    return diagnose_symptoms(
+        crop=payload.crop,
+        symptoms_text=payload.symptoms,
+        language=payload.language,
+    )
+
+# -------------------------------------------------------------
+# 3. AC Godowns & Cold Storage Network
+# -------------------------------------------------------------
+from app.storage_engine import get_cold_storages, create_storage_booking
+
+@router.get("/storage/cold-godowns")
+def list_cold_storages(state: str = "", district: str = "", commodity: str = ""):
+    """Lists certified AC Godowns and cold storages across AP and Telangana."""
+    return {"facilities": get_cold_storages(state=state, district=district, commodity=commodity)}
+
+class StorageBookingRequest(BaseModel):
+    facility_id: str
+    farmer_name: str
+    phone: str
+    commodity: str
+    bags_count: int = 50
+    duration_months: int = 3
+
+@router.post("/storage/book-space")
+def book_cold_storage_space(payload: StorageBookingRequest):
+    """Generates official AC Godown slot reservation token and e-NWR receipt guidance."""
+    return create_storage_booking(
+        facility_id=payload.facility_id,
+        farmer_name=payload.farmer_name,
+        phone=payload.phone,
+        commodity=payload.commodity,
+        bags_count=payload.bags_count,
+        duration_months=payload.duration_months,
+    )
+
+# -------------------------------------------------------------
+# 4. Direct Farm-to-Factory Zero-Broker Linkage
+# -------------------------------------------------------------
+from app.direct_market_engine import get_factory_contracts, create_factory_delivery_pass
+
+@router.get("/direct-market/factories")
+def list_factory_contracts(state: str = "", district: str = "", crop: str = ""):
+    """Lists verified factory procurement tenders and broker-free profit comparisons."""
+    return {"contracts": get_factory_contracts(state=state, district=district, crop=crop)}
+
+class FactoryDeliveryPassRequest(BaseModel):
+    factory_id: str
+    farmer_name: str
+    phone: str
+    district: str
+    village: str
+    crop: str
+    quantity_qtl: float
+    delivery_date: str
+
+@router.post("/direct-market/delivery-pass")
+def generate_delivery_pass(payload: FactoryDeliveryPassRequest):
+    """Generates Zero-Broker Factory Gate Entry Delivery Pass."""
+    return create_factory_delivery_pass(
+        factory_id=payload.factory_id,
+        farmer_name=payload.farmer_name,
+        phone=payload.phone,
+        district=payload.district,
+        village=payload.village,
+        crop=payload.crop,
+        quantity_qtl=payload.quantity_qtl,
+        delivery_date=payload.delivery_date,
+    )

@@ -8,7 +8,7 @@ const getApiBase = () => {
 
 export const API_BASE = getApiBase();
 
-export type Page = "home" | "onboarding" | "dashboard" | "schemes" | "benefits" | "loss" | "doctor" | "admin" | "mandi" | "fertilizer";
+export type Page = "home" | "onboarding" | "dashboard" | "schemes" | "benefits" | "loss" | "doctor" | "admin" | "mandi" | "fertilizer" | "recommendation" | "storage" | "factory";
 
 export type FormState = {
   name: string;
@@ -250,17 +250,149 @@ export const REGIONAL_PROFILES: { label: string; stateLabel: string; farmer: Far
   },
 ];
 
+export type RecoveryStep = {
+  day?: string;
+  day_range?: string;
+  action: string;
+  dosage?: string;
+  purpose?: string;
+};
+
 export type DiseaseAnalysis = {
   crop: string;
   disease_name: string;
+  scientific_name?: string;
+  pathogen_type?: string;
   confidence_percent: number;
   severity: string;
   symptoms: string[];
   organic_treatment: string;
   chemical_treatment: string;
+  nutrient_remedy?: string;
+  micronutrient_remedy?: string;
+  recovery_schedule_14d?: RecoveryStep[];
+  recovery_schedule?: RecoveryStep[];
+  prevention_tips?: string[];
   pmfby_coverage: string;
   advisory: string;
-  engine: string;
+  engine?: string;
+};
+
+export type PestManagementItem = {
+  pest_or_disease: string;
+  symptoms: string;
+  chemical_spray: string;
+  organic_spray: string;
+};
+
+export type CropRecommendationItem = {
+  crop_name: string;
+  telugu_name: string;
+  category: string;
+  suitable_soils: string[];
+  suitable_seasons: string[];
+  min_water: string;
+  duration_days: string;
+  expected_yield_qtl_acre: string;
+  avg_market_price_qtl: number;
+  cultivation_cost_acre: number;
+  estimated_net_profit_acre: number;
+  fertilizer_protocol: Record<string, string>;
+  pest_management: PestManagementItem[];
+  intercrop_suitability: string;
+  suitability_score: number;
+  match_reasons: string[];
+};
+
+export type ColdStorageFacility = {
+  id: string;
+  name: string;
+  district: string;
+  state: string;
+  location: string;
+  facility_type: string;
+  capacity_mt: number;
+  available_space_mt: number;
+  commodities: string[];
+  temp_range: string;
+  humidity_rh: string;
+  monthly_rent_per_bag: number;
+  bag_weight_kg: string;
+  enwr_pledge_loan: boolean;
+  loan_percent: string;
+  contact_person: string;
+  phone: string;
+  features: string[];
+};
+
+export type StorageBookingRecord = {
+  booking_token: string;
+  facility_id: string;
+  facility_name: string;
+  district: string;
+  state: string;
+  location: string;
+  farmer_name: string;
+  phone: string;
+  commodity: string;
+  bags_count: number;
+  duration_months: number;
+  monthly_rent_inr: number;
+  total_estimated_rent_inr: number;
+  enwr_pledge_loan_eligible: boolean;
+  booking_status: string;
+  created_at: string;
+  instructions: string;
+};
+
+export type FactoryContract = {
+  id: string;
+  factory_name: string;
+  category: string;
+  district: string;
+  state: string;
+  location: string;
+  crop: string;
+  direct_offer_price_qtl: number;
+  mandi_benchmark_price_qtl: number;
+  broker_commission_saved_percent: number;
+  extra_profit_per_qtl: number;
+  total_demand_qtl: number;
+  procured_so_far_qtl: number;
+  quality_specs: {
+    moisture_max: string;
+    staple_length: string;
+    trash_content_max: string;
+    min_lot_size_qtl: number;
+  };
+  payment_terms: string;
+  procurement_officer: string;
+  phone: string;
+  verified_license: string;
+};
+
+export type DeliveryPassRecord = {
+  pass_number: string;
+  factory_id: string;
+  factory_name: string;
+  factory_location: string;
+  factory_district: string;
+  factory_state: string;
+  procurement_officer: string;
+  officer_phone: string;
+  farmer_name: string;
+  phone: string;
+  origin_village: string;
+  origin_district: string;
+  crop: string;
+  allocated_quantity_qtl: number;
+  agreed_rate_per_qtl: number;
+  total_estimated_payout_inr: number;
+  broker_commission_saved_inr: number;
+  delivery_date: string;
+  status: string;
+  generated_at: string;
+  instructions: string;
 };
 
 export type ClaimStage = {
