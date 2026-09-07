@@ -6,9 +6,40 @@
     <meta name="theme-color" content="#166534" />
     <meta name="description" content="RythuSetu — Your AI Bridge to Farmer Support" />
     <title>RythuSetu | Farmer Support</title>
+    <style>
+      #assistant-launcher{position:fixed;right:20px;bottom:20px;z-index:9999;border:0;border-radius:999px;padding:13px 16px;background:#166534;color:#fff;font:700 14px system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.18);cursor:pointer}
+      #assistant-modal{position:fixed;inset:0;z-index:10000;display:none;background:rgba(0,0,0,.35);padding:20px;align-items:flex-end;justify-content:flex-end}
+      #assistant-panel{width:min(390px,100%);height:min(720px,92vh);background:#fafaf9;border-radius:22px;overflow:hidden;box-shadow:0 25px 70px rgba(0,0,0,.28);position:relative}
+      #assistant-close{position:absolute;right:12px;top:12px;z-index:2;border:0;border-radius:999px;width:32px;height:32px;background:rgba(255,255,255,.88);font-size:20px;line-height:1;cursor:pointer}
+      #assistant-frame{width:100%;height:100%;border:0}
+      @media (max-width:640px){#assistant-launcher{right:14px;bottom:14px}#assistant-modal{padding:0;align-items:stretch;justify-content:stretch}#assistant-panel{width:100%;height:100%;border-radius:0}}
+    </style>
   </head>
   <body>
     <div id="root"></div>
+
+    <button id="assistant-launcher" type="button">🤖 Ask Krishi Assistant</button>
+    <div id="assistant-modal" role="dialog" aria-modal="true" aria-label="RythuSetu Krishi Assistant">
+      <div id="assistant-panel">
+        <button id="assistant-close" type="button" aria-label="Close assistant">×</button>
+        <iframe id="assistant-frame" title="RythuSetu Krishi Assistant" src="/assistant.html"></iframe>
+      </div>
+    </div>
+
+    <script>
+      (function(){
+        const launcher=document.getElementById('assistant-launcher');
+        const modal=document.getElementById('assistant-modal');
+        const close=document.getElementById('assistant-close');
+        function open(){modal.style.display='flex'}
+        function hide(){modal.style.display='none'}
+        launcher.addEventListener('click',open);
+        close.addEventListener('click',hide);
+        modal.addEventListener('click',e=>{if(e.target===modal)hide()});
+        document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});
+      })();
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
