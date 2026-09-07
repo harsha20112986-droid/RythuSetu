@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router as api_router
+from app.voice_api import router as voice_router
 from app.core.config import settings
 from app.db import Base, engine
 from app import models  # noqa: F401
@@ -23,6 +24,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+app.include_router(voice_router)
 
 
 @app.get("/")
