@@ -14,6 +14,7 @@ def load_schemes() -> list[dict[str, Any]]:
 
 def find_matching_schemes(*, state: str, crop: str, season: str) -> list[dict[str, Any]]:
     matches: list[dict[str, Any]] = []
+    crop_clean = crop.lower()
 
     for scheme in load_schemes():
         rules = scheme.get("match", {})
@@ -28,7 +29,7 @@ def find_matching_schemes(*, state: str, crop: str, season: str) -> list[dict[st
         else:
             continue
 
-        if "All" in crops or crop in crops:
+        if "All" in crops or any(c.lower() in crop_clean or crop_clean in c.lower() for c in crops):
             score += 2
             reasons.append(f"Relevant to {crop} farming.")
         else:

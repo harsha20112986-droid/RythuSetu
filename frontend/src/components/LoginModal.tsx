@@ -1,6 +1,16 @@
 import { useState, useEffect } from "react";
 import { Lock, User, ShieldCheck, ArrowRight, X, AlertCircle, UserPlus, LogIn } from "lucide-react";
-import { type AuthUser, type Farmer, API_BASE } from "../types";
+import {
+  type AuthUser,
+  type Farmer,
+  API_BASE,
+  ALL_STATES,
+  getDistrictsForState,
+  getMandalsForDistrict,
+  getVillagesForMandal,
+  EXHAUSTIVE_CROPS,
+  type CropCategory,
+} from "../types";
 
 export function LoginModal({
   open,
@@ -32,14 +42,78 @@ export function LoginModal({
   const [regUsername, setRegUsername] = useState("");
   const [regRole, setRegRole] = useState<"farmer" | "admin">("farmer");
   const [regState, setRegState] = useState("Telangana");
-  const [regDistrict, setRegDistrict] = useState("Warangal");
-  const [regMandal, setRegMandal] = useState("");
-  const [regVillage, setRegVillage] = useState("");
+  const [regDistrict, setRegDistrict] = useState(() => getDistrictsForState("Telangana")[0] || "Warangal");
+  const [regMandal, setRegMandal] = useState(() => getMandalsForDistrict("Telangana", "Warangal")[0] || "");
+  const [regVillage, setRegVillage] = useState(() => getVillagesForMandal("Telangana", "Warangal", getMandalsForDistrict("Telangana", "Warangal")[0] || "")[0] || "");
+  const [customMandal, setCustomMandal] = useState(false);
+  const [customVillage, setCustomVillage] = useState(false);
   const [regCrop, setRegCrop] = useState("Cotton");
   const [regSeason] = useState("Kharif");
   const [regAcres, setRegAcres] = useState("");
   const [regPhone, setRegPhone] = useState("");
   const [regPassword, setRegPassword] = useState("");
+
+  const availableDistricts = getDistrictsForState(regState);
+  const availableMandals = getMandalsForDistrict(regState, regDistrict);
+  const availableVillages = getVillagesForMandal(regState, regDistrict, regMandal);
+
+  const handleStateChange = (nextState: string) => {
+    setRegState(nextState);
+    const dists = getDistrictsForState(nextState);
+    const firstDist = dists[0] || "";
+    setRegDistrict(firstDist);
+    const mandals = getMandalsForDistrict(nextState, firstDist);
+    const firstMandal = mandals[0] || "";
+    setRegMandal(firstMandal);
+    const villages = getVillagesForMandal(nextState, firstDist, firstMandal);
+    setRegVillage(villages[0] || "");
+    setCustomMandal(false);
+    setCustomVillage(false);
+  };
+
+  const handleDistrictChange = (nextDist: string) => {
+    setRegDistrict(nextDist);
+    const mandals = getMandalsForDistrict(regState, nextDist);
+    const firstMandal = mandals[0] || "";
+    setRegMandal(firstMandal);
+    const villages = getVillagesForMandal(regState, nextDist, firstMandal);
+    setRegVillage(villages[0] || "");
+    setCustomMandal(false);
+    setCustomVillage(false);
+  };
+
+  const handleMandalChange = (nextMandal: string) => {
+    if (nextMandal === "__custom__") {
+      setCustomMandal(true);
+      setRegMandal("");
+      setRegVillage("");
+      return;
+    }
+    setCustomMandal(false);
+    setRegMandal(nextMandal);
+    const villages = getVillagesForMandal(regState, regDistrict, nextMandal);
+    setRegVillage(villages[0] || "");
+    setCustomVillage(false);
+  };
+
+  const handleVillageChange = (nextVillage: string) => {
+    if (nextVillage === "__custom__") {
+      setCustomVillage(true);
+      setRegVillage("");
+      return;
+    }
+    setCustomVillage(false);
+    setRegVillage(nextVillage);
+  };
+
+  // Group exhaustive crops by category
+  const cropsByCategory = EXHAUSTIVE_CROPS.reduce((acc, crop) => {
+    if (!acc[crop.category]) acc[crop.category] = [];
+    acc[crop.category].push(crop);
+    return acc;
+  }, {} as Record<CropCategory, typeof EXHAUSTIVE_CROPS>);
+
+  const cropCategories = Object.keys(cropsByCategory) as CropCategory[];
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -353,29 +427,31 @@ export function LoginModal({
                   </label>
                   <select
                     value={regState}
-                    onChange={(e) => setRegState(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                    onChange={(e) => handleStateChange(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white cursor-pointer"
                   >
-                    <option value="Telangana">Telangana</option>
-                    <option value="Andhra Pradesh">Andhra Pradesh</option>
+                    {ALL_STATES.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    District
+                    District ({availableDistricts.length})
                   </label>
                   <select
                     value={regDistrict}
-                    onChange={(e) => setRegDistrict(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                    onChange={(e) => handleDistrictChange(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white cursor-pointer"
                   >
-                    <option value="Warangal">Warangal</option>
-                    <option value="Karimnagar">Karimnagar</option>
-                    <option value="Khammam">Khammam</option>
-                    <option value="Nizamabad">Nizamabad</option>
-                    <option value="Anantapur">Anantapur</option>
-                    <option value="Guntur">Guntur</option>
+                    {availableDistricts.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -384,46 +460,129 @@ export function LoginModal({
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Mandal
-                      </label>
-                      <input
-                        type="text"
-                        value={regMandal}
-                        onChange={(e) => setRegMandal(e.target.value)}
-                        placeholder="e.g. Geesugonda"
-                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Mandal
+                        </label>
+                        {!customMandal && (
+                          <button
+                            type="button"
+                            onClick={() => setCustomMandal(true)}
+                            className="text-[10px] text-emerald-600 hover:underline font-semibold cursor-pointer"
+                          >
+                            + Custom
+                          </button>
+                        )}
+                      </div>
+                      {!customMandal ? (
+                        <select
+                          value={regMandal}
+                          onChange={(e) => handleMandalChange(e.target.value)}
+                          className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white cursor-pointer"
+                        >
+                          <option value="">-- Select Mandal --</option>
+                          {availableMandals.map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                          <option value="__custom__">+ Other / Enter Custom</option>
+                        </select>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={regMandal}
+                            onChange={(e) => setRegMandal(e.target.value)}
+                            placeholder="Mandal name"
+                            className="w-full px-3 py-2 text-xs border border-emerald-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomMandal(false);
+                              if (availableMandals.length > 0) handleMandalChange(availableMandals[0]);
+                            }}
+                            className="absolute right-2 top-2 text-[10px] text-slate-500 hover:text-emerald-700"
+                          >
+                            List
+                          </button>
+                        </div>
+                      )}
                     </div>
+
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Village
-                      </label>
-                      <input
-                        type="text"
-                        value={regVillage}
-                        onChange={(e) => setRegVillage(e.target.value)}
-                        placeholder="e.g. Dharmaram"
-                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Village
+                        </label>
+                        {!customVillage && (
+                          <button
+                            type="button"
+                            onClick={() => setCustomVillage(true)}
+                            className="text-[10px] text-emerald-600 hover:underline font-semibold cursor-pointer"
+                          >
+                            + Custom
+                          </button>
+                        )}
+                      </div>
+                      {!customVillage ? (
+                        <select
+                          value={regVillage}
+                          onChange={(e) => handleVillageChange(e.target.value)}
+                          className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white cursor-pointer"
+                        >
+                          <option value="">-- Select Village --</option>
+                          {availableVillages.map((v) => (
+                            <option key={v} value={v}>
+                              {v}
+                            </option>
+                          ))}
+                          <option value="__custom__">+ Other / Enter Custom</option>
+                        </select>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={regVillage}
+                            onChange={(e) => setRegVillage(e.target.value)}
+                            placeholder="Village name"
+                            className="w-full px-3 py-2 text-xs border border-emerald-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomVillage(false);
+                              if (availableVillages.length > 0) setRegVillage(availableVillages[0]);
+                            }}
+                            className="absolute right-2 top-2 text-[10px] text-slate-500 hover:text-emerald-700"
+                          >
+                            List
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Primary Crop
+                        Primary Crop ({EXHAUSTIVE_CROPS.length} Crops)
                       </label>
                       <select
                         value={regCrop}
                         onChange={(e) => setRegCrop(e.target.value)}
-                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white cursor-pointer"
                       >
-                        <option value="Cotton">Cotton</option>
-                        <option value="Paddy / Rice">Paddy / Rice</option>
-                        <option value="Groundnut">Groundnut</option>
-                        <option value="Maize">Maize</option>
-                        <option value="Red Chilli">Red Chilli</option>
+                        {cropCategories.map((cat) => (
+                          <optgroup key={cat} label={cat}>
+                            {cropsByCategory[cat]?.map((c) => (
+                              <option key={c.key} value={c.name}>
+                                {c.name} ({c.teluguName})
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
                       </select>
                     </div>
 

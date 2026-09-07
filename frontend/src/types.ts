@@ -120,21 +120,27 @@ export type ChatMessage = {
   timestamp?: string;
 };
 
-export const states = ["Andhra Pradesh", "Telangana"];
+export {
+  REGIONAL_HIERARCHY,
+  EXHAUSTIVE_CROPS,
+  ALL_STATES,
+  getDistrictsForState,
+  getMandalsForDistrict,
+  getVillagesForMandal,
+  type CropItem,
+  type CropCategory,
+} from "./regionalData";
+
+import { EXHAUSTIVE_CROPS, ALL_STATES, getDistrictsForState } from "./regionalData";
+
+export const states = ALL_STATES;
 
 export const districts: Record<string, string[]> = {
-  "Andhra Pradesh": ["Anantapur", "Kurnool", "Guntur", "Krishna", "West Godavari", "Chittoor"],
-  Telangana: ["Warangal", "Nizamabad", "Karimnagar", "Hyderabad", "Nalgonda", "Khammam"],
+  "Andhra Pradesh": getDistrictsForState("Andhra Pradesh"),
+  Telangana: getDistrictsForState("Telangana"),
 };
 
-export const cropOptions = [
-  { name: "Cotton", tag: "Cash Crop", key: "cotton" },
-  { name: "Groundnut", tag: "Oilseed", key: "groundnut" },
-  { name: "Rice", tag: "Paddy / Grain", key: "rice" },
-  { name: "Maize", tag: "Coarse Grain", key: "maize" },
-  { name: "Chilli", tag: "Commercial Spice", key: "chilli" },
-  { name: "Pigeon Pea", tag: "Pulses / Red Gram", key: "pulses" },
-];
+export const cropOptions = EXHAUSTIVE_CROPS;
 
 export const seasons = [
   { name: "Kharif", desc: "Monsoon Season (Jun - Oct)", tag: "Rainfed / Major" },

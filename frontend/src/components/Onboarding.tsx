@@ -1,13 +1,39 @@
-import { type FormEvent } from "react";
-import { MapPin, Sprout, AlertTriangle, ArrowLeft, ArrowRight, Check, UserCheck, ShieldAlert } from "lucide-react";
+import { useState, useMemo, type FormEvent } from "react";
+import {
+  MapPin,
+  Sprout,
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  UserCheck,
+  ShieldAlert,
+  Search,
+  CheckCircle2,
+} from "lucide-react";
 import {
   type FormState,
   type AuthUser,
-  states,
-  districts,
-  cropOptions,
   seasons,
+  ALL_STATES,
+  EXHAUSTIVE_CROPS,
+  getDistrictsForState,
+  getMandalsForDistrict,
+  getVillagesForMandal,
+  type CropCategory,
+  type CropItem,
 } from "../types";
+
+const CROP_CATEGORIES: CropCategory[] = [
+  "All",
+  "Cereals & Millets",
+  "Pulses",
+  "Oilseeds",
+  "Commercial & Fiber",
+  "Spices & Condiments",
+  "Fruits & Plantation",
+  "Vegetables",
+];
 
 export function Onboarding({
   form,
@@ -30,8 +56,100 @@ export function Onboarding({
   isEditing?: boolean;
   onOpenLogin?: () => void;
 }) {
+  const [cropCategory, setCropCategory] = useState<CropCategory>("All");
+  const [cropSearch, setCropSearch] = useState<string>("");
+
+  // Cascading Location Calculations
+  const availableDistricts = useMemo(() => {
+    return getDistrictsForState(form.state);
+  }, [form.state]);
+
+  const availableMandals = useMemo(() => {
+    return getMandalsForDistrict(form.state, form.district);
+  }, [form.state, form.district]);
+
+  const availableVillages = useMemo(() => {
+    return getVillagesForMandal(form.state, form.district, form.mandal);
+  }, [form.state, form.district, form.mandal]);
+
+  // Is current mandal or village a custom write-in?
+  const isCustomMandal = Boolean(form.mandal && !availableMandals.includes(form.mandal));
+  const isCustomVillage = Boolean(form.village && !availableVillages.includes(form.village));
+
+  const [showCustomMandalInput, setShowCustomMandalInput] = useState(isCustomMandal);
+  const [showCustomVillageInput, setShowCustomVillageInput] = useState(isCustomVillage);
+
+  // Filtered crop list
+  const filteredCrops = useMemo(() => {
+    const q = cropSearch.trim().toLowerCase();
+    return EXHAUSTIVE_CROPS.filter((c: CropItem) => {
+      const matchCat = cropCategory === "All" || c.category === cropCategory;
+      if (!matchCat) return false;
+      if (!q) return true;
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.teluguName.toLowerCase().includes(q) ||
+        c.tag.toLowerCase().includes(q) ||
+        c.category.toLowerCase().includes(q)
+      );
+    });
+  }, [cropCategory, cropSearch]);
+
+  const handleStateChange = (nextState: string) => {
+    const nextDistricts = getDistrictsForState(nextState);
+    const firstDist = nextDistricts[0] || "";
+    const nextMandals = getMandalsForDistrict(nextState, firstDist);
+    const firstMandal = nextMandals[0] || "";
+    const nextVillages = getVillagesForMandal(nextState, firstDist, firstMandal);
+    const firstVillage = nextVillages[0] || "";
+
+    update("state", nextState);
+    update("district", firstDist);
+    update("mandal", firstMandal);
+    update("village", firstVillage);
+    setShowCustomMandalInput(false);
+    setShowCustomVillageInput(false);
+  };
+
+  const handleDistrictChange = (nextDist: string) => {
+    const nextMandals = getMandalsForDistrict(form.state, nextDist);
+    const firstMandal = nextMandals[0] || "";
+    const nextVillages = getVillagesForMandal(form.state, nextDist, firstMandal);
+
+    update("district", nextDist);
+    update("mandal", firstMandal);
+    update("village", nextVillages[0] || "");
+    setShowCustomMandalInput(false);
+    setShowCustomVillageInput(false);
+  };
+
+  const handleMandalChange = (val: string) => {
+    if (val === "__custom__") {
+      setShowCustomMandalInput(true);
+      update("mandal", "");
+      update("village", "");
+      setShowCustomVillageInput(true);
+    } else {
+      setShowCustomMandalInput(false);
+      update("mandal", val);
+      const nextVillages = getVillagesForMandal(form.state, form.district, val);
+      update("village", nextVillages[0] || "");
+      setShowCustomVillageInput(false);
+    }
+  };
+
+  const handleVillageChange = (val: string) => {
+    if (val === "__custom__") {
+      setShowCustomVillageInput(true);
+      update("village", "");
+    } else {
+      setShowCustomVillageInput(false);
+      update("village", val);
+    }
+  };
+
   return (
-    <section className="mx-auto max-w-3xl px-5 py-10 lg:px-8 lg:py-14">
+    <section className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
       {/* Top action bar */}
       <div className="flex items-center justify-between mb-6">
         <button
@@ -61,7 +179,7 @@ export function Onboarding({
 
       <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm sm:p-9">
         <div className="flex items-center gap-3">
-          <div className="grid size-12 place-items-center rounded-2xl bg-emerald-100 text-emerald-800 text-xl font-bold">
+          <div className="grid size-12 place-items-center rounded-2xl bg-emerald-100 text-emerald-800 text-xl font-bold shrink-0">
             <Sprout className="size-6 text-emerald-700" />
           </div>
           <div>
@@ -75,7 +193,7 @@ export function Onboarding({
         </div>
 
         <p className="mt-3 text-sm leading-relaxed text-slate-600">
-          Your profile allows RythuSetu to accurately map your local weather conditions, match eligible state and central schemes, and compute estimated financial assistance.
+          Your profile accurately maps hyper-local weather telemetry, verified central & state scheme eligibility, and APMC Mandi rates across Andhra Pradesh and Telangana.
         </p>
 
         {!currentUser && (
@@ -117,32 +235,34 @@ export function Onboarding({
                 className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition cursor-pointer"
               >
                 <option value="English">English</option>
-                <option value="Telugu">{"\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"} (Telugu)</option>
-                <option value="Hindi">{"\u0939\u093F\u0928\u094D\u0926\u0940"} (Hindi)</option>
+                <option value="Telugu">తెలుగు (Telugu)</option>
+                <option value="Hindi">हिन्दी (Hindi)</option>
               </select>
             </label>
           </div>
 
-          {/* Location Details */}
+          {/* Cascading Location Hierarchy */}
           <div className="border-t border-slate-100 pt-6">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-1.5">
-              <MapPin className="size-3.5 text-emerald-600" />
-              Farm Location (Andhra Pradesh / Telangana)
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <MapPin className="size-3.5 text-emerald-600" />
+                Farm Location (State ➔ District ➔ Mandal ➔ Village)
+              </h3>
+              <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">
+                {form.state} • {availableDistricts.length} Districts
+              </span>
+            </div>
 
+            {/* State & District Selectors */}
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1.5 block text-xs font-bold text-slate-700">State</span>
                 <select
                   value={form.state}
-                  onChange={(e) => {
-                    const nextState = e.target.value;
-                    update("state", nextState);
-                    update("district", districts[nextState]?.[0] || "");
-                  }}
+                  onChange={(e) => handleStateChange(e.target.value)}
                   className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition cursor-pointer"
                 >
-                  {states.map((st) => (
+                  {ALL_STATES.map((st) => (
                     <option key={st} value={st}>
                       {st}
                     </option>
@@ -151,13 +271,15 @@ export function Onboarding({
               </label>
 
               <label className="block">
-                <span className="mb-1.5 block text-xs font-bold text-slate-700">District</span>
+                <span className="mb-1.5 block text-xs font-bold text-slate-700">
+                  District ({form.state})
+                </span>
                 <select
                   value={form.district}
-                  onChange={(e) => update("district", e.target.value)}
+                  onChange={(e) => handleDistrictChange(e.target.value)}
                   className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition cursor-pointer"
                 >
-                  {(districts[form.state] || []).map((d) => (
+                  {availableDistricts.map((d) => (
                     <option key={d} value={d}>
                       {d}
                     </option>
@@ -166,67 +288,227 @@ export function Onboarding({
               </label>
             </div>
 
+            {/* Mandal & Village Cascading Selectors */}
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-bold text-slate-700">Mandal / Tehsil (Optional)</span>
-                <input
-                  type="text"
-                  value={form.mandal}
-                  onChange={(e) => update("mandal", e.target.value)}
-                  placeholder="e.g. Narsampet"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition"
-                />
-              </label>
+              {/* Mandal / Tehsil */}
+              <div>
+                <label className="block">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-700">Mandal / Tehsil</span>
+                    {!showCustomMandalInput && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomMandalInput(true)}
+                        className="text-[11px] text-emerald-700 hover:underline cursor-pointer font-semibold"
+                      >
+                        + Type Custom
+                      </button>
+                    )}
+                  </div>
+                  {!showCustomMandalInput ? (
+                    <select
+                      value={form.mandal}
+                      onChange={(e) => handleMandalChange(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition cursor-pointer"
+                    >
+                      <option value="">-- Select Mandal --</option>
+                      {availableMandals.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                      <option value="__custom__">+ Other / Enter Custom Mandal</option>
+                    </select>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <input
+                        type="text"
+                        value={form.mandal}
+                        onChange={(e) => update("mandal", e.target.value)}
+                        placeholder="Type your Mandal name"
+                        className="w-full rounded-2xl border border-emerald-600 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:ring-4 focus:ring-emerald-100 transition"
+                      />
+                      {availableMandals.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomMandalInput(false);
+                            if (availableMandals[0]) update("mandal", availableMandals[0]);
+                          }}
+                          className="text-[11px] text-slate-500 hover:text-emerald-700 cursor-pointer"
+                        >
+                          ← Choose from official mandal list
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </label>
+              </div>
 
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-bold text-slate-700">Village / Grama (Optional)</span>
-                <input
-                  type="text"
-                  value={form.village}
-                  onChange={(e) => update("village", e.target.value)}
-                  placeholder="e.g. Chennaraopet"
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition"
-                />
-              </label>
+              {/* Village / Grama */}
+              <div>
+                <label className="block">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-700">Village / Grama (Optional)</span>
+                    {!showCustomVillageInput && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomVillageInput(true)}
+                        className="text-[11px] text-emerald-700 hover:underline cursor-pointer font-semibold"
+                      >
+                        + Type Custom
+                      </button>
+                    )}
+                  </div>
+                  {!showCustomVillageInput && availableVillages.length > 0 ? (
+                    <select
+                      value={form.village}
+                      onChange={(e) => handleVillageChange(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition cursor-pointer"
+                    >
+                      <option value="">-- Select Village --</option>
+                      {availableVillages.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                      <option value="__custom__">+ Other / Enter Custom Village</option>
+                    </select>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <input
+                        type="text"
+                        value={form.village}
+                        onChange={(e) => update("village", e.target.value)}
+                        placeholder="Type your Village or Grama"
+                        className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition"
+                      />
+                      {availableVillages.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomVillageInput(false);
+                            if (availableVillages[0]) update("village", availableVillages[0]);
+                          }}
+                          className="text-[11px] text-slate-500 hover:text-emerald-700 cursor-pointer"
+                        >
+                          ← Choose from official village list
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </label>
+              </div>
             </div>
           </div>
 
-          {/* Crop Selection */}
+          {/* Exhaustive Crop Selection Across AP & Telangana */}
           <div className="border-t border-slate-100 pt-6">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
-              <Sprout className="size-3.5 text-emerald-600" />
-              Primary Crop
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+              <div>
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <Sprout className="size-3.5 text-emerald-600" />
+                  Primary Crop (All AP & Telangana Yields)
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Select your crop across 60+ verified crops cultivated across Andhra Pradesh & Telangana
+                </p>
+              </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {cropOptions.map((crop) => {
-                const isSelected = form.crop === crop.name;
-                return (
-                  <button
-                    key={crop.name}
-                    type="button"
-                    onClick={() => update("crop", crop.name)}
-                    className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
-                      isSelected
-                        ? "border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-600/20"
-                        : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-slate-900">{crop.name}</span>
-                      {isSelected && (
-                        <span className="size-4 rounded-full bg-emerald-600 text-white grid place-items-center text-[10px]">
-                          <Check className="size-2.5 stroke-[3]" />
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-slate-500 font-medium mt-1">
-                      {crop.tag}
-                    </span>
-                  </button>
-                );
-              })}
+              {form.crop && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-full text-xs font-extrabold self-start sm:self-auto">
+                  <CheckCircle2 className="size-3.5 text-emerald-600" />
+                  <span>Selected: {form.crop}</span>
+                </div>
+              )}
             </div>
+
+            {/* Search Box */}
+            <div className="relative mb-3">
+              <Search className="size-4 absolute left-3.5 top-3 text-slate-400" />
+              <input
+                type="text"
+                value={cropSearch}
+                onChange={(e) => setCropSearch(e.target.value)}
+                placeholder="Search crop by name in English or Telugu (e.g. Chilli, వరి, Cotton, Tomato, Mango)..."
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-2xl text-xs font-medium focus:bg-white focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition"
+              />
+              {cropSearch && (
+                <button
+                  type="button"
+                  onClick={() => setCropSearch("")}
+                  className="absolute right-3.5 top-2.5 text-xs text-slate-400 hover:text-slate-700 font-bold"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Category Filter Tabs */}
+            <div className="flex gap-1.5 overflow-x-auto pb-2 mb-4 scrollbar-none">
+              {CROP_CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCropCategory(cat)}
+                  className={`shrink-0 px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                    cropCategory === cat
+                      ? "bg-emerald-700 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Crop Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-72 overflow-y-auto pr-1">
+              {filteredCrops.length > 0 ? (
+                filteredCrops.map((crop) => {
+                  const isSelected = form.crop === crop.name;
+                  return (
+                    <button
+                      key={crop.name}
+                      type="button"
+                      onClick={() => update("crop", crop.name)}
+                      className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                        isSelected
+                          ? "border-emerald-600 bg-emerald-50/90 ring-2 ring-emerald-600/30 shadow-xs"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="text-xs font-black text-slate-900 leading-snug">
+                          {crop.name}
+                        </span>
+                        {isSelected && (
+                          <span className="size-4 rounded-full bg-emerald-600 text-white grid place-items-center text-[10px] shrink-0 mt-0.5">
+                            <Check className="size-2.5 stroke-[3]" />
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="mt-2 flex items-center justify-between gap-1">
+                        <span className="inline-block px-1.5 py-0.5 rounded-md bg-emerald-100/70 text-emerald-950 font-extrabold text-[10px]">
+                          {crop.teluguName}
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-medium truncate max-w-[90px]">
+                          {crop.tag}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="col-span-full py-8 text-center text-slate-400 text-xs">
+                  No crops matching "{cropSearch}". Try searching for rice, cotton, chilli, or click "All".
+                </div>
+              )}
+            </div>
+            <p className="mt-2 text-right text-[10px] text-slate-400 font-medium">
+              Showing {filteredCrops.length} of {EXHAUSTIVE_CROPS.length} agricultural & horticultural crops
+            </p>
           </div>
 
           {/* Land Area and Season */}
