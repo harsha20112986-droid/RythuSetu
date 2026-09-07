@@ -9,7 +9,7 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
 
 def _get_json(url: str) -> dict:
-    request = Request(url, headers={"User-Agent": "RythuSetu/0.7"})
+    request = Request(url, headers={"User-Agent": "RythuSetu/0.8"})
     with urlopen(request, timeout=12) as response:
         return json.loads(response.read().decode("utf-8"))
 
@@ -66,7 +66,6 @@ def _score_risk(temperature: float, rain_probability: float, wind_gust: float, p
         score += 1
         factors.append("Elevated wind gusts")
 
-    # Rice is especially sensitive to waterlogging, while these crops can be heat-sensitive.
     crop_lower = crop.lower()
     if crop_lower == "rice" and precipitation >= 25:
         score += 1
@@ -107,9 +106,7 @@ def get_climate_risk(*, state: str, district: str, crop: str, season: str) -> di
     precipitation = float((daily.get("precipitation_sum") or [0])[0])
     wind_gust = float(current.get("wind_gusts_10m", 0))
 
-    level, score, factors = _score_risk(
-        temperature, rain_probability, wind_gust, precipitation, crop
-    )
+    level, score, factors = _score_risk(temperature, rain_probability, wind_gust, precipitation, crop)
 
     if level == "High":
         action = "Take extra precautions and check crop conditions frequently."
@@ -150,12 +147,7 @@ def get_climate_risk(*, state: str, district: str, crop: str, season: str) -> di
             "factors": factors,
             "suggested_action": action,
         },
-        "profile_context": {"crop": crop, "season": season},
-        "source": {
-            "provider": "Open-Meteo",
-            "weather_url": FORECAST_URL,
-            "geocoding_url": GEOCODING_URL,
-            "attribution": "Weather data provided by Open-Meteo",
-        },
+        "profile_context": {"crop": crop, "season": season, "district": district, "state": state},
+        "source": "Open-Meteo weather forecast and geocoding APIs",
         "disclaimer": "RythuSetu's risk level is an informational heuristic based on forecast weather signals. It is not an official weather warning, crop-loss assessment, or disaster declaration.",
     }
