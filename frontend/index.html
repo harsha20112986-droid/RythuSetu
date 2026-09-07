@@ -3,43 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#166534" />
-    <meta name="description" content="RythuSetu — Your AI Bridge to Farmer Support" />
-    <title>RythuSetu | Farmer Support</title>
-    <style>
-      #assistant-launcher{position:fixed;right:20px;bottom:20px;z-index:9999;border:0;border-radius:999px;padding:13px 16px;background:#166534;color:#fff;font:700 14px system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.18);cursor:pointer}
-      #assistant-modal{position:fixed;inset:0;z-index:10000;display:none;background:rgba(0,0,0,.35);padding:20px;align-items:flex-end;justify-content:flex-end}
-      #assistant-panel{width:min(390px,100%);height:min(720px,92vh);background:#fafaf9;border-radius:22px;overflow:hidden;box-shadow:0 25px 70px rgba(0,0,0,.28);position:relative}
-      #assistant-close{position:absolute;right:12px;top:12px;z-index:2;border:0;border-radius:999px;width:32px;height:32px;background:rgba(255,255,255,.88);font-size:20px;line-height:1;cursor:pointer}
-      #assistant-frame{width:100%;height:100%;border:0}
-      @media (max-width:640px){#assistant-launcher{right:14px;bottom:14px}#assistant-modal{padding:0;align-items:stretch;justify-content:stretch}#assistant-panel{width:100%;height:100%;border-radius:0}}
-    </style>
+    <meta name="theme-color" content="#047857" />
+    <meta name="description" content="RythuSetu — AI-powered farmer decision support platform for climate risk, crop loss, schemes, and benefits across Andhra Pradesh & Telangana." />
+    <title>RythuSetu | AI Farmer Support Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23047857'/%3E%3Cpath d='M16 6C16 11 11 16 6 16C6 11 11 6 16 6Z' fill='%2386EFAC'/%3E%3Cpath d='M16 12C16 17 21 22 26 22C26 17 21 12 16 12Z' fill='%2334D399'/%3E%3Cpath d='M16 6V26' stroke='%23FFFFFF' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
   </head>
-  <body>
+  <body class="bg-slate-50 text-slate-900 antialiased selection:bg-emerald-100 selection:text-emerald-900">
     <div id="root"></div>
-
-    <button id="assistant-launcher" type="button">🤖 Ask Krishi Assistant</button>
-    <div id="assistant-modal" role="dialog" aria-modal="true" aria-label="RythuSetu Krishi Assistant">
-      <div id="assistant-panel">
-        <button id="assistant-close" type="button" aria-label="Close assistant">×</button>
-        <iframe id="assistant-frame" title="RythuSetu Krishi Assistant" src="/assistant.html"></iframe>
-      </div>
-    </div>
-
-    <script>
-      (function(){
-        const launcher=document.getElementById('assistant-launcher');
-        const modal=document.getElementById('assistant-modal');
-        const close=document.getElementById('assistant-close');
-        function open(){modal.style.display='flex'}
-        function hide(){modal.style.display='none'}
-        launcher.addEventListener('click',open);
-        close.addEventListener('click',hide);
-        modal.addEventListener('click',e=>{if(e.target===modal)hide()});
-        document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});
-      })();
-    </script>
-
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
