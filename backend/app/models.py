@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String
+from sqlalchemy import DateTime, Float, Integer, String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -47,8 +47,11 @@ class UserAccount(Base):
     password: Mapped[str] = mapped_column(String(120))
     name: Mapped[str] = mapped_column(String(120))
     role: Mapped[str] = mapped_column(String(40), default="farmer")  # "farmer" or "admin"
+    phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     designation: Mapped[str | None] = mapped_column(String(120), nullable=True)
     district: Mapped[str | None] = mapped_column(String(80), nullable=True)
     state: Mapped[str | None] = mapped_column(String(80), default="Telangana")
     farmer_profile_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    is_online: Mapped[bool] = mapped_column(Boolean, default=False)

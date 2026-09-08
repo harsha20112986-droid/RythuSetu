@@ -37,34 +37,89 @@ BROADCAST_ALERTS = [
 ]
 
 def authenticate_user(db: Session, username: str, password: str) -> dict[str, Any] | None:
-    norm_user = username.strip().lower()
+    raw_user = username.strip()
+    norm_user = raw_user.lower()
+    clean_digits = "".join(filter(str.isdigit, raw_user))
+    entered_pw = password.strip()
     
-    # Query database for user
+    # 1. Query database for user by Username (case-insensitive)
     user = db.query(UserAccount).filter(UserAccount.username.ilike(norm_user)).first()
-    if user and user.password == password.strip():
+    
+    # 2. Fallback to Full Name matching if user typed their registered name (e.g. "Ganesh")
+    if not user:
+        user = db.query(UserAccount).filter(UserAccount.name.ilike(raw_user)).first()
+        
+    # 3. Fallback to direct phone string match
+    if not user and raw_user:
+        user = db.query(UserAccount).filter(UserAccount.phone.ilike(raw_user)).first()
+
+    # 4. Fallback to numeric digit match (comparing last 10 digits against all phone numbers)
+    if not user and clean_digits and len(clean_digits) >= 7:
+        target_last10 = clean_digits[-10:]
+        accounts_with_phone = db.query(UserAccount).filter(UserAccount.phone.isnot(None)).all()
+        for acc in accounts_with_phone:
+            if acc.phone:
+                acc_digits = "".join(filter(str.isdigit, acc.phone))
+                if acc_digits and (target_last10 in acc_digits or acc_digits[-10:] in clean_digits):
+                    user = acc
+                    break
+
+    # If user found, verify password
+    if user and user.password.strip() == entered_pw:
+        try:
+            user.last_login_at = datetime.datetime.utcnow()
+            user.is_online = True
+            db.commit()
+            db.refresh(user)
+        except Exception:
+            db.rollback()
+
         return {
             "id": user.id,
             "username": user.username,
             "name": user.name,
             "role": user.role,
+            "phone": user.phone or "",
             "designation": user.designation,
             "district": user.district,
             "state": user.state,
             "farmer_profile_id": user.farmer_profile_id,
+            "last_login_at": user.last_login_at.strftime("%d %b %Y, %I:%M %p") if user.last_login_at else None,
+            "is_online": True,
         }
 
     # Internal fallback for default admin if not yet created
-    if norm_user == "admin" and password.strip() == "admin123":
+    if norm_user == "admin" and entered_pw == "admin123":
         return {
             "id": 1,
             "username": "admin",
             "name": "Agriculture Extension Officer",
             "role": "admin",
+            "phone": "+91 98480 12345",
             "designation": "Mandal Agriculture Officer (MAO)",
             "district": "Warangal",
             "state": "Telangana",
             "farmer_profile_id": None,
+            "last_login_at": datetime.datetime.utcnow().strftime("%d %b %Y, %I:%M %p"),
+            "is_online": True,
         }
+
+    # Internal fallback for standard farmer test account
+    if norm_user in ["farmer", "demo_farmer"] and entered_pw == "farmer123":
+        return {
+            "id": 2,
+            "username": "farmer",
+            "name": "Kishan Rao",
+            "role": "farmer",
+            "phone": "+91 98480 22338",
+            "designation": "Registered Smallholder",
+            "district": "Warangal",
+            "state": "Telangana",
+            "farmer_profile_id": 101,
+            "last_login_at": datetime.datetime.utcnow().strftime("%d %b %Y, %I:%M %p"),
+            "is_online": True,
+        }
+
     return None
 
 def register_user(
@@ -82,19 +137,39 @@ def register_user(
     land_area_acres: float = 2.0,
     phone: str = "",
 ) -> dict[str, Any]:
-    norm_user = username.strip().lower()
+    norm_user = username.strip().lower() if username.strip() else name.strip().lower().replace(" ", "_")
+    clean_phone = phone.strip() if phone else ""
     
-    # Check if username exists
+    # Check if username already exists
     existing = db.query(UserAccount).filter(UserAccount.username.ilike(norm_user)).first()
     if existing:
-        raise ValueError(f"Username '{username}' is already registered. Please choose another username or sign in.")
+        # If the same user registers with same credentials, update their record instead of erroring
+        if existing.password.strip() == password.strip():
+            existing.phone = clean_phone or existing.phone
+            existing.name = name.strip() or existing.name
+            existing.last_login_at = datetime.datetime.utcnow()
+            existing.is_online = True
+            db.commit()
+            db.refresh(existing)
+            return {
+                "id": existing.id,
+                "username": existing.username,
+                "name": existing.name,
+                "role": existing.role,
+                "phone": existing.phone or "",
+                "designation": existing.designation,
+                "district": existing.district,
+                "state": existing.state,
+                "farmer_profile_id": existing.farmer_profile_id,
+            }
+        raise ValueError(f"Username '{username}' is already registered. Please sign in with your password.")
 
     farmer_profile_id = None
 
     # If farmer, create linked FarmerProfile
     if role.lower() == "farmer":
         farmer_profile = FarmerProfile(
-            name=name,
+            name=name.strip(),
             language="English",
             state=state,
             district=district,
@@ -111,15 +186,20 @@ def register_user(
 
     # Create UserAccount
     designation = "Registered Smallholder" if role.lower() == "farmer" else "Mandal Agriculture Officer"
+    now = datetime.datetime.utcnow()
     user = UserAccount(
         username=norm_user,
         password=password.strip(),
         name=name.strip(),
         role=role.lower(),
+        phone=clean_phone,
         designation=designation,
         district=district,
         state=state,
         farmer_profile_id=farmer_profile_id,
+        created_at=now,
+        last_login_at=now,
+        is_online=True,
     )
     db.add(user)
     db.commit()
@@ -130,6 +210,7 @@ def register_user(
         "username": user.username,
         "name": user.name,
         "role": user.role,
+        "phone": user.phone or "",
         "designation": user.designation,
         "district": user.district,
         "state": user.state,
@@ -312,3 +393,55 @@ def add_broadcast_alert(
     }
     BROADCAST_ALERTS.insert(0, alert)
     return alert
+
+
+def get_all_admin_users(db: Session) -> list[dict[str, Any]]:
+    """Returns all registered users with their live login and online status."""
+    users = db.query(UserAccount).order_by(UserAccount.id.desc()).all()
+    out = []
+    now = datetime.datetime.utcnow()
+
+    for u in users:
+        # Determine online / active status
+        last_login_str = "Never"
+        is_active = False
+        if u.last_login_at:
+            last_login_str = u.last_login_at.strftime("%d %b %Y, %I:%M %p")
+            time_diff = (now - u.last_login_at).total_seconds()
+            if time_diff < 7200 or u.is_online:
+                is_active = True
+        elif u.created_at:
+            last_login_str = u.created_at.strftime("%d %b %Y, %I:%M %p")
+            if (now - u.created_at).total_seconds() < 7200:
+                is_active = True
+
+        farmer_profile = None
+        if u.farmer_profile_id:
+            fp = db.get(FarmerProfile, u.farmer_profile_id)
+            if fp:
+                farmer_profile = {
+                    "crop": fp.crop,
+                    "land_area_acres": fp.land_area_acres,
+                    "village": fp.village,
+                    "mandal": fp.mandal,
+                    "season": fp.season,
+                }
+
+        out.append({
+            "id": u.id,
+            "username": u.username,
+            "name": u.name,
+            "role": u.role,
+            "phone": u.phone or "Not registered",
+            "designation": u.designation or ("Cultivator" if u.role == "farmer" else "Agriculture Officer"),
+            "district": u.district or "Warangal",
+            "state": u.state or "Telangana",
+            "farmer_profile_id": u.farmer_profile_id,
+            "created_at": u.created_at.strftime("%d %b %Y, %I:%M %p") if u.created_at else "Recently",
+            "last_login_at": last_login_str,
+            "is_online": is_active,
+            "status": "Online Now 🟢" if is_active else "Offline",
+            "farmer_profile": farmer_profile,
+        })
+    return out
+

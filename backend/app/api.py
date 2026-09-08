@@ -418,6 +418,7 @@ def telephony_ivr_webhook(Digits: str | None = Form(default=None)):
 from app.auth_engine import (
     register_user,
     get_all_registered_farmers,
+    get_all_admin_users,
     authenticate_user,
     get_admin_dashboard_stats,
     get_all_admin_claims,
@@ -473,12 +474,15 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/auth/login")
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    """Authenticate Farmer or Agriculture Officer against database."""
+    """Authenticate Farmer or Agriculture Officer by username, full name, or phone."""
     user = authenticate_user(db=db, username=payload.username, password=payload.password)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials. Try admin/admin123 or farmer/farmer123")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials. Please verify your username or registered mobile number and password."
+        )
     return {
-        "access_token": f"rythusetu_{user['role']}_token_123",
+        "access_token": f"rythusetu_{user['role']}_token_{user['id']}",
         "token_type": "bearer",
         "user": user,
     }
@@ -492,6 +496,11 @@ def admin_stats(db: Session = Depends(get_db)):
 def admin_farmers(db: Session = Depends(get_db)):
     """Returns actual registered smallholders from database."""
     return {"farmers": get_all_registered_farmers(db)}
+
+@router.get("/admin/users")
+def admin_users(db: Session = Depends(get_db)):
+    """Returns all registered Cultivators and Agriculture Officers with active login status."""
+    return {"users": get_all_admin_users(db)}
 
 @router.get("/admin/all-claims")
 def admin_all_claims(db: Session = Depends(get_db)):

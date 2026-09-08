@@ -445,10 +445,36 @@ export type AuthUser = {
   username: string;
   name: string;
   role: UserRole;
+  phone?: string;
   designation?: string;
   district?: string;
   state?: string;
   farmer_profile_id?: number | null;
+  last_login_at?: string;
+  is_online?: boolean;
+};
+
+export type AdminUserItem = {
+  id: number;
+  username: string;
+  name: string;
+  role: UserRole;
+  phone: string;
+  designation: string;
+  district: string;
+  state: string;
+  farmer_profile_id?: number | null;
+  created_at: string;
+  last_login_at: string;
+  is_online: boolean;
+  status: string;
+  farmer_profile?: {
+    crop: string;
+    land_area_acres: number;
+    village: string;
+    mandal: string;
+    season: string;
+  } | null;
 };
 
 export type AdminStats = {

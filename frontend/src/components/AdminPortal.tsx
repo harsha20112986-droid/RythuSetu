@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Users,
   FileCheck2,
@@ -10,11 +10,18 @@ import {
   Send,
   ChevronRight,
   Filter,
+  Search,
+  Phone,
+  Shield,
+  Clock,
+  Sprout,
+  ShieldCheck,
 } from "lucide-react";
 import {
   type AuthUser,
   type AdminStats,
   type AdminClaimItem,
+  type AdminUserItem,
   type BroadcastAlert,
   API_BASE,
 } from "../types";
@@ -26,16 +33,22 @@ export function AdminPortal({
   user: AuthUser;
   onSwitchToFarmerView: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"claims" | "directory" | "broadcasts">("claims");
+  const [activeTab, setActiveTab] = useState<"claims" | "users" | "directory" | "broadcasts">("claims");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [claims, setClaims] = useState<AdminClaimItem[]>([]);
   const [registeredFarmers, setRegisteredFarmers] = useState<any[]>([]);
+  const [userAccounts, setUserAccounts] = useState<AdminUserItem[]>([]);
   const [alerts, setAlerts] = useState<BroadcastAlert[]>([]);
   const [_loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [claimFilter, setClaimFilter] = useState<string>("all");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string>("");
+
+  // User Accounts Filter state
+  const [userSearch, setUserSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState<"all" | "farmer" | "admin">("all");
+  const [userStatusFilter, setUserStatusFilter] = useState<"all" | "online" | "offline">("all");
 
   // Broadcast dispatch form state
   const [broadcastTitle, setBroadcastTitle] = useState("");
@@ -47,11 +60,12 @@ export function AdminPortal({
   const fetchAdminData = async () => {
     try {
       setRefreshing(true);
-      const [statsRes, claimsRes, alertsRes, farmersRes] = await Promise.all([
+      const [statsRes, claimsRes, alertsRes, farmersRes, usersRes] = await Promise.all([
         fetch(`${API_BASE}/admin/dashboard-stats`),
         fetch(`${API_BASE}/admin/all-claims`),
         fetch(`${API_BASE}/admin/broadcast-alerts`),
         fetch(`${API_BASE}/admin/farmers`),
+        fetch(`${API_BASE}/admin/users`).catch(() => null),
       ]);
 
       if (statsRes.ok) {
@@ -70,6 +84,69 @@ export function AdminPortal({
         const farmersData = await farmersRes.json();
         setRegisteredFarmers(farmersData.farmers || []);
       }
+
+      // Process User Accounts (combining backend + local storage for instant sync)
+      let serverUsers: AdminUserItem[] = [];
+      if (usersRes && usersRes.ok) {
+        const uData = await usersRes.json();
+        serverUsers = uData.users || [];
+      }
+
+      const localUsers: any[] = JSON.parse(localStorage.getItem("rythusetu_registered_users") || "[]");
+      const userMap = new Map<string, AdminUserItem>();
+
+      // Put server users first
+      serverUsers.forEach((u) => {
+        userMap.set(u.username.toLowerCase(), u);
+      });
+
+      // Merge local users
+      localUsers.forEach((lu: any, idx: number) => {
+        const key = (lu.username || "").toLowerCase();
+        if (!userMap.has(key)) {
+          userMap.set(key, {
+            id: 2000 + idx,
+            username: lu.username,
+            name: lu.name,
+            role: lu.role || "farmer",
+            phone: lu.phone || "Not registered",
+            designation: lu.role === "admin" ? "Mandal Agriculture Officer" : "Registered Smallholder",
+            district: lu.district || "Warangal",
+            state: lu.state || "Telangana",
+            created_at: lu.registeredAt ? new Date(lu.registeredAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Recently",
+            last_login_at: lu.lastLoginAt ? new Date(lu.lastLoginAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) + ", Today" : "Active Now",
+            is_online: true,
+            status: "Online Now 🟢",
+            farmer_profile: {
+              crop: lu.crop || "Cotton",
+              land_area_acres: parseFloat(lu.land_area_acres) || 2.0,
+              village: lu.village || "",
+              mandal: lu.mandal || "",
+              season: lu.season || "Kharif",
+            },
+          });
+        }
+      });
+
+      // Also ensure current admin user is represented
+      if (!userMap.has(user.username.toLowerCase())) {
+        userMap.set(user.username.toLowerCase(), {
+          id: 1,
+          username: user.username,
+          name: user.name,
+          role: user.role,
+          phone: user.phone || "+91 98480 12345",
+          designation: user.designation || "Mandal Agriculture Officer",
+          district: user.district || "Warangal",
+          state: user.state || "Telangana",
+          created_at: "Platform Launch",
+          last_login_at: "Active Now",
+          is_online: true,
+          status: "Online Now 🟢",
+        });
+      }
+
+      setUserAccounts(Array.from(userMap.values()));
     } catch (e) {
       console.error("Failed to load admin telemetry", e);
     } finally {
@@ -102,86 +179,111 @@ export function AdminPortal({
 
   const handleDispatchBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!broadcastTitle || !broadcastAdvisory) return;
+    if (!broadcastTitle.trim() || !broadcastAdvisory.trim()) return;
 
-    setDispatching(true);
     try {
+      setDispatching(true);
       const res = await fetch(`${API_BASE}/admin/broadcast-alert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: broadcastTitle,
+          title: broadcastTitle.trim(),
+          district: user.district,
           severity: broadcastSeverity,
           target_crop: broadcastCrop,
-          district: user.district || "Warangal",
-          advisory: broadcastAdvisory,
-          issued_by: `${user.name} (${user.designation})`,
+          advisory: broadcastAdvisory.trim(),
+          issued_by: `${user.name} (${user.designation || "Mandal Officer"})`,
         }),
       });
       if (res.ok) {
-        setActionMessage(`Emergency broadcast "${broadcastTitle}" dispatched successfully!`);
+        setActionMessage("Emergency Alert dispatched successfully across district farmers!");
         setBroadcastTitle("");
         setBroadcastAdvisory("");
         fetchAdminData();
         setTimeout(() => setActionMessage(""), 4500);
       }
     } catch (e) {
-      console.error("Failed to dispatch broadcast", e);
+      console.error("Failed to dispatch alert", e);
     } finally {
       setDispatching(false);
     }
   };
 
   const filteredClaims = claims.filter((c) => {
-    if (claimFilter === "pending") return c.current_stage === 1;
-    if (claimFilter === "inspected") return c.current_stage === 2;
-    if (claimFilter === "approved") return c.current_stage === 3;
+    if (claimFilter === "all") return true;
+    if (claimFilter === "stage1") return c.current_stage === 1;
+    if (claimFilter === "stage2") return c.current_stage === 2;
+    if (claimFilter === "stage3") return c.current_stage === 3;
     if (claimFilter === "disbursed") return c.current_stage === 4;
     return true;
   });
 
+  // Filtered user accounts
+  const filteredUserAccounts = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    const cleanDigits = userSearch.replace(/\D/g, "");
+
+    return userAccounts.filter((u) => {
+      // Role match
+      if (userRoleFilter !== "all" && u.role !== userRoleFilter) return false;
+
+      // Status match
+      if (userStatusFilter === "online" && !u.is_online) return false;
+      if (userStatusFilter === "offline" && u.is_online) return false;
+
+      // Search query
+      if (!q) return true;
+
+      const matchName = u.name.toLowerCase().includes(q);
+      const matchUsername = u.username.toLowerCase().includes(q);
+      const uDigits = u.phone ? u.phone.replace(/\D/g, "") : "";
+      const matchPhone = (cleanDigits.length >= 3 && uDigits.includes(cleanDigits)) || u.phone.toLowerCase().includes(q);
+      const matchDistrict = u.district.toLowerCase().includes(q);
+
+      return matchName || matchUsername || matchPhone || matchDistrict;
+    });
+  }, [userAccounts, userSearch, userRoleFilter, userStatusFilter]);
+
+  const onlineUsersCount = userAccounts.filter((u) => u.is_online).length;
+
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in duration-300">
-      {/* Officer Authority Banner */}
-      <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 lg:p-8 text-white shadow-xl relative overflow-hidden mb-8 border border-indigo-800/40">
-        <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 size-72 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="flex items-start gap-4">
-            <div className="size-14 rounded-2xl bg-indigo-600/30 border border-indigo-400/30 flex items-center justify-center text-3xl shadow-inner">
-              🏛️
+    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      {/* Top Banner */}
+      <div className="rounded-3xl bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 p-6 sm:p-8 text-white shadow-xl mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-indigo-500/30 border border-indigo-400/40 px-3 py-1 text-xs font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                <ShieldCheck className="size-3.5" />
+                State Agriculture Command Desk
+              </span>
+              <span className="text-xs text-indigo-200">
+                Department of Agriculture & Farmers Welfare
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/30 border border-indigo-400/40 text-indigo-200">
-                  Government Command Desk
-                </span>
-                <span className="text-xs text-indigo-300 font-medium">
-                  {user.district || "Warangal"} District Administration
-                </span>
-              </div>
-              <h1 className="text-2xl lg:text-3xl font-black tracking-tight mt-1">
-                {user.name}
-              </h1>
-              <p className="text-xs text-indigo-200/90 font-medium mt-0.5">
-                {user.designation || "Mandal Agriculture Officer"} • Department of Agriculture & Farmers' Welfare
-              </p>
-            </div>
+            <h1 className="mt-2 text-2xl sm:text-3xl font-black">
+              Welcome, {user.name}
+            </h1>
+            <p className="text-xs sm:text-sm text-indigo-200/90 mt-1">
+              {user.designation || "Mandal Agriculture Extension Officer"} • {user.district} District ({user.state})
+            </p>
           </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={fetchAdminData}
               disabled={refreshing}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold text-white flex items-center gap-2 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 px-3.5 py-2 text-xs font-bold text-white transition cursor-pointer"
             >
               <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              Sync Data
+              <span>Refresh Telemetry</span>
             </button>
+
             <button
               onClick={onSwitchToFarmerView}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white flex items-center gap-2 shadow-md transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-bold text-white transition shadow-md cursor-pointer"
             >
-              <span>🌾 Preview Farmer View</span>
+              <span>Switch to Farmer View</span>
               <ChevronRight className="size-3.5" />
             </button>
           </div>
@@ -189,25 +291,26 @@ export function AdminPortal({
       </div>
 
       {actionMessage && (
-        <div className="mb-6 rounded-2xl bg-emerald-50 border border-emerald-300 p-4 text-emerald-900 text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top duration-300">
+        <div className="mb-6 rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-xs font-bold text-emerald-900 flex items-center gap-2 shadow-xs animate-in slide-in-from-top duration-300">
           <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
           <span>{actionMessage}</span>
         </div>
       )}
 
-      {/* Aggregate Metric Stats */}
+      {/* Aggregate Metrics Header */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="rounded-2xl bg-white p-5 border border-slate-200 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
-              <span>Onboarded Farmers</span>
+              <span>Registered Accounts</span>
               <Users className="size-4 text-indigo-600" />
             </div>
             <div className="text-2xl font-black text-slate-900 mt-2">
-              {stats.total_farmers.toLocaleString()}
+              {userAccounts.length > 0 ? userAccounts.length : stats.total_farmers.toLocaleString()}
             </div>
-            <p className="text-[11px] text-emerald-600 font-bold mt-1">
-              Active across {stats.active_districts} Mandals
+            <p className="text-[11px] text-emerald-600 font-bold mt-1 flex items-center gap-1">
+              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              {onlineUsersCount} Active / Online Now
             </p>
           </div>
 
@@ -253,41 +356,58 @@ export function AdminPortal({
       )}
 
       {/* Admin Navigation Tabs */}
-      <div className="flex border-b border-slate-200 mb-6 gap-2">
+      <div className="flex border-b border-slate-200 mb-6 gap-2 overflow-x-auto pb-1">
         <button
           onClick={() => setActiveTab("claims")}
-          className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs border-b-2 transition cursor-pointer ${
+          className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs border-b-2 transition cursor-pointer shrink-0 ${
             activeTab === "claims"
               ? "border-indigo-600 text-indigo-950 font-black"
               : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >
           <FileCheck2 className="size-4" />
-          PMFBY Claims Verification Desk ({claims.length})
+          <span>PMFBY Claims Desk ({claims.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("users")}
+          className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs border-b-2 transition cursor-pointer shrink-0 ${
+            activeTab === "users"
+              ? "border-indigo-600 text-indigo-950 font-black"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Users className="size-4 text-emerald-600" />
+          <span>Registered User Accounts ({userAccounts.length})</span>
+          {onlineUsersCount > 0 && (
+            <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-black rounded-full bg-emerald-100 text-emerald-800">
+              {onlineUsersCount} Online
+            </span>
+          )}
         </button>
 
         <button
           onClick={() => setActiveTab("broadcasts")}
-          className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs border-b-2 transition cursor-pointer ${
+          className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs border-b-2 transition cursor-pointer shrink-0 ${
             activeTab === "broadcasts"
               ? "border-indigo-600 text-indigo-950 font-black"
               : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >
           <Radio className="size-4 text-red-500" />
-          Emergency Alert Dispatcher ({alerts.length})
+          <span>Emergency Alerts ({alerts.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab("directory")}
-          className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs border-b-2 transition cursor-pointer ${
+          className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs border-b-2 transition cursor-pointer shrink-0 ${
             activeTab === "directory"
               ? "border-indigo-600 text-indigo-950 font-black"
               : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >
-          <Users className="size-4" />
-          District Farmer Registry
+          <Sprout className="size-4 text-emerald-600" />
+          <span>District Farmer Profiles</span>
         </button>
       </div>
 
@@ -298,105 +418,89 @@ export function AdminPortal({
             <div className="flex items-center gap-2">
               <Filter className="size-4 text-slate-400" />
               <span className="text-xs font-bold text-slate-700">Filter by Stage:</span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {[
-                  { id: "all", label: "All Claims" },
-                  { id: "pending", label: "Stage 1: Pending" },
-                  { id: "inspected", label: "Stage 2: Inspected" },
-                  { id: "approved", label: "Stage 3: Approved" },
-                  { id: "disbursed", label: "Stage 4: Disbursed" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setClaimFilter(item.id)}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
-                      claimFilter === item.id
-                        ? "bg-indigo-100 text-indigo-900"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
             </div>
-
-            <div className="text-xs text-slate-500 font-medium">
-              Showing {filteredClaims.length} of {claims.length} claims
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: "all", label: "All Claims" },
+                { id: "stage1", label: "Stage 1: Awaiting Inspection" },
+                { id: "stage2", label: "Stage 2: Approved for DBT" },
+                { id: "stage3", label: "Stage 3: Ready to Disburse" },
+                { id: "disbursed", label: "Stage 4: Disbursed" },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setClaimFilter(f.id)}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    claimFilter === f.id
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
           </div>
 
           {filteredClaims.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-3xl border border-slate-200 text-slate-500 text-xs">
-              No claims found matching the current filter.
+            <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center text-slate-500">
+              <FileCheck2 className="size-12 mx-auto text-slate-300 mb-3" />
+              <p className="text-base font-bold text-slate-800">No claims match this filter</p>
+              <p className="text-xs text-slate-400 mt-1">All farmer intimations have been processed</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid gap-4">
               {filteredClaims.map((claim) => (
                 <div
                   key={claim.claim_id}
-                  className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-indigo-300 transition"
+                  className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 shadow-xs hover:shadow-md transition"
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div className="flex items-start gap-4">
-                      {/* Photo Thumbnail */}
-                      <div
-                        onClick={() => setSelectedPhoto(claim.evidence_photo)}
-                        className="relative size-16 rounded-xl bg-slate-100 border border-slate-300 overflow-hidden shrink-0 cursor-pointer group"
-                        title="Click to view full evidence photo"
-                      >
+                      {claim.evidence_photo ? (
                         <img
                           src={claim.evidence_photo}
                           alt="Evidence"
-                          className="size-full object-cover group-hover:scale-110 transition duration-200"
+                          onClick={() => setSelectedPhoto(claim.evidence_photo)}
+                          className="size-16 sm:size-20 rounded-2xl object-cover border border-slate-200 shrink-0 cursor-pointer hover:opacity-90 transition"
+                          title="Click to zoom evidence"
                         />
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-[10px] text-white font-bold">
-                          Inspect
+                      ) : (
+                        <div className="size-16 sm:size-20 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                          <AlertTriangle className="size-6" />
                         </div>
-                      </div>
+                      )}
 
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-xs font-black text-indigo-950">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-200">
                             {claim.claim_id}
                           </span>
-                          <span className="text-slate-300">•</span>
-                          <span className="font-bold text-slate-900 text-sm">
+                          <span className="font-black text-sm text-slate-900">
                             {claim.farmer_name}
                           </span>
                           <span className="text-xs text-slate-500">
-                            ({claim.village}, {claim.district})
+                            • {claim.village}, {claim.district}
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-600 flex-wrap">
-                          <span>
-                            Crop: <strong className="text-slate-900">{claim.crop_name}</strong>
-                          </span>
-                          <span>•</span>
-                          <span>
-                            Cause: <strong className="text-slate-900">{claim.loss_cause}</strong>
-                          </span>
-                          <span>•</span>
-                          <span>
-                            Damage: <strong className="text-red-600">{claim.loss_percentage}%</strong>
-                          </span>
-                          <span>•</span>
-                          <span>
-                            Valuation: <strong className="text-emerald-700">₹{claim.estimated_loss_inr.toLocaleString()}</strong>
-                          </span>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                          <span>Crop: <strong className="text-slate-800">{claim.crop_name}</strong></span>
+                          <span>Cause: <strong className="text-red-700">{claim.loss_cause}</strong></span>
+                          <span>Loss: <strong className="text-slate-800">{claim.loss_percentage}%</strong></span>
+                          <span>Est. Loss: <strong className="text-emerald-700 font-mono">₹{claim.estimated_loss_inr.toLocaleString()}</strong></span>
                         </div>
 
-                        <div className="flex items-center gap-2 mt-2">
+                        <div className="mt-2 flex items-center gap-2 flex-wrap">
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                               claim.current_stage === 4
-                                ? "bg-teal-100 text-teal-900"
+                                ? "bg-teal-100 text-teal-800"
                                 : claim.current_stage === 3
-                                ? "bg-emerald-100 text-emerald-900"
+                                ? "bg-emerald-100 text-emerald-800"
                                 : claim.current_stage === 2
-                                ? "bg-amber-100 text-amber-900"
-                                : "bg-slate-100 text-slate-800"
+                                ? "bg-indigo-100 text-indigo-800"
+                                : "bg-amber-100 text-amber-800"
                             }`}
                           >
                             Stage {claim.current_stage}: {claim.stage_name}
@@ -462,7 +566,170 @@ export function AdminPortal({
         </div>
       )}
 
-      {/* TAB 2: EMERGENCY BROADCAST DISPATCHER */}
+      {/* TAB 2: REGISTERED USER ACCOUNTS & LIVE LOGINS */}
+      {activeTab === "users" && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+            {/* Search */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+              <input
+                type="text"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Search user by Name, @username, or Phone..."
+                className="w-full pl-9 pr-4 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* Filters */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={userRoleFilter}
+                onChange={(e) => setUserRoleFilter(e.target.value as any)}
+                className="px-3 py-2 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer"
+              >
+                <option value="all">All Roles</option>
+                <option value="farmer">Cultivators Only</option>
+                <option value="admin">Officers Only</option>
+              </select>
+
+              <select
+                value={userStatusFilter}
+                onChange={(e) => setUserStatusFilter(e.target.value as any)}
+                className="px-3 py-2 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer"
+              >
+                <option value="all">All Activity</option>
+                <option value="online">Online / Active Now 🟢</option>
+                <option value="offline">Offline</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  Registered Cultivators & Officer Accounts
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Live database registry tracking authenticated sessions, mobile credentials, and farm linkages
+                </p>
+              </div>
+              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-xl">
+                {filteredUserAccounts.length} Accounts Listed
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">User Name & Handle</th>
+                    <th className="py-3 px-4">Role</th>
+                    <th className="py-3 px-4">Registered Phone</th>
+                    <th className="py-3 px-4">District / State</th>
+                    <th className="py-3 px-4">Farm Profile</th>
+                    <th className="py-3 px-4">Last Login</th>
+                    <th className="py-3 px-4">Live Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredUserAccounts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        <Users className="size-8 mx-auto text-slate-300 mb-2" />
+                        <p className="font-bold text-slate-600">No user accounts found</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Try clearing search or filter terms</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUserAccounts.map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2.5">
+                          <div className={`relative size-8 rounded-full flex items-center justify-center text-white font-black text-xs shrink-0 ${
+                            u.role === "admin" ? "bg-indigo-700" : "bg-emerald-700"
+                          }`}>
+                            {u.name.charAt(0).toUpperCase()}
+                            {u.is_online && (
+                              <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-500 border-2 border-white animate-pulse" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-black text-slate-900 leading-tight">{u.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">@{u.username}</div>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider ${
+                            u.role === "admin"
+                              ? "bg-indigo-100 text-indigo-900"
+                              : "bg-emerald-100 text-emerald-900"
+                          }`}>
+                            {u.role === "admin" ? <Shield className="size-3" /> : <Sprout className="size-3" />}
+                            {u.role === "admin" ? "Officer (MAO)" : "Cultivator"}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 font-mono font-medium text-slate-700">
+                          {u.phone && u.phone !== "Not registered" ? (
+                            <a
+                              href={`tel:${u.phone}`}
+                              className="inline-flex items-center gap-1 hover:text-emerald-700 hover:underline"
+                            >
+                              <Phone className="size-3 text-slate-400" />
+                              <span>{u.phone}</span>
+                            </a>
+                          ) : (
+                            <span className="text-slate-400 italic">Not added</span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-slate-600">
+                          {u.district}, {u.state}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-slate-600">
+                          {u.farmer_profile ? (
+                            <div className="leading-tight">
+                              <span className="font-bold text-emerald-800">{u.farmer_profile.crop}</span>
+                              <span className="text-[11px] text-slate-400"> ({u.farmer_profile.land_area_acres} ac)</span>
+                              <div className="text-[10px] text-slate-400">{u.farmer_profile.village || u.farmer_profile.mandal}</div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">Command Desk Officer</span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-slate-600 font-medium">
+                          <div className="flex items-center gap-1">
+                            <Clock className="size-3 text-slate-400" />
+                            <span>{u.last_login_at || "Just now"}</span>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                            u.is_online
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300/80"
+                              : "bg-slate-100 text-slate-600 border border-slate-200"
+                          }`}>
+                            <span className={`size-1.5 rounded-full ${u.is_online ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+                            <span>{u.is_online ? "Logged In 🟢" : "Offline"}</span>
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: EMERGENCY BROADCAST DISPATCHER */}
       {activeTab === "broadcasts" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Form */}
@@ -519,23 +786,23 @@ export function AdminPortal({
                     onChange={(e) => setBroadcastSeverity(e.target.value as any)}
                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
                   >
-                    <option value="critical">Critical (Red)</option>
-                    <option value="high">High (Amber)</option>
-                    <option value="moderate">Moderate (Yellow)</option>
+                    <option value="high">High Alert</option>
+                    <option value="critical">Critical / Emergency</option>
+                    <option value="moderate">Moderate Advisory</option>
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Advisory Guidelines & Next Steps
+                  Advisory Content & Protective Steps
                 </label>
                 <textarea
                   rows={4}
                   required
                   value={broadcastAdvisory}
                   onChange={(e) => setBroadcastAdvisory(e.target.value)}
-                  placeholder="e.g. Clear drainage channels immediately to prevent waterlogging. Harvest mature bolls before 18:00 IST."
+                  placeholder="e.g. Advise spraying Copper Oxychloride immediately to prevent pest infestation..."
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
@@ -543,38 +810,38 @@ export function AdminPortal({
               <button
                 type="submit"
                 disabled={dispatching}
-                className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-2.5 shadow-md transition cursor-pointer disabled:opacity-50"
               >
                 <Send className="size-3.5" />
-                {dispatching ? "Broadcasting..." : "Dispatch to All Farmers"}
+                <span>{dispatching ? "Broadcasting..." : "Dispatch Alert to All District Farmers"}</span>
               </button>
             </form>
           </div>
 
-          {/* Active Broadcasts Feed */}
-          <div className="lg:col-span-7 space-y-3">
-            <h3 className="text-sm font-black text-slate-800">
-              Active Broadcasts in {user.district} ({alerts.length})
+          {/* Active Dispatches */}
+          <div className="lg:col-span-7 space-y-4">
+            <h3 className="text-sm font-black text-slate-900">
+              Active Broadcast Logs ({alerts.length})
             </h3>
             {alerts.map((alert) => (
               <div
                 key={alert.id}
-                className={`p-5 rounded-2xl border ${
+                className={`p-5 rounded-3xl border transition shadow-xs ${
                   alert.severity === "critical"
                     ? "bg-red-50/70 border-red-200"
                     : alert.severity === "high"
                     ? "bg-amber-50/70 border-amber-200"
-                    : "bg-blue-50/70 border-blue-200"
+                    : "bg-slate-50 border-slate-200"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                       alert.severity === "critical"
-                        ? "bg-red-200 text-red-900"
+                        ? "bg-red-600 text-white"
                         : alert.severity === "high"
-                        ? "bg-amber-200 text-amber-900"
-                        : "bg-blue-200 text-blue-900"
+                        ? "bg-amber-600 text-white"
+                        : "bg-slate-600 text-white"
                     }`}
                   >
                     {alert.severity} Alert
@@ -599,7 +866,7 @@ export function AdminPortal({
         </div>
       )}
 
-      {/* TAB 3: DISTRICT REGISTRY */}
+      {/* TAB 4: DISTRICT FARMER DIRECTORY */}
       {activeTab === "directory" && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
@@ -660,7 +927,7 @@ export function AdminPortal({
                     </tr>
                   ))
                 )}
-</tbody>
+              </tbody>
             </table>
           </div>
         </div>
@@ -689,6 +956,6 @@ export function AdminPortal({
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }

@@ -9,6 +9,23 @@ from app import models  # noqa: F401
 
 Base.metadata.create_all(bind=engine)
 
+def update_schema_columns():
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            result = conn.execute(text("PRAGMA table_info(user_accounts)")).fetchall()
+            existing_cols = [row[1] for row in result]
+            if "phone" not in existing_cols:
+                conn.execute(text("ALTER TABLE user_accounts ADD COLUMN phone VARCHAR(40)"))
+            if "last_login_at" not in existing_cols:
+                conn.execute(text("ALTER TABLE user_accounts ADD COLUMN last_login_at DATETIME"))
+            if "is_online" not in existing_cols:
+                conn.execute(text("ALTER TABLE user_accounts ADD COLUMN is_online BOOLEAN DEFAULT 0"))
+            conn.commit()
+        except Exception as e:
+            print("Schema update notice:", e)
+
+update_schema_columns()
 
 def ensure_default_admin():
     from app.db import SessionLocal
@@ -23,6 +40,7 @@ def ensure_default_admin():
                 password="admin123",
                 name="Agriculture Extension Officer",
                 role="admin",
+                phone="+91 98480 12345",
                 designation="Mandal Agriculture Officer (MAO)",
                 district="Warangal",
                 state="Telangana",
