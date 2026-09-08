@@ -22,19 +22,87 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+
+    <!-- Self-Healing Module Script & Deployment Cache Recovery -->
+    <script>
+      (function() {
+        function purgeStaleCacheAndReload() {
+          console.warn('[RythuSetu] Stale asset load detected. Purging cache and refreshing...');
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              for (var i = 0; i < regs.length; i++) {
+                regs[i].unregister();
+              }
+            });
+          }
+          if ('caches' in window) {
+            caches.keys().then(function(keys) {
+              return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+            }).then(function() {
+              if (!sessionStorage.getItem('rythu_cache_recovered')) {
+                sessionStorage.setItem('rythu_cache_recovered', '1');
+                window.location.reload();
+              }
+            });
+          }
+        }
+
+        window.addEventListener('error', function(e) {
+          var msg = e && e.message ? String(e.message) : '';
+          var targetSrc = e && e.target && (e.target.src || e.target.href) ? String(e.target.src || e.target.href) : '';
+          if (
+            msg.indexOf('Failed to load module') !== -1 ||
+            msg.indexOf('MIME type') !== -1 ||
+            msg.indexOf('Unexpected token') !== -1 ||
+            targetSrc.indexOf('/assets/') !== -1
+          ) {
+            purgeStaleCacheAndReload();
+          }
+        }, true);
+
+        window.addEventListener('vite:preloadError', function() {
+          purgeStaleCacheAndReload();
+        });
+      })();
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased selection:bg-emerald-100 selection:text-emerald-900">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
 
-    <!-- PWA Service Worker Registration -->
+    <!-- PWA Service Worker Registration & Live Updates -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').then((reg) => {
             console.log('RythuSetu PWA Service Worker registered:', reg.scope);
+
+            // If an updated service worker is already waiting, trigger it
+            if (reg.waiting) {
+              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
+
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('RythuSetu updated in background. Reloading to active version...');
+                    window.location.reload();
+                  }
+                });
+              }
+            });
           }).catch((err) => {
             console.warn('PWA registration failed:', err);
+          });
+
+          // Reload when a new service worker takes control
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!sessionStorage.getItem('rythu_controller_reloaded')) {
+              sessionStorage.setItem('rythu_controller_reloaded', '1');
+              window.location.reload();
+            }
           });
         });
       }
