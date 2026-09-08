@@ -19,6 +19,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { type Farmer, type Page } from "../types";
+import { getTranslation } from "../utils/translations";
 
 export function Home({
   farmer,
@@ -26,13 +27,16 @@ export function Home({
   onDashboard,
   onSelectPreset: _onSelectPreset,
   onNavigate,
+  language = "English",
 }: {
   farmer: Farmer | null;
   onStart: () => void;
   onDashboard: () => void;
   onSelectPreset: (f: Farmer) => void;
   onNavigate: (page: Page) => void;
+  language?: string;
 }) {
+  const t = getTranslation(language);
   const [teaserAcres, setTeaserAcres] = useState<number>(3.5);
 
   const estimatedTelangana = 6000 + Math.round(teaserAcres * 12000);
@@ -51,19 +55,19 @@ export function Home({
             {/* Top Tag */}
             <div className="inline-flex items-center gap-2 rounded-full bg-emerald-900/80 border border-emerald-500/40 px-3.5 py-1.5 text-xs font-bold text-emerald-200 backdrop-blur-md mb-6 shadow-sm">
               <Sparkles className="size-3.5 text-amber-400" />
-              <span>AI-Powered Farmer Support</span>
+              <span>{t.krishiAi}</span>
               <span className="text-emerald-500">•</span>
               <span>Andhra Pradesh & Telangana</span>
             </div>
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.12]">
-              Clarity in Climate, Schemes & Crop Protection.
+              {t.homeHeroTitle} <span className="text-emerald-400">{t.homeHeroHighlight}</span>
             </h1>
 
             {/* Subtitle */}
             <p className="mt-6 text-base sm:text-lg text-emerald-100/90 leading-relaxed max-w-xl font-normal">
-              RythuSetu connects hyper-local weather telemetry, verified government assistance rules, and explainable AI guidance to help farmers make the right decisions every season.
+              {t.homeHeroSubtitle}
             </p>
 
             {/* Primary Action Buttons */}
@@ -72,7 +76,7 @@ export function Home({
                 onClick={farmer ? onDashboard : onStart}
                 className="inline-flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/50 transition transform active:scale-95 cursor-pointer"
               >
-                <span>{farmer ? "Open My Dashboard" : "Set Up Farm Profile"}</span>
+                <span>{farmer ? t.dashboard : t.startFarmProfile}</span>
                 <ArrowRight className="size-4" />
               </button>
 
@@ -80,7 +84,7 @@ export function Home({
                 href="#features"
                 className="rounded-2xl border border-white/20 bg-white/10 hover:bg-white/15 px-5 py-3.5 text-sm font-semibold text-white backdrop-blur-md transition cursor-pointer"
               >
-                Explore Capabilities
+                {t.exploreFeatures}
               </a>
             </div>
 

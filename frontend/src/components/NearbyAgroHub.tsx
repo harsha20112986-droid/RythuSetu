@@ -25,6 +25,7 @@ import {
   ALL_STATES,
   getDistrictsForState,
 } from "../types";
+import { getTranslation } from "../utils/translations";
 
 export function NearbyAgroHub({
   farmer,
@@ -32,13 +33,16 @@ export function NearbyAgroHub({
   onNavigateToMandi,
   onNavigateToStorage,
   onNavigateToFactory,
+  language = "English",
 }: {
   farmer: Farmer | null;
   onBack: () => void;
   onNavigateToMandi: () => void;
   onNavigateToStorage: () => void;
   onNavigateToFactory: () => void;
+  language?: string;
 }) {
+  const t = getTranslation(language);
   const [state, setState] = useState(farmer?.form.state || "Andhra Pradesh");
   const [district, setDistrict] = useState(farmer?.form.district || "Guntur");
   const [crop, setCrop] = useState(farmer?.form.crop || "Red Chilli");
@@ -93,10 +97,10 @@ export function NearbyAgroHub({
         </div>
 
         <h1 className="mt-2 text-2xl sm:text-3xl font-black">
-          Nearby Mandis, Processing Mills & AC Godowns
+          {t.nearbyHeading}
         </h1>
         <p className="mt-2 text-sm text-emerald-100 max-w-3xl leading-relaxed">
-          Real-time distance-ranked agricultural infrastructure closest to your farm. Discover direct factory purchase prices (0% broker commission), live APMC auction yards, and climate-controlled cold storages with e-NWR pledge loans.
+          {t.nearbySubtitle}
         </p>
 
         {/* Dynamic Location Pills */}
@@ -240,7 +244,7 @@ export function NearbyAgroHub({
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
           }`}
         >
-          All Nearby Infrastructure ({((data?.nearby_mandis.length || 0) + (data?.nearby_mills.length || 0) + (data?.nearby_cold_storages.length || 0))})
+          {t.nearbyAllTab} ({((data?.nearby_mandis.length || 0) + (data?.nearby_mills.length || 0) + (data?.nearby_cold_storages.length || 0))})
         </button>
 
         <button
@@ -252,7 +256,7 @@ export function NearbyAgroHub({
           }`}
         >
           <Truck className="size-3.5" />
-          <span>Direct Purchase Mills ({data?.nearby_mills.length || 0})</span>
+          <span>{t.nearbyMillsTab} ({data?.nearby_mills.length || 0})</span>
         </button>
 
         <button
@@ -264,7 +268,7 @@ export function NearbyAgroHub({
           }`}
         >
           <Building2 className="size-3.5" />
-          <span>APMC Mandis ({data?.nearby_mandis.length || 0})</span>
+          <span>{t.nearbyMandisTab} ({data?.nearby_mandis.length || 0})</span>
         </button>
 
         <button
@@ -276,7 +280,7 @@ export function NearbyAgroHub({
           }`}
         >
           <Warehouse className="size-3.5" />
-          <span>AC Godowns & Cold Storages ({data?.nearby_cold_storages.length || 0})</span>
+          <span>{t.nearbyGodownsTab} ({data?.nearby_cold_storages.length || 0})</span>
         </button>
       </div>
 

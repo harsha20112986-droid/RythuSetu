@@ -55,11 +55,35 @@ export function App() {
 
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [ivrOpen, setIvrOpen] = useState(false);
-  const [assistantLanguage, setAssistantLanguage] = useState("English");
+  const [assistantLanguage, setAssistantLanguage] = useState<string>(() => {
+    return localStorage.getItem("rythusetu_language") || "English";
+  });
   const [assistantQuestion, setAssistantQuestion] = useState("");
   const [assistantLoading, setAssistantLoading] = useState(false);
   const [assistantError, setAssistantError] = useState("");
   const [assistantMessages, setAssistantMessages] = useState<ChatMessage[]>([]);
+
+  // Dynamically update document language and font classes
+  useEffect(() => {
+    localStorage.setItem("rythusetu_language", assistantLanguage);
+    if (assistantLanguage === "Telugu") {
+      document.documentElement.lang = "te";
+      document.documentElement.classList.add("font-telugu");
+      document.documentElement.classList.remove("font-hindi");
+      document.body.classList.add("font-telugu");
+      document.body.classList.remove("font-hindi");
+    } else if (assistantLanguage === "Hindi") {
+      document.documentElement.lang = "hi";
+      document.documentElement.classList.add("font-hindi");
+      document.documentElement.classList.remove("font-telugu");
+      document.body.classList.add("font-hindi");
+      document.body.classList.remove("font-telugu");
+    } else {
+      document.documentElement.lang = "en";
+      document.documentElement.classList.remove("font-telugu", "font-hindi");
+      document.body.classList.remove("font-telugu", "font-hindi");
+    }
+  }, [assistantLanguage]);
 
   // Initialize farmer & auth user on mount
   useEffect(() => {
@@ -367,6 +391,7 @@ export function App() {
             onDashboard={() => setPage("dashboard")}
             onSelectPreset={handleSelectPreset}
             onNavigate={handleNavigate}
+            language={assistantLanguage}
           />
         )}
 
@@ -479,6 +504,7 @@ export function App() {
             onNavigateToMandi={() => setPage("mandi")}
             onNavigateToStorage={() => setPage("storage")}
             onNavigateToFactory={() => setPage("factory")}
+            language={assistantLanguage}
           />
         )}
       </div>

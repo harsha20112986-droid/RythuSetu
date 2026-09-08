@@ -1,5 +1,6 @@
 import { Languages, Sprout, Phone, ShieldCheck, LogIn, LogOut } from "lucide-react";
-import { type Page, type Farmer, type AuthUser } from "../types";
+import type { Page, Farmer, AuthUser } from "../types";
+import { getTranslation } from "../utils/translations";
 
 export function Header({
   page,
@@ -25,6 +26,7 @@ export function Header({
   onRequestFarmProfile?: () => void;
 }) {
   const isAdmin = currentUser?.role === "admin";
+  const t = getTranslation(language);
 
   return (
     <header className="sticky top-0 z-40 border-b border-emerald-100/90 bg-white/95 backdrop-blur-md transition-all shadow-xs">
@@ -52,17 +54,17 @@ export function Header({
 
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-lg font-black tracking-tight text-slate-900">RythuSetu</span>
+              <span className="text-lg font-black tracking-tight text-slate-900">{t.appName}</span>
               <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
                 isAdmin
                   ? "bg-indigo-100 text-indigo-900"
                   : "bg-emerald-100/80 text-emerald-800"
               }`}>
-                {isAdmin ? "Officer Portal" : "Krishi AI"}
+                {isAdmin ? t.officerPortal : t.krishiAi}
               </span>
             </div>
             <p className="text-[11px] text-slate-500 font-medium leading-none mt-0.5">
-              {isAdmin ? "Government Command Desk" : "AI Bridge to Farmer Support"}
+              {isAdmin ? t.adminTagline : t.tagline}
             </p>
           </div>
         </button>
@@ -80,7 +82,7 @@ export function Header({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                🏛️ Officer Command Desk
+                {t.officerDesk}
               </button>
               <button
                 onClick={() => setPage("home")}
@@ -90,7 +92,7 @@ export function Header({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Platform Home
+                {t.platformHome}
               </button>
             </>
           ) : (
@@ -104,7 +106,7 @@ export function Header({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Home
+                {t.home}
               </button>
 
               {farmer && (
@@ -116,7 +118,7 @@ export function Header({
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  Dashboard
+                  {t.dashboard}
                 </button>
               )}
 
@@ -128,7 +130,7 @@ export function Header({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Crop Advisory
+                {t.cropAdvisory}
               </button>
 
               <button
@@ -139,7 +141,7 @@ export function Header({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Crop Doctor
+                {t.cropDoctor}
               </button>
 
               <button
@@ -150,7 +152,7 @@ export function Header({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Mandi Rates
+                {t.mandiRates}
               </button>
 
               <button
@@ -161,7 +163,7 @@ export function Header({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                AC Godowns
+                {t.acGodowns}
               </button>
 
               <button
@@ -172,7 +174,7 @@ export function Header({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Direct Mills
+                {t.directMills}
               </button>
 
               <button
@@ -183,7 +185,7 @@ export function Header({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Nearby Hub 📍
+                {t.nearbyHub}
               </button>
 
               {farmer ? (
@@ -196,7 +198,7 @@ export function Header({
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    Schemes
+                    {t.schemes}
                   </button>
                   <button
                     onClick={() => setPage("loss")}
@@ -206,7 +208,7 @@ export function Header({
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    PMFBY
+                    {t.pmfby}
                   </button>
                 </>
               ) : (
@@ -226,7 +228,7 @@ export function Header({
                       : "bg-emerald-600 text-white hover:bg-emerald-700"
                   }`}
                 >
-                  Set Up Farm Profile
+                  {t.registerFarmProfile}
                 </button>
               )}
             </>
@@ -243,7 +245,7 @@ export function Header({
               title="1800 Kisan Helpline Simulator"
             >
               <Phone className="size-3.5 text-emerald-600 animate-pulse" />
-              <span>1800 Helpline</span>
+              <span>{t.helpline}</span>
             </button>
           )}
 
@@ -298,7 +300,7 @@ export function Header({
                 <div className="text-left leading-tight">
                   <div className="font-bold truncate max-w-[120px]">{currentUser.name}</div>
                   <div className="text-[9px] text-slate-500 font-normal">
-                    {isAdmin ? "Officer" : "Cultivator"}
+                    {isAdmin ? t.officerPortal : t.farmerBadge}
                   </div>
                 </div>
               </div>
@@ -306,7 +308,7 @@ export function Header({
               <button
                 onClick={onLogout}
                 className="size-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 flex items-center justify-center transition cursor-pointer"
-                title="Sign Out"
+                title={t.signOut}
               >
                 <LogOut className="size-3.5" />
               </button>
@@ -318,7 +320,7 @@ export function Header({
                 className="inline-flex items-center gap-1.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
               >
                 <LogIn className="size-3.5" />
-                <span>Sign In / Register</span>
+                <span>{t.signIn} / {t.register}</span>
               </button>
             </div>
           )}

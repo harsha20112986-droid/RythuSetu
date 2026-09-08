@@ -9,6 +9,14 @@
   -webkit-font-smoothing: antialiased;
 }
 
+:root[lang="te"], .font-telugu {
+  font-family: "Noto Sans Telugu", "Plus Jakarta Sans", "Gautami", "Nirmala UI", sans-serif !important;
+}
+
+:root[lang="hi"], .font-hindi {
+  font-family: "Noto Sans Devanagari", "Plus Jakarta Sans", "Mangal", "Nirmala UI", sans-serif !important;
+}
+
 * {
   box-sizing: border-box;
 }
