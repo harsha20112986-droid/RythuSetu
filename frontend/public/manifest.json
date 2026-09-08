@@ -1,0 +1,70 @@
+{
+  "name": "RythuSetu - Krishi AI",
+  "short_name": "RythuSetu",
+  "description": "AI-powered decision support platform for farmers across Andhra Pradesh & Telangana. Live Mandi prices, crop doctor, weather advisories, AC godowns, and farm-to-factory market.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#047857",
+  "theme_color": "#047857",
+  "scope": "/",
+  "categories": ["agriculture", "productivity", "business"],
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Live Mandi Rates",
+      "short_name": "Mandi",
+      "description": "Check APMC yard prices and MSP spreads",
+      "url": "/?p=mandi",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "AI Crop Doctor",
+      "short_name": "Doctor",
+      "description": "Diagnose leaf diseases and get chemical dosages",
+      "url": "/?p=doctor",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "AC Godowns & Cold Storages",
+      "short_name": "Godowns",
+      "description": "Find cold storage bays and pledge loans",
+      "url": "/?p=storage",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Rythu Direct (Mills)",
+      "short_name": "Direct Sale",
+      "description": "Zero broker sales to ginning and rice mills",
+      "url": "/?p=factory",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -20,6 +20,7 @@ import { FertilizerOptimizer } from "./components/FertilizerOptimizer";
 import { CropRecommendation } from "./components/CropRecommendation";
 import { ColdStorageFinder } from "./components/ColdStorageFinder";
 import { DirectFactoryMarket } from "./components/DirectFactoryMarket";
+import { PwaInstallPrompt } from "./components/PwaInstallPrompt";
 import { IvrModal } from "./components/IvrModal";
 import { KrishiAssistant } from "./components/KrishiAssistant";
 import { LoginModal } from "./components/LoginModal";
@@ -517,6 +518,7 @@ export function App() {
       </footer>
 
       <IvrModal open={ivrOpen} setOpen={setIvrOpen} farmer={farmer} />
+      <PwaInstallPrompt />
     </main>
   );
 }
