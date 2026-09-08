@@ -747,3 +747,29 @@ def api_search_locations(q: str = Query(..., min_length=1), state: str = ""):
 def api_location_stats():
     """Returns total counts of districts, mandals, and villages in LGD."""
     return lgd_get_stats()
+
+
+# -------------------------------------------------------------
+# 6. Hyperlocal Nearby Infrastructure & Market Hub
+# -------------------------------------------------------------
+from app.nearby_engine import get_nearby_infrastructure
+
+@router.get("/nearby/hub")
+def api_nearby_infrastructure(
+    state: str = Query(..., min_length=1),
+    district: str = Query(..., min_length=1),
+    mandal: str = Query("", max_length=100),
+    crop: str = Query("", max_length=100),
+    max_distance_km: float = Query(200.0, gt=0, le=1000)
+):
+    """
+    Returns ranked nearby APMC mandis, direct purchase processing mills/factories,
+    and AC cold storages sorted by actual distance in km from farmer's location.
+    """
+    return get_nearby_infrastructure(
+        state=state,
+        district=district,
+        mandal=mandal,
+        crop=crop,
+        max_distance_km=max_distance_km
+    )

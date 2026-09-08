@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Warehouse,
   Truck,
+  MapPin,
 } from "lucide-react";
 import { type Farmer, type Page } from "../types";
 
@@ -580,6 +581,51 @@ export function Home({
                   className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 py-2.5 text-xs font-bold transition cursor-pointer"
                 >
                   <span>Connect to Factories</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </article>
+
+            {/* Card 9: Nearby Agro Infrastructure Hub */}
+            <article className="relative overflow-hidden rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-emerald-50/40 via-white to-teal-50/40 p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between group">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-600" />
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="grid size-12 place-items-center rounded-2xl bg-emerald-600 text-white shadow-2xs group-hover:scale-110 transition-transform">
+                    <MapPin className="size-6" />
+                  </div>
+                  <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[9px] font-extrabold text-emerald-900 uppercase tracking-wider">
+                    Google Maps + GPS
+                  </span>
+                </div>
+
+                <h3 className="mt-5 font-black text-xl text-slate-900">Nearby Mandis, Mills & Godowns</h3>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Instant GPS calculation of nearest verified APMC yards, private cotton/paddy processing mills, and AC cold storages with direct phone numbers and turn-by-turn navigation.
+                </p>
+
+                <div className="mt-4 space-y-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                    <span>Exact km distance from your village/district</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                    <span>Verified contact numbers & gate in-charges</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                    <span>One-click Google Maps navigation routing</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <button
+                  onClick={() => onNavigate("nearby")}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 text-xs font-bold transition cursor-pointer shadow-xs"
+                >
+                  <span>Explore Nearby Hub 📍</span>
                   <ArrowRight className="size-3.5" />
                 </button>
               </div>

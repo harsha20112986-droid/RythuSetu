@@ -8,7 +8,7 @@ const getApiBase = () => {
 
 export const API_BASE = getApiBase();
 
-export type Page = "home" | "onboarding" | "dashboard" | "schemes" | "benefits" | "loss" | "doctor" | "admin" | "mandi" | "fertilizer" | "recommendation" | "storage" | "factory";
+export type Page = "home" | "onboarding" | "dashboard" | "schemes" | "benefits" | "loss" | "doctor" | "admin" | "mandi" | "fertilizer" | "recommendation" | "storage" | "factory" | "nearby";
 
 export type FormState = {
   name: string;
@@ -550,3 +550,100 @@ export type FertilizerPlan = {
   organic_alternatives: string[];
   soil_health_advisory: string;
 };
+
+
+// -------------------------------------------------------------
+// Nearby Agro Infrastructure & Hyperlocal Market Hub Types
+// -------------------------------------------------------------
+export interface LocationSearchResult {
+  state: string;
+  district: string;
+  mandal: string;
+  village: string;
+  native: string;
+  pincode: string;
+  code: string;
+}
+
+export interface NearbyMandiItem {
+  id: string;
+  name: string;
+  district: string;
+  state: string;
+  lat: number;
+  lon: number;
+  distance_km: number;
+  location: string;
+  phone: string;
+  major_commodities: string[];
+  timing: string;
+  enam_enabled: boolean;
+  daily_arrivals_qtl: number;
+  weighbridge_type: string;
+  google_maps_url: string;
+}
+
+export interface NearbyMillItem {
+  id: string;
+  name: string;
+  category: string;
+  district: string;
+  state: string;
+  lat: number;
+  lon: number;
+  distance_km: number;
+  location: string;
+  crop: string;
+  phone: string;
+  direct_offer_price_qtl: number;
+  mandi_benchmark_price_qtl: number;
+  extra_profit_per_qtl: number;
+  broker_commission_saved: string;
+  payment_terms: string;
+  quality_specs: string;
+  google_maps_url: string;
+}
+
+export interface NearbyGodownItem {
+  id: string;
+  name: string;
+  district: string;
+  state: string;
+  lat: number;
+  lon: number;
+  distance_km: number;
+  location: string;
+  phone: string;
+  facility_type: string;
+  capacity_mt: number;
+  available_space_mt: number;
+  commodities: string[];
+  temp_range: string;
+  humidity_rh: string;
+  monthly_rent_per_bag: number;
+  bag_weight_kg: string;
+  enwr_pledge_loan: boolean;
+  loan_percent: string;
+  google_maps_url: string;
+}
+
+export interface NearbyHubData {
+  farmer_location: {
+    state: string;
+    district: string;
+    mandal?: string;
+    crop?: string;
+    gps: { lat: number; lon: number };
+  };
+  nearby_mandis: NearbyMandiItem[];
+  nearby_mills: NearbyMillItem[];
+  nearby_cold_storages: NearbyGodownItem[];
+  summary: {
+    total_mandis: number;
+    total_mills: number;
+    total_cold_storages: number;
+    nearest_mandi: NearbyMandiItem | null;
+    nearest_mill: NearbyMillItem | null;
+    nearest_cold_storage: NearbyGodownItem | null;
+  };
+}

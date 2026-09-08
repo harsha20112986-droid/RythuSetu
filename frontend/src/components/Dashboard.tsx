@@ -41,6 +41,7 @@ export function Dashboard({
   onRecommendation,
   onStorage,
   onFactory,
+  onNearby,
 }: {
   farmer: Farmer;
   onEdit: () => void;
@@ -55,6 +56,7 @@ export function Dashboard({
   onRecommendation?: () => void;
   onStorage?: () => void;
   onFactory?: () => void;
+  onNearby?: () => void;
 }) {
   const [climate, setClimate] = useState<ClimateData | null>(null);
   const [alerts, setAlerts] = useState<BroadcastAlert[]>([]);
@@ -699,6 +701,31 @@ export function Dashboard({
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white py-2.5 text-xs font-bold transition cursor-pointer"
             >
               <span>Direct Mill Contracts</span>
+              <ArrowRight className="size-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card 11: Hyperlocal Agro Infrastructure Hub (Mandis, Mills, Godowns) */}
+        <div className="rounded-3xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/70 p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-bl-xl">
+            Live GPS + Distances
+          </div>
+          <div>
+            <div className="grid size-12 place-items-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-700/20">
+              <MapPin className="size-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-black text-slate-900">Nearby Mandis, Mills & Godowns</h3>
+            <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+              Find verified APMC market yards, direct cotton/paddy mills, and AC cold storages sorted by actual distance from {farmer.form.district}.
+            </p>
+          </div>
+          <div className="mt-6 pt-4 border-t border-slate-200/60">
+            <button
+              onClick={onNearby}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white py-2.5 text-xs font-bold transition cursor-pointer shadow-sm"
+            >
+              <span>Explore Nearby Hub 📍</span>
               <ArrowRight className="size-3.5" />
             </button>
           </div>

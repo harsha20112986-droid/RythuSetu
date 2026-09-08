@@ -24,6 +24,7 @@ import {
   type CropCategory,
   type CropItem,
   type VillageInfo,
+  type LocationSearchResult,
   API_BASE,
 } from "../types";
 
@@ -78,6 +79,50 @@ export function Onboarding({
   const [officialVillages, setOfficialVillages] = useState<VillageInfo[]>([]);
   const [loadingVillages, setLoadingVillages] = useState(false);
   const [villageSearch, setVillageSearch] = useState("");
+
+  // Universal Instant Village Search State
+  const [universalSearchQuery, setUniversalSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<LocationSearchResult[]>([]);
+  const [searchingLocations, setSearchingLocations] = useState(false);
+  const [selectedAutoLocation, setSelectedAutoLocation] = useState<string | null>(null);
+
+  // Search backend whenever user types in Universal Finder
+  useEffect(() => {
+    const q = universalSearchQuery.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchingLocations(true);
+      try {
+        const res = await fetch(`${API_BASE}/locations/search?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data.results || []);
+        }
+      } catch (err) {
+        console.warn("Location search error:", err);
+      } finally {
+        setSearchingLocations(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [universalSearchQuery]);
+
+  const handleSelectSearchResult = (loc: LocationSearchResult) => {
+    update("state", loc.state);
+    update("district", loc.district);
+    update("mandal", loc.mandal);
+    update("village", loc.village);
+    setSelectedAutoLocation(`${loc.village} (${loc.native || ""}) • ${loc.mandal} Mandal, ${loc.district}, ${loc.state}`);
+    setUniversalSearchQuery("");
+    setSearchResults([]);
+    setShowCustomMandalInput(false);
+    setShowCustomVillageInput(false);
+  };
 
   useEffect(() => {
     if (!form.state || !form.district || !form.mandal) {
@@ -297,6 +342,103 @@ export function Onboarding({
               <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">
                 {form.state} • {availableDistricts.length} Districts
               </span>
+            </div>
+
+            {/* Universal Instant Village Finder (e.g. Pallapadu, Tenali, Kaza, Narsampet) */}
+            <div className="mb-5 rounded-2xl bg-emerald-50/70 border border-emerald-300/80 p-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                  <Search className="size-4 text-emerald-700" />
+                  <span>Instant Village Finder: Search Any Village Across AP & Telangana</span>
+                </label>
+                <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200">
+                  29,239 Official Villages
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-800/90 mb-2 leading-tight">
+                Type your village name (e.g. <strong>"Pallapadu"</strong>, <strong>"Palapadu"</strong>, <strong>"Kaza"</strong>, <strong>"Tenali"</strong>, or PIN code) to auto-fill State, District, and Mandal with 1-click!
+              </p>
+
+              <div className="relative">
+                <Search className="size-4 absolute left-3.5 top-3 text-emerald-600" />
+                <input
+                  type="text"
+                  value={universalSearchQuery}
+                  onChange={(e) => {
+                    setUniversalSearchQuery(e.target.value);
+                    setSelectedAutoLocation(null);
+                  }}
+                  placeholder="Type village name (English / తెలుగు) or 6-digit PIN code..."
+                  className="w-full rounded-2xl border border-emerald-400 bg-white pl-10 pr-10 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:ring-4 focus:ring-emerald-200/60 shadow-xs transition"
+                />
+                {searchingLocations && (
+                  <span className="absolute right-3.5 top-3 text-[11px] font-bold text-emerald-700 animate-pulse">
+                    Searching...
+                  </span>
+                )}
+                {universalSearchQuery && !searchingLocations && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUniversalSearchQuery("");
+                      setSearchResults([]);
+                    }}
+                    className="absolute right-3 top-2.5 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    ×
+                  </button>
+                )}
+
+                {/* Search Results Dropdown */}
+                {searchResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-64 overflow-y-auto rounded-2xl border border-emerald-300 bg-white p-2 shadow-2xl space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 px-2.5 py-1 block">
+                      Found {searchResults.length} official villages (Click to select):
+                    </span>
+                    {searchResults.map((loc, idx) => (
+                      <button
+                        key={`${loc.village}_${loc.mandal}_${idx}`}
+                        type="button"
+                        onClick={() => handleSelectSearchResult(loc)}
+                        className="w-full text-left rounded-xl p-2.5 text-xs hover:bg-emerald-50 hover:border-emerald-300 border border-transparent transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-1"
+                      >
+                        <div>
+                          <span className="font-extrabold text-slate-950">
+                            📍 {loc.village}
+                          </span>
+                          {loc.native && (
+                            <span className="ml-1.5 text-emerald-800 font-bold">
+                              ({loc.native})
+                            </span>
+                          )}
+                          <span className="block text-[11px] text-slate-500 mt-0.5">
+                            Mandal: <strong>{loc.mandal}</strong> • District: <strong>{loc.district}</strong> • State: <strong>{loc.state}</strong>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+                          {loc.pincode && (
+                            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-bold">
+                              PIN: {loc.pincode}
+                            </span>
+                          )}
+                          {loc.code && (
+                            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md text-[10px] font-bold">
+                              LGD: {loc.code}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {selectedAutoLocation && (
+                <div className="mt-2.5 rounded-xl bg-emerald-100/90 border border-emerald-300 px-3 py-1.5 text-xs font-extrabold text-emerald-950 flex items-center gap-1.5 animate-in fade-in">
+                  <CheckCircle2 className="size-4 text-emerald-700 shrink-0" />
+                  <span>Location auto-filled: <strong>{selectedAutoLocation}</strong></span>
+                </div>
+              )}
             </div>
 
             {/* State & District Selectors */}

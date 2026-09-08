@@ -20,6 +20,7 @@ import { FertilizerOptimizer } from "./components/FertilizerOptimizer";
 import { CropRecommendation } from "./components/CropRecommendation";
 import { ColdStorageFinder } from "./components/ColdStorageFinder";
 import { DirectFactoryMarket } from "./components/DirectFactoryMarket";
+import { NearbyAgroHub } from "./components/NearbyAgroHub";
 import { PwaInstallPrompt } from "./components/PwaInstallPrompt";
 import { IvrModal } from "./components/IvrModal";
 import { KrishiAssistant } from "./components/KrishiAssistant";
@@ -403,6 +404,7 @@ export function App() {
             onRecommendation={() => setPage("recommendation")}
             onStorage={() => setPage("storage")}
             onFactory={() => setPage("factory")}
+            onNearby={() => setPage("nearby")}
           />
         )}
 
@@ -467,6 +469,16 @@ export function App() {
           <DirectFactoryMarket
             farmer={farmer}
             onBack={() => setPage(farmer ? "dashboard" : "home")}
+          />
+        )}
+
+        {page === "nearby" && (
+          <NearbyAgroHub
+            farmer={farmer}
+            onBack={() => setPage(farmer ? "dashboard" : "home")}
+            onNavigateToMandi={() => setPage("mandi")}
+            onNavigateToStorage={() => setPage("storage")}
+            onNavigateToFactory={() => setPage("factory")}
           />
         )}
       </div>

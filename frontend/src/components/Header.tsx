@@ -175,6 +175,17 @@ export function Header({
                 Direct Mills
               </button>
 
+              <button
+                onClick={() => setPage("nearby")}
+                className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer shrink-0 ${
+                  page === "nearby"
+                    ? "bg-white text-emerald-950 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Nearby Hub 📍
+              </button>
+
               {farmer ? (
                 <>
                   <button
