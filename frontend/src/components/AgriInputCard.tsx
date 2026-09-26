@@ -10,6 +10,8 @@ import {
   Store,
   ChevronDown,
   ChevronUp,
+  ZoomIn,
+  X,
 } from "lucide-react";
 import type { AgriProductItem, AgriDealerItem } from "../types";
 
@@ -21,22 +23,36 @@ export function AgriInputCard({
   nearbyDealers?: AgriDealerItem[];
 }) {
   const [showDealers, setShowDealers] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
   const lowestStore = product.price_comparison.find((p) => p.is_lowest) || product.price_comparison[0];
 
   return (
     <div className="rounded-3xl border border-emerald-200/90 bg-white p-5 shadow-sm hover:shadow-md transition space-y-4">
       {/* Top Banner: Product Packshot + Brand & Formula */}
       <div className="flex flex-col sm:flex-row gap-4">
-        {/* Packshot Image with Category Badge */}
-        <div className="relative size-28 sm:size-32 rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 shrink-0 flex items-center justify-center p-2 group">
+        {/* Packshot Image with Category Badge & Click-to-Inspect */}
+        <div
+          onClick={() => setIsZoomed(true)}
+          className="relative size-28 sm:size-32 rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 shrink-0 flex items-center justify-center p-2 group cursor-zoom-in shadow-2xs hover:border-emerald-400 transition"
+          title="Click to zoom & inspect original bottle/bag packaging (ప్యాకింగ్ పరిశీలించండి)"
+        >
           <img
             src={product.image_url}
             alt={product.brand_name}
-            className="w-full h-full object-contain rounded-xl transition-transform group-hover:scale-105"
+            onError={(e) => {
+              if (product.cdn_image_url && e.currentTarget.src !== product.cdn_image_url) {
+                e.currentTarget.src = product.cdn_image_url;
+              }
+            }}
+            className="w-full h-full object-contain rounded-xl transition-transform group-hover:scale-110"
             loading="lazy"
           />
           <span className="absolute top-1.5 left-1.5 rounded-md bg-slate-900/80 backdrop-blur-xs text-white text-[9px] font-black uppercase px-1.5 py-0.5 tracking-wider">
             {product.category.split(" ")[0]}
+          </span>
+          <span className="absolute bottom-1.5 right-1.5 rounded-md bg-emerald-800/90 backdrop-blur-xs text-white text-[8px] font-bold px-1.5 py-0.5 flex items-center gap-0.5 shadow-xs">
+            <ZoomIn className="size-2.5" />
+            <span>Inspect</span>
           </span>
         </div>
 
@@ -50,6 +66,13 @@ export function AgriInputCard({
             <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
               Verified Original Brand
             </span>
+            <button
+              type="button"
+              onClick={() => setIsZoomed(true)}
+              className="text-[10px] font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-md border border-teal-200 flex items-center gap-1 transition cursor-pointer"
+            >
+              <span>📸 Authentic Packshot</span>
+            </button>
           </div>
 
           <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
@@ -257,6 +280,115 @@ export function AgriInputCard({
           </div>
         )}
       </div>
+
+      {/* 📸 FULL PACKAGING INSPECTOR MODAL FOR FARMERS */}
+      {isZoomed && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setIsZoomed(false)}
+        >
+          <div
+            className="relative bg-white rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 overflow-hidden space-y-4 max-h-[92vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3 shrink-0">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                    100% Original Certified Packaging
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">
+                    {product.manufacturer}
+                  </span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 mt-1">
+                  {product.brand_name}
+                  {product.telugu_brand_name && (
+                    <span className="text-sm font-bold text-emerald-700 ml-2">
+                      ({product.telugu_brand_name})
+                    </span>
+                  )}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsZoomed(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer shrink-0"
+                aria-label="Close modal"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Large Packaging Packshot */}
+            <div className="relative flex-1 min-h-[240px] max-h-[380px] rounded-2xl bg-gradient-to-b from-slate-50 to-slate-100/70 border border-slate-200 flex items-center justify-center p-4 overflow-hidden">
+              <img
+                src={product.image_url}
+                alt={product.brand_name}
+                onError={(e) => {
+                  if (product.cdn_image_url && e.currentTarget.src !== product.cdn_image_url) {
+                    e.currentTarget.src = product.cdn_image_url;
+                  }
+                }}
+                className="max-h-full max-w-full object-contain filter drop-shadow-md select-none transition-transform hover:scale-105 duration-200"
+              />
+              <div className="absolute bottom-2 left-2 right-2 text-center pointer-events-none">
+                <span className="inline-block text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white/95 backdrop-blur-xs px-3 py-1 rounded-full border border-slate-200 shadow-2xs">
+                  🔍 Check bottle/bag label, ISI & CIBRC seal, and active formula before purchasing
+                </span>
+              </div>
+            </div>
+
+            {/* Chemical Formula & Specifications */}
+            <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 text-xs space-y-2 shrink-0">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Active Chemical Formula / Composition:
+                </span>
+                <span className="text-xs sm:text-sm font-mono font-black text-indigo-950 block mt-0.5">
+                  {product.chemical_formula}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 text-slate-700">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block">Recommended Dosage:</span>
+                  <strong className="text-emerald-900 text-xs">{product.recommended_dosage}</strong>
+                </div>
+                {product.pack_size && (
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold block">Standard Pack Size:</span>
+                    <strong className="text-slate-900 text-xs">{product.pack_size}</strong>
+                  </div>
+                )}
+              </div>
+
+              {product.safety_notes && (
+                <p className="text-[11px] text-amber-900 bg-amber-50/80 rounded-xl p-2 border border-amber-200/80">
+                  ⚠️ <strong>Precaution:</strong> {product.safety_notes}
+                </p>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between gap-3 pt-1 shrink-0">
+              <span className="text-[11px] font-semibold text-emerald-800">
+                ✓ Verified authentic packaging photo
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsZoomed(false)}
+                className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
+              >
+                Close (మూసివేయండి)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

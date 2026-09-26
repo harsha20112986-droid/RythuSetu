@@ -39,7 +39,8 @@ const DEFAULT_AGRI_PRODUCTS: Record<string, AgriProductItem[]> = {
       target_pests: ["American Bollworm", "Spotted Bollworm", "Stem Borer"],
       recommended_dosage: "60 ml per acre (0.3 ml/L water)",
       pack_size: "60 ml / 150 ml bottle",
-      image_url: "https://images.unsplash.com/photo-1587293852726-70cdb56c2866?auto=format&fit=crop&w=400&q=80",
+      image_url: "/images/products/coragen.jpg",
+      cdn_image_url: "https://cdn.shopify.com/s/files/1/0722/2059/files/coragen-dupont-file-1135.jpg?v=1737429360",
       price_comparison: [
         { store_name: "BigHaat", price_inr: 1850, mrp_inr: 2150, savings_inr: 300, is_lowest: true, url: "https://www.bighaat.com/search?q=coragen", shipping: "Free Delivery", delivery_days: "2 - 3 Days" },
         { store_name: "AgroStar", price_inr: 1920, mrp_inr: 2150, savings_inr: 230, is_lowest: false, url: "https://www.agrostar.in/search?q=coragen", shipping: "₹49 Doorstep", delivery_days: "3 - 4 Days" },
@@ -58,7 +59,8 @@ const DEFAULT_AGRI_PRODUCTS: Record<string, AgriProductItem[]> = {
       target_pests: ["Bacterial Leaf Blight", "Black Arm"],
       recommended_dosage: "300g Blitox + 6g Streptocycline per acre",
       pack_size: "500g pouch",
-      image_url: "https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=400&q=80",
+      image_url: "/images/products/blitox.webp",
+      cdn_image_url: "https://cdn.shopify.com/s/files/1/0722/2059/files/tata-rallis-blitox-fungicide-file-2556.webp?v=1737467922",
       price_comparison: [
         { store_name: "BigHaat", price_inr: 340, mrp_inr: 410, savings_inr: 70, is_lowest: true, url: "https://www.bighaat.com/search?q=blitox", shipping: "Express", delivery_days: "2 - 3 Days" },
         { store_name: "AgroStar", price_inr: 365, mrp_inr: 410, savings_inr: 45, is_lowest: false, url: "https://www.agrostar.in/search?q=blitox", shipping: "Village Drop", delivery_days: "3 - 4 Days" },
@@ -78,7 +80,8 @@ const DEFAULT_AGRI_PRODUCTS: Record<string, AgriProductItem[]> = {
       target_pests: ["Rice Leaf Blast", "Neck Blast"],
       recommended_dosage: "120g per acre (0.6g/L water)",
       pack_size: "120g / 250g pouch",
-      image_url: "https://images.unsplash.com/photo-1536939459926-301728717817?auto=format&fit=crop&w=400&q=80",
+      image_url: "/images/products/beam_tricyclazole.jpg",
+      cdn_image_url: "https://cdn.shopify.com/s/files/1/0722/2059/files/beam-fungicide-file-2948.jpg",
       price_comparison: [
         { store_name: "BigHaat", price_inr: 420, mrp_inr: 510, savings_inr: 90, is_lowest: true, url: "https://www.bighaat.com/search?q=tricyclazole", shipping: "Free Delivery", delivery_days: "2 - 3 Days" },
         { store_name: "AgroStar", price_inr: 445, mrp_inr: 510, savings_inr: 65, is_lowest: false, url: "https://www.agrostar.in/search?q=tricyclazole", shipping: "Standard", delivery_days: "3 - 5 Days" },
@@ -95,7 +98,8 @@ const DEFAULT_AGRI_PRODUCTS: Record<string, AgriProductItem[]> = {
       target_pests: ["Stem Borer", "Leaf Folder"],
       recommended_dosage: "60 ml per acre",
       pack_size: "60 ml bottle",
-      image_url: "https://images.unsplash.com/photo-1587293852726-70cdb56c2866?auto=format&fit=crop&w=400&q=80",
+      image_url: "/images/products/coragen.jpg",
+      cdn_image_url: "https://cdn.shopify.com/s/files/1/0722/2059/files/coragen-dupont-file-1135.jpg?v=1737429360",
       price_comparison: [
         { store_name: "BigHaat", price_inr: 1850, mrp_inr: 2150, savings_inr: 300, is_lowest: true, url: "https://www.bighaat.com/search?q=coragen", shipping: "Free Delivery", delivery_days: "2 - 3 Days" },
         { store_name: "AgroStar", price_inr: 1920, mrp_inr: 2150, savings_inr: 230, is_lowest: false, url: "https://www.agrostar.in/search?q=coragen", shipping: "Doorstep", delivery_days: "3 - 4 Days" },
@@ -115,7 +119,8 @@ const DEFAULT_AGRI_PRODUCTS: Record<string, AgriProductItem[]> = {
       target_pests: ["Black Thrips (Thrips parvispinus)", "Leaf Curl"],
       recommended_dosage: "180 ml per acre (0.9 ml/L water)",
       pack_size: "100 ml / 180 ml bottle",
-      image_url: "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=400&q=80",
+      image_url: "/images/products/delegate.jpg",
+      cdn_image_url: "https://cdn.shopify.com/s/files/1/0722/2059/files/delegate-insecticide-file-20063_3afbfc27-172f-4a40-988d-9bb54c22f8d1.jpg?v=1747131248",
       price_comparison: [
         { store_name: "BigHaat", price_inr: 1780, mrp_inr: 2050, savings_inr: 270, is_lowest: true, url: "https://www.bighaat.com/search?q=delegate", shipping: "Free Shipping", delivery_days: "2 - 4 Days" },
         { store_name: "AgroStar", price_inr: 1840, mrp_inr: 2050, savings_inr: 210, is_lowest: false, url: "https://www.agrostar.in/search?q=delegate", shipping: "Express Dispatch", delivery_days: "3 - 5 Days" },
@@ -133,7 +138,8 @@ const DEFAULT_AGRI_PRODUCTS: Record<string, AgriProductItem[]> = {
       target_pests: ["Anthracnose / Fruit Rot", "Die-Back"],
       recommended_dosage: "200 ml per acre (1.0 ml/L water)",
       pack_size: "200 ml bottle",
-      image_url: "https://images.unsplash.com/photo-1592417817098-8f3d6910985b?auto=format&fit=crop&w=400&q=80",
+      image_url: "/images/products/amistar_top.webp",
+      cdn_image_url: "https://cdn.shopify.com/s/files/1/0722/2059/files/amistar-top-fungicide-file-3948.webp",
       price_comparison: [
         { store_name: "BigHaat", price_inr: 1490, mrp_inr: 1720, savings_inr: 230, is_lowest: true, url: "https://www.bighaat.com/search?q=amistar+top", shipping: "Free Delivery", delivery_days: "2 - 3 Days" },
         { store_name: "AgroStar", price_inr: 1540, mrp_inr: 1720, savings_inr: 180, is_lowest: false, url: "https://www.agrostar.in/search?q=amistar+top", shipping: "Doorstep", delivery_days: "3 - 5 Days" },
@@ -141,6 +147,7 @@ const DEFAULT_AGRI_PRODUCTS: Record<string, AgriProductItem[]> = {
     },
   ],
 };
+
 
 const DEFAULT_DEALERS: AgriDealerItem[] = [
   {

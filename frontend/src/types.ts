@@ -753,6 +753,7 @@ export interface AgriProductItem {
   application_method?: string;
   pack_size: string;
   image_url: string;
+  cdn_image_url?: string;
   safety_notes?: string;
   price_comparison: StorePriceOption[];
 }

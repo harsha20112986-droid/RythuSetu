@@ -109,12 +109,21 @@ def test_agri_khata_breakeven_calculator(client):
     assert len(h_res.json()["entries"]) > 0
 
 def test_agri_input_products_and_dealers(client):
-    p_res = client.get("/api/v1/inputs/products?crop=Red Chilli")
+    p_res = client.get("/api/v1/inputs/products")
     assert p_res.status_code == 200
-    assert "products" in p_res.json()
-    assert len(p_res.json()["products"]) > 0
+    prods = p_res.json()["products"]
+    assert len(prods) >= 20
+
+    # Ensure EVERY single product has an authentic original packshot and valid CDN fallback
+    for p in prods:
+        assert p["image_url"].startswith("/images/products/"), f"Product {p['id']} image must be local packshot"
+        assert "unsplash.com" not in p["image_url"], f"Product {p['id']} must not use stock Unsplash photo"
+        assert p.get("cdn_image_url") and p["cdn_image_url"].startswith("http"), f"Product {p['id']} missing cdn_image_url"
+        assert p.get("chemical_formula"), f"Product {p['id']} must have active chemical formula"
+        assert len(p.get("price_comparison", [])) > 0, f"Product {p['id']} must have multi-store price comparisons"
 
     d_res = client.get("/api/v1/inputs/dealers?district=Guntur")
     assert d_res.status_code == 200
     assert "dealers" in d_res.json()
     assert len(d_res.json()["dealers"]) > 0
+
