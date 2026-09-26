@@ -5,6 +5,7 @@ providing exact fertilizer schedules, pest vulnerabilities, and CIBRC chemical/o
 """
 
 from typing import Any
+from app.input_market_engine import search_agri_products
 
 # Comprehensive Crop Knowledge Base for Andhra Pradesh & Telangana Agro-Climatic Zones
 CROP_AGRONOMIC_KNOWLEDGE: dict[str, dict[str, Any]] = {
@@ -328,6 +329,7 @@ def recommend_crops(
             **details,
             "suitability_score": min(score, 98),
             "match_reasons": reasons,
+            "verified_inputs": search_agri_products(crop=crop_name),
         })
 
     scored_crops.sort(key=lambda x: x["suitability_score"], reverse=True)

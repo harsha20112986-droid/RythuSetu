@@ -819,3 +819,48 @@ def api_nearby_infrastructure(
         crop=crop,
         max_distance_km=max_distance_km
     )
+
+
+# -------------------------------------------------------------
+# 7. Agri Inputs, Branded Chemical Formulas & Dealer Directory
+# -------------------------------------------------------------
+from app.input_market_engine import search_agri_products, get_nearby_dealers
+
+@router.get("/inputs/products")
+def api_search_products(
+    crop: str = Query("", max_length=100),
+    disease: str = Query("", max_length=150),
+    category: str = Query("", max_length=100),
+    q: str = Query("", max_length=100)
+):
+    """
+    Returns verified agri chemicals & fertilizers with packaging packshots,
+    chemical formula breakdown, multi-store price comparisons, and direct shopping links.
+    """
+    return {
+        "products": search_agri_products(
+            crop=crop,
+            disease_or_pest=disease,
+            category=category,
+            query=q
+        )
+    }
+
+@router.get("/inputs/dealers")
+def api_nearby_dealers(
+    state: str = Query("", max_length=100),
+    district: str = Query("", max_length=100),
+    mandal: str = Query("", max_length=100)
+):
+    """
+    Returns authorized fertilizer & pesticide dealers with license numbers,
+    village/mandal addresses, and direct phone contact links.
+    """
+    return {
+        "dealers": get_nearby_dealers(
+            state=state,
+            district=district,
+            mandal=mandal
+        )
+    }
+

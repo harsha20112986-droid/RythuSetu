@@ -278,6 +278,8 @@ export type DiseaseAnalysis = {
   pmfby_coverage: string;
   advisory: string;
   engine?: string;
+  recommended_products?: AgriProductItem[];
+  nearby_dealers?: AgriDealerItem[];
 };
 
 export type PestManagementItem = {
@@ -304,6 +306,7 @@ export type CropRecommendationItem = {
   intercrop_suitability: string;
   suitability_score: number;
   match_reasons: string[];
+  verified_inputs?: AgriProductItem[];
 };
 
 export type ColdStorageFacility = {
@@ -705,3 +708,53 @@ export interface NearbyHubData {
     nearest_cold_storage: NearbyGodownItem | null;
   };
 }
+
+export interface StorePriceOption {
+  store_name: string;
+  price_inr: number;
+  mrp_inr: number;
+  savings_inr?: number;
+  is_lowest: boolean;
+  url: string;
+  shipping: string;
+  delivery_days: string;
+  badge?: string;
+}
+
+export interface AgriProductItem {
+  id: string;
+  brand_name: string;
+  telugu_brand_name?: string;
+  manufacturer: string;
+  category: string;
+  chemical_formula: string;
+  chemical_class?: string;
+  target_crops: string[];
+  target_pests: string[];
+  recommended_dosage: string;
+  application_method?: string;
+  pack_size: string;
+  image_url: string;
+  safety_notes?: string;
+  price_comparison: StorePriceOption[];
+}
+
+export interface AgriDealerItem {
+  id: string;
+  store_name: string;
+  telugu_name?: string;
+  proprietor: string;
+  phone: string;
+  district: string;
+  state: string;
+  mandal: string;
+  address: string;
+  distance_km: number;
+  license_no: string;
+  gov_authorized: boolean;
+  brands_stocked: string[];
+  stock_status: string;
+  operating_hours?: string;
+  offers_doorstep_delivery?: boolean;
+}
+

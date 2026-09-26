@@ -7,8 +7,16 @@ import {
   Leaf,
   CheckCircle2,
   Info,
+  ShoppingBag,
 } from "lucide-react";
-import { type Farmer, type FertilizerPlan, API_BASE } from "../types";
+import {
+  type Farmer,
+  type FertilizerPlan,
+  type AgriProductItem,
+  type AgriDealerItem,
+  API_BASE,
+} from "../types";
+import { AgriInputCard } from "./AgriInputCard";
 
 export function FertilizerOptimizer({
   farmer,
@@ -22,6 +30,8 @@ export function FertilizerOptimizer({
   const [acres, setAcres] = useState(farmer?.form.land_area_acres || "3.5");
   const [plan, setPlan] = useState<FertilizerPlan | null>(null);
   const [_loading, setLoading] = useState(false);
+  const [fertilizerProducts, setFertilizerProducts] = useState<AgriProductItem[]>([]);
+  const [dealers, setDealers] = useState<AgriDealerItem[]>([]);
 
   const calculatePlan = async () => {
     setLoading(true);
@@ -39,6 +49,16 @@ export function FertilizerOptimizer({
         const data = await res.json();
         setPlan(data);
       }
+
+      fetch(`${API_BASE}/inputs/products?category=fertilizer&crop=${crop}`)
+        .then((r) => r.json())
+        .then((d) => setFertilizerProducts(d.products || []))
+        .catch(() => {});
+
+      fetch(`${API_BASE}/inputs/dealers?district=${farmer?.form.district || "Guntur"}`)
+        .then((r) => r.json())
+        .then((d) => setDealers(d.dealers || []))
+        .catch(() => {});
     } catch (e) {
       console.error(e);
     } finally {
@@ -252,6 +272,31 @@ export function FertilizerOptimizer({
               </div>
             </div>
           </div>
+
+          {/* Branded Fertilizer Packaging Packshots, Chemical Composition & Price Comparison */}
+          {fertilizerProducts.length > 0 && (
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+              <div>
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <ShoppingBag className="size-4.5 text-emerald-700" />
+                  Verified Branded Fertilizer Packshots, Composition & Multi-Store Rates
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Official branded bags (IFFCO, Coromandel, Yara), N:P:K formula breakdown, statutory subsidized rates & local store availability
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {fertilizerProducts.map((p) => (
+                  <AgriInputCard
+                    key={p.id}
+                    product={p}
+                    nearbyDealers={dealers}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

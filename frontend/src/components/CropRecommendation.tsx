@@ -11,14 +11,17 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  ShoppingBag,
 } from "lucide-react";
 import {
   type Farmer,
   type CropRecommendationItem,
+  type AgriDealerItem,
   API_BASE,
   ALL_STATES,
   getDistrictsForState,
 } from "../types";
+import { AgriInputCard } from "./AgriInputCard";
 
 export function CropRecommendation({
   farmer,
@@ -76,9 +79,15 @@ export function CropRecommendation({
     }
   };
 
+  const [dealers, setDealers] = useState<AgriDealerItem[]>([]);
+
   useEffect(() => {
     fetchRecommendations();
-  }, []);
+    fetch(`${API_BASE}/inputs/dealers?district=${district}&state=${state}`)
+      .then((r) => r.json())
+      .then((d) => setDealers(d.dealers || []))
+      .catch(() => {});
+  }, [state, district]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 animate-in fade-in duration-300">
@@ -371,6 +380,31 @@ export function CropRecommendation({
                           ))}
                         </div>
                       </div>
+
+                      {/* Verified Branded Inputs, Packaging Images, Formulas & Prices */}
+                      {item.verified_inputs && item.verified_inputs.length > 0 && (
+                        <div className="space-y-3 pt-2">
+                          <div>
+                            <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                              <ShoppingBag className="size-4 text-emerald-600" />
+                              Recommended Branded Fertilizers & Chemicals for {item.crop_name}:
+                            </h5>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Authentic packshot packaging, exact active chemical formulas, online lowest price comparison & nearby dealer stores
+                            </p>
+                          </div>
+
+                          <div className="space-y-4">
+                            {item.verified_inputs.map((prod) => (
+                              <AgriInputCard
+                                key={prod.id}
+                                product={prod}
+                                nearbyDealers={dealers}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Intercrop Guidance */}
                       <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 flex items-center justify-between gap-4">

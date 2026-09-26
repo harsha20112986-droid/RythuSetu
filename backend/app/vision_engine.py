@@ -6,6 +6,7 @@ from typing import Any
 import urllib.request
 
 from app.core.config import settings
+from app.input_market_engine import search_agri_products, get_nearby_dealers
 
 FALLBACK_DISEASE_DB: dict[str, dict[str, Any]] = {
     "Cotton": {
@@ -158,7 +159,7 @@ def analyze_crop_leaf(
     lang_key = "advisory_te" if language.lower() == "telugu" else "advisory_hi" if language.lower() == "hindi" else "advisory_en"
     advisory_text = fallback.get(lang_key, fallback["advisory_en"])
 
-    api_key = settings.openai_api_key or settings.llm_api_key
+    api_key = getattr(settings, "openai_api_key", None)
     if not api_key:
         return {
             "crop": crop_normalized,
@@ -173,6 +174,8 @@ def analyze_crop_leaf(
             "pmfby_coverage": fallback["pmfby_coverage"],
             "advisory": advisory_text,
             "engine": "RythuSetu Botanical Pathology Engine (Rule-based Fallback)",
+            "recommended_products": search_agri_products(crop=crop_normalized, disease_or_pest=fallback["disease_name"]),
+            "nearby_dealers": get_nearby_dealers(),
         }
 
     try:
@@ -232,6 +235,8 @@ Return ONLY raw valid JSON, no markdown backticks."""
                 raw_text = raw_text.strip("`").removeprefix("json").strip()
             parsed = json.loads(raw_text)
             parsed["engine"] = "OpenAI GPT-4o Vision + RythuSetu Pathology Guardrails"
+            parsed["recommended_products"] = search_agri_products(crop=crop_normalized, disease_or_pest=parsed.get("disease_name", ""))
+            parsed["nearby_dealers"] = get_nearby_dealers()
             return parsed
     except Exception:
         return {
@@ -247,6 +252,8 @@ Return ONLY raw valid JSON, no markdown backticks."""
             "pmfby_coverage": fallback["pmfby_coverage"],
             "advisory": advisory_text,
             "engine": "RythuSetu Botanical Pathology Engine (Deterministic Verified Rules)",
+            "recommended_products": search_agri_products(crop=crop_normalized, disease_or_pest=fallback["disease_name"]),
+            "nearby_dealers": get_nearby_dealers(),
         }
 
 def diagnose_symptoms(
@@ -266,7 +273,7 @@ def diagnose_symptoms(
     lang_key = "advisory_te" if language.lower() == "telugu" else "advisory_hi" if language.lower() == "hindi" else "advisory_en"
     advisory_text = fallback.get(lang_key, fallback["advisory_en"])
 
-    api_key = settings.openai_api_key or settings.llm_api_key
+    api_key = getattr(settings, "openai_api_key", None)
     if api_key:
         try:
             prompt = f"""You are an expert plant pathologist and agronomist in South India (AP & Telangana).
@@ -317,6 +324,8 @@ Return ONLY raw valid JSON, no markdown."""
                     raw_text = raw_text.strip("`").removeprefix("json").strip()
                 parsed = json.loads(raw_text)
                 parsed["engine"] = "AI Crop Doctor (GPT-4o Agronomic Diagnosis)"
+                parsed["recommended_products"] = search_agri_products(crop=crop_normalized, disease_or_pest=parsed.get("disease_name", ""))
+                parsed["nearby_dealers"] = get_nearby_dealers()
                 return parsed
         except Exception:
             pass
@@ -335,4 +344,6 @@ Return ONLY raw valid JSON, no markdown."""
         "pmfby_coverage": fallback["pmfby_coverage"],
         "advisory": advisory_text,
         "engine": "RythuSetu Clinical Pathology Engine (Deterministic Verified Rules)",
+        "recommended_products": search_agri_products(crop=crop_normalized, disease_or_pest=fallback["disease_name"]),
+        "nearby_dealers": get_nearby_dealers(),
     }
