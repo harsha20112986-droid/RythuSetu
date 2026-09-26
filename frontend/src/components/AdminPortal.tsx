@@ -72,6 +72,8 @@ export function AdminPortal({
   const [newMandiTeluguName, setNewMandiTeluguName] = useState<string>("");
   const [newMandiGradeTag, setNewMandiGradeTag] = useState<string>("APMC Daily Arrival");
   const [savingMandi, setSavingMandi] = useState<boolean>(false);
+  const [syncingMandi, setSyncingMandi] = useState<boolean>(false);
+  const [ingestionStatus, setIngestionStatus] = useState<any>(null);
 
   // User Accounts Filter state
   const [userSearch, setUserSearch] = useState("");
@@ -97,7 +99,7 @@ export function AdminPortal({
     try {
       setRefreshing(true);
       const headers = getAuthHeaders();
-      const [statsRes, claimsRes, alertsRes, farmersRes, usersRes, storageRes, factoryRes, mandiRes] = await Promise.all([
+      const [statsRes, claimsRes, alertsRes, farmersRes, usersRes, storageRes, factoryRes, mandiRes, ingestionRes] = await Promise.all([
         fetch(`${API_BASE}/admin/dashboard-stats`, { headers }),
         fetch(`${API_BASE}/admin/all-claims`, { headers }),
         fetch(`${API_BASE}/admin/broadcast-alerts`, { headers }),
@@ -106,6 +108,7 @@ export function AdminPortal({
         fetch(`${API_BASE}/storage/bookings`, { headers }).catch(() => null),
         fetch(`${API_BASE}/direct-market/passes`, { headers }).catch(() => null),
         fetch(`${API_BASE}/admin/mandi/prices`, { headers }).catch(() => null),
+        fetch(`${API_BASE}/admin/mandi/ingestion-status`, { headers }).catch(() => null),
       ]);
 
       if (statsRes.ok) {
@@ -144,11 +147,39 @@ export function AdminPortal({
         const mData = await mandiRes.json();
         setMandiPrices(mData.prices || []);
       }
+
+      // Process Mandi Ingestion Status from database
+      if (ingestionRes && ingestionRes.ok) {
+        const ingData = await ingestionRes.json();
+        setIngestionStatus(ingData);
+      }
     } catch (e) {
       console.error("Failed to load admin telemetry", e);
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const handleTriggerMandiSync = async () => {
+    try {
+      setSyncingMandi(true);
+      const res = await fetch(`${API_BASE}/admin/mandi/sync`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(data.message || `Upstream sync completed with status: ${data.status}`);
+      } else {
+        setActionMessage(data.detail || "Upstream sync failed.");
+      }
+      fetchAdminData();
+      setTimeout(() => setActionMessage(""), 5000);
+    } catch (e: any) {
+      setActionMessage(e.message || "Failed to trigger mandi sync");
+    } finally {
+      setSyncingMandi(false);
     }
   };
 
@@ -1428,6 +1459,66 @@ export function AdminPortal({
                   <span>Publish New Mandi Entry</span>
                 </button>
               </div>
+            </div>
+
+            {/* Market Data Pipeline & Ingestion Telemetry Card */}
+            <div className="mb-6 rounded-2xl bg-slate-900 text-white p-5 border border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-7 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
+                      <Truck className="size-4" />
+                    </span>
+                    <h4 className="text-sm font-black text-white">
+                      Government OGD / AGMARKNET Ingestion Pipeline
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Automated Pipeline
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Endpoint: <code className="text-slate-300">api.data.gov.in/resource/9ef84268...</code> • SSRF Protected Egress
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleTriggerMandiSync}
+                  disabled={syncingMandi}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-2 transition cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+                >
+                  <RefreshCw className={`size-3.5 ${syncingMandi ? "animate-spin text-white" : ""}`} />
+                  <span>{syncingMandi ? "Syncing Upstream..." : "Trigger Ingestion Sync"}</span>
+                </button>
+              </div>
+
+              {ingestionStatus?.latest_run && (
+                <div className="mt-4 pt-3 border-t border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Last Status</span>
+                    <span className={`font-black text-xs ${
+                      ingestionStatus.latest_run.status === "SUCCESS" ? "text-emerald-400" :
+                      ingestionStatus.latest_run.status === "OFFLINE_UNCONFIGURED" ? "text-sky-300" :
+                      "text-amber-400"
+                    }`}>
+                      {ingestionStatus.latest_run.status}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Records Received</span>
+                    <span className="font-black text-white">{ingestionStatus.latest_run.records_received}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Records Upserted</span>
+                    <span className="font-black text-emerald-400">{ingestionStatus.latest_run.records_inserted + ingestionStatus.latest_run.records_updated}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Completed At</span>
+                    <span className="font-mono text-[11px] text-slate-300">
+                      {ingestionStatus.latest_run.completed_at ? ingestionStatus.latest_run.completed_at.slice(0, 16).replace("T", " ") : "Recent"}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Filter and Search Bar */}

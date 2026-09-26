@@ -625,7 +625,65 @@ export type MandiData = {
   last_verified_at?: string;
   verification_status?: string;
   confidence?: number;
+  freshness?: "LATEST" | "RECENT" | "DELAYED" | "STALE" | string;
+  data_source_status?: "OFFICIAL_LATEST" | "OFFICIAL_LATEST_AVAILABLE" | "SOURCE_DELAYED" | "REFERENCE_ONLY" | "SOURCE_ERROR" | string;
+  market_date?: string;
+  last_sync_timestamp?: string;
+  msp_source?: string;
+  msp_marketing_year?: string;
   provenance?: MandiProvenance;
+};
+
+export type MandiHistoryItem = {
+  arrival_date: string;
+  market: string;
+  district: string;
+  state: string;
+  commodity: string;
+  variety: string;
+  modal_price: number;
+  min_price: number;
+  max_price: number;
+  arrival_quantity: number;
+};
+
+export type MandiComparisonItem = {
+  market: string;
+  district: string;
+  state: string;
+  commodity: string;
+  variety: string;
+  modal_price: number;
+  min_price: number;
+  max_price: number;
+  arrival_quantity: number;
+  arrival_date: string;
+};
+
+export type MandiTrendData = {
+  crop: string;
+  district?: string | null;
+  market?: string | null;
+  latest_modal: number;
+  previous_modal: number;
+  absolute_change: number;
+  percentage_change: number;
+  trend: "UP" | "DOWN" | "STABLE";
+  latest_arrival_date?: string;
+  observations_count: number;
+};
+
+export type MspBenchmarkItem = {
+  id: number;
+  commodity: string;
+  variety?: string;
+  season: string;
+  marketing_year: string;
+  government_source: string;
+  effective_date: string;
+  price_per_quintal: number;
+  source_url?: string;
+  last_verified_at?: string;
 };
 
 export type FertilizerStage = {

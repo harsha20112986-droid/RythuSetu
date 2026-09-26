@@ -16,6 +16,7 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     Index,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
@@ -370,4 +371,110 @@ class MandiPriceRecord(Base):
         Index("ix_mandi_prices_crop_active", "crop", "is_active"),
         Index("ix_mandi_prices_district_crop", "district", "crop"),
     )
+
+
+class MspBenchmark(Base):
+    """
+    Statutory Minimum Support Price (MSP) benchmarks determined by CACP / CCEA.
+    Strictly decoupled from daily APMC market prices.
+    """
+    __tablename__ = "msp_benchmarks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    commodity: Mapped[str] = mapped_column(String(100), index=True)
+    variety: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    season: Mapped[str] = mapped_column(String(50), default="Kharif")  # Kharif, Rabi, Summer
+    marketing_year: Mapped[str] = mapped_column(String(50), index=True)  # e.g. "2025-26", "2026-27"
+    government_source: Mapped[str] = mapped_column(String(150), default="Commission for Agricultural Costs & Prices (CACP) / CCEA")
+    effective_date: Mapped[str] = mapped_column(String(50))  # e.g. "2025-10-01"
+    price_per_quintal: Mapped[float] = mapped_column(Float)
+    source_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_verified_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_msp_commodity_year", "commodity", "marketing_year"),
+    )
+
+
+class MandiDailyPrice(Base):
+    """
+    Normalized daily APMC mandi market price and arrival record.
+    Ingested from Government Open Data (Data.gov.in / Agmarknet).
+    """
+    __tablename__ = "mandi_daily_prices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    source: Mapped[str] = mapped_column(String(100), default="Government OGD / AGMARKNET", index=True)
+    source_record_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    state: Mapped[str] = mapped_column(String(100), index=True)
+    district: Mapped[str] = mapped_column(String(100), index=True)
+    market: Mapped[str] = mapped_column(String(150), index=True)
+    commodity: Mapped[str] = mapped_column(String(100), index=True)
+    variety: Mapped[str] = mapped_column(String(100), default="Other", index=True)
+    grade: Mapped[str] = mapped_column(String(50), default="FAQ")  # Fair Average Quality
+    arrival_date: Mapped[str] = mapped_column(String(50), index=True)  # YYYY-MM-DD
+    arrival_quantity: Mapped[float] = mapped_column(Float, default=0.0)
+    quantity_unit: Mapped[str] = mapped_column(String(50), default="Tonnes")
+    min_price: Mapped[float] = mapped_column(Float)
+    max_price: Mapped[float] = mapped_column(Float)
+    modal_price: Mapped[float] = mapped_column(Float, index=True)
+    price_unit: Mapped[str] = mapped_column(String(50), default="INR/Quintal")
+    currency: Mapped[str] = mapped_column(String(10), default="INR")
+    source_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    upstream_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    normalized_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    data_status: Mapped[str] = mapped_column(String(50), default="VALID", index=True)  # VALID, WARNING, REJECTED
+    raw_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    validation_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_mandi_commodity_date", "commodity", "arrival_date"),
+        Index("ix_mandi_dist_comm_date", "district", "commodity", "arrival_date"),
+        Index("ix_mandi_state_comm_date", "state", "commodity", "arrival_date"),
+        UniqueConstraint("state", "district", "market", "commodity", "variety", "grade", "arrival_date", name="uq_mandi_daily_record"),
+    )
+
+
+class MandiIngestionRun(Base):
+    """
+    Audit log of daily market data ingestion runs from external government APIs.
+    """
+    __tablename__ = "mandi_ingestion_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    source: Mapped[str] = mapped_column(String(100), default="Data.gov.in (OGD)")
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="PENDING", index=True)  # SUCCESS, FAILED, PARTIAL, SKIPPED
+    records_received: Mapped[int] = mapped_column(Integer, default=0)
+    records_inserted: Mapped[int] = mapped_column(Integer, default=0)
+    records_updated: Mapped[int] = mapped_column(Integer, default=0)
+    records_rejected: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    request_parameters: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
+    source_timestamp: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class MandiRawRecord(Base):
+    """
+    Immutable raw payload capture from upstream government endpoints for provenance & debugging.
+    """
+    __tablename__ = "mandi_raw_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    ingestion_run_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("mandi_ingestion_runs.id"), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(100))
+    source_record_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    raw_payload: Mapped[str] = mapped_column(Text)
+    payload_hash: Mapped[str] = mapped_column(String(64), index=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 

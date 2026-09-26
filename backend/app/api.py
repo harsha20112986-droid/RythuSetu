@@ -84,11 +84,18 @@ from app.khata_engine import (
 )
 from app.mandi_engine import (
     get_mandi_prices_for_farmer,
+    get_mandi_prices_pipeline,
+    get_mandi_history,
+    get_mandi_comparison,
+    get_mandi_trend,
+    get_msp_benchmarks,
     create_mandi_price_record,
     update_mandi_price_record,
     soft_delete_mandi_price_record,
     get_all_admin_mandi_records,
 )
+from app.mandi_ingestion import MandiIngestionService
+from app.models import MandiIngestionRun
 from app.db_init import log_audit
 from app.soil_engine import calculate_fertilizer_plan
 from app.recommendation_engine import recommend_crops
@@ -759,11 +766,123 @@ def get_alerts(db: Session = Depends(get_db)):
 @router.get("/mandi/prices")
 def mandi_prices(
     crop: str = "Cotton",
-    district: str = "Warangal",
+    district: str | None = None,
+    state: str | None = None,
+    market: str | None = None,
+    variety: str | None = None,
+    date: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    sort: str = "price_desc",
     db: Session = Depends(get_db),
 ):
-    """Fetches e-NAM APMC market arrivals, modal rates, and MSP comparison backed by SQL database."""
-    return get_mandi_prices_for_farmer(crop=crop, district=district, db=db)
+    """
+    Fetches verified APMC daily market prices, arrival volumes, statutory MSP benchmarks,
+    and rigorous freshness telemetry.
+    """
+    return get_mandi_prices_pipeline(
+        db=db,
+        crop=crop,
+        state=state,
+        district=district,
+        market=market,
+        variety=variety,
+        arrival_date=date,
+        from_date=from_date,
+        to_date=to_date,
+        limit=limit,
+        offset=offset,
+        sort=sort,
+    )
+
+
+@router.get("/mandi/history")
+def mandi_history(
+    crop: str = "Cotton",
+    state: str | None = None,
+    district: str | None = None,
+    market: str | None = None,
+    variety: str | None = None,
+    days: int = 30,
+    db: Session = Depends(get_db),
+):
+    """Retrieves chronological daily price history for historical market analysis and charting."""
+    history = get_mandi_history(
+        db=db,
+        crop=crop,
+        state=state,
+        district=district,
+        market=market,
+        variety=variety,
+        days=days,
+    )
+    return {
+        "crop": crop,
+        "history": history,
+        "count": len(history),
+    }
+
+
+@router.get("/mandi/compare")
+def mandi_compare(
+    crop: str = "Cotton",
+    district: str | None = None,
+    state: str | None = None,
+    date: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Compares prices across APMC yards for a crop on the latest available market session."""
+    markets = get_mandi_comparison(
+        db=db,
+        crop=crop,
+        district=district,
+        state=state,
+        date=date,
+    )
+    return {
+        "crop": crop,
+        "markets": markets,
+        "count": len(markets),
+    }
+
+
+@router.get("/mandi/trend")
+def mandi_trend(
+    crop: str = "Cotton",
+    district: str | None = None,
+    market: str | None = None,
+    days: int = 7,
+    db: Session = Depends(get_db),
+):
+    """Analyzes price trend and percentage change over recent trading sessions using neutral terminology."""
+    return get_mandi_trend(
+        db=db,
+        crop=crop,
+        district=district,
+        market=market,
+        days=days,
+    )
+
+
+@router.get("/mandi/msp")
+def mandi_msp_benchmarks(
+    commodity: str | None = None,
+    marketing_year: str | None = "2025-26",
+    db: Session = Depends(get_db),
+):
+    """Retrieves statutory CACP and State MIS Minimum Support Price (MSP) benchmarks."""
+    benchmarks = get_msp_benchmarks(
+        db=db,
+        commodity=commodity,
+        marketing_year=marketing_year,
+    )
+    return {
+        "marketing_year": marketing_year,
+        "benchmarks": benchmarks,
+        "count": len(benchmarks),
+    }
 
 
 class MandiPriceCreate(BaseModel):
@@ -905,6 +1024,71 @@ def admin_delete_mandi_price(
         "status": "success",
         "message": f"Mandi price record #{price_id} marked as EXPIRED.",
         "price_id": price_id,
+    }
+
+
+@router.post("/admin/mandi/sync")
+def admin_mandi_sync(
+    state: str | None = None,
+    limit: int = 500,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
+    """Triggers upstream market data sync from Government OGD Agmarknet endpoint."""
+    service = MandiIngestionService()
+    result = service.run_sync(db=db, state=state, limit=limit)
+    log_audit(
+        db=db,
+        action="MANDI_UPSTREAM_SYNC_TRIGGERED",
+        resource_type="mandi_ingestion",
+        user=current_user,
+        details={
+            "state": state,
+            "limit": limit,
+            "sync_status": result.get("status"),
+            "records_received": result.get("records_received", 0),
+        },
+    )
+    return result
+
+
+@router.get("/admin/mandi/ingestion-status")
+def admin_mandi_ingestion_status(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
+    """Returns telemetry on latest market data ingestion runs and sync status."""
+    runs = db.query(MandiIngestionRun).order_by(MandiIngestionRun.id.desc()).limit(limit).all()
+    latest_run = runs[0] if runs else None
+    return {
+        "latest_run": {
+            "id": latest_run.id,
+            "source": latest_run.source,
+            "status": latest_run.status,
+            "started_at": latest_run.started_at.isoformat() if latest_run and latest_run.started_at else None,
+            "completed_at": latest_run.completed_at.isoformat() if latest_run and latest_run.completed_at else None,
+            "records_received": latest_run.records_received if latest_run else 0,
+            "records_inserted": latest_run.records_inserted if latest_run else 0,
+            "records_updated": latest_run.records_updated if latest_run else 0,
+            "records_rejected": latest_run.records_rejected if latest_run else 0,
+            "error_message": latest_run.error_message if latest_run else None,
+        } if latest_run else None,
+        "runs": [
+            {
+                "id": r.id,
+                "source": r.source,
+                "status": r.status,
+                "started_at": r.started_at.isoformat() if r.started_at else None,
+                "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+                "records_received": r.records_received,
+                "records_inserted": r.records_inserted,
+                "records_updated": r.records_updated,
+                "records_rejected": r.records_rejected,
+                "error_message": r.error_message,
+            }
+            for r in runs
+        ],
     }
 
 

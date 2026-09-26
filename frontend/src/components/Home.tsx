@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowRight,
   Sparkles,
@@ -19,7 +19,7 @@ import {
   MapPin,
   Tractor,
 } from "lucide-react";
-import { type Farmer, type Page } from "../types";
+import { type Farmer, type Page, API_BASE } from "../types";
 import { getTranslation } from "../utils/translations";
 
 export function Home({
@@ -39,32 +39,86 @@ export function Home({
 }) {
   const t = getTranslation(language);
   const [teaserAcres, setTeaserAcres] = useState<number>(3.5);
+  const [tickerItems, setTickerItems] = useState<Array<{ label: string; price: string; market: string; date?: string }>>([]);
+  const [tickerError, setTickerError] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadTicker() {
+      try {
+        const cropsToFetch = ["Cotton", "Red Chilli", "Paddy / Rice", "Turmeric"];
+        const results = await Promise.allSettled(
+          cropsToFetch.map(c => fetch(`${API_BASE}/mandi/prices?crop=${encodeURIComponent(c)}`).then(r => r.ok ? r.json() : null))
+        );
+        if (!isMounted) return;
+
+        const items: Array<{ label: string; price: string; market: string; date?: string }> = [];
+        for (const res of results) {
+          if (res.status === "fulfilled" && res.value) {
+            const data = res.value;
+            if (data.markets && data.markets.length > 0) {
+              const top = data.markets[0];
+              items.push({
+                label: `${data.crop}`,
+                price: `₹${top.modal_price.toLocaleString()}/qtl`,
+                market: `${top.market_hub || top.mandi_name}`,
+                date: top.effective_date,
+              });
+            }
+          }
+        }
+        if (items.length > 0) {
+          setTickerItems(items);
+        } else {
+          setTickerError(true);
+        }
+      } catch {
+        if (isMounted) setTickerError(true);
+      }
+    }
+    loadTicker();
+    return () => { isMounted = false; };
+  }, []);
 
   const estimatedTelangana = 6000 + Math.round(teaserAcres * 12000);
   const estimatedAP = 6000 + Math.round(teaserAcres * 7500);
 
   return (
     <div>
-      {/* Live Market & Weather Telemetry Ticker Strip */}
-      <div className="bg-emerald-950 border-b border-emerald-800/60 py-2.5 px-4 overflow-hidden text-xs text-emerald-200">
+      {/* Dynamic APMC Market Data Telemetry Ticker Strip */}
+      <div
+        onClick={() => onNavigate("mandi")}
+        className="bg-emerald-950 border-b border-emerald-800/60 py-2.5 px-4 overflow-hidden text-xs text-emerald-200 cursor-pointer hover:bg-emerald-900/80 transition"
+        title="Click to view detailed daily APMC Mandi prices"
+      >
         <div className="max-w-7xl mx-auto flex items-center gap-4 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="size-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span className="size-2 rounded-full bg-emerald-400"></span>
             <span className="font-extrabold text-white uppercase text-[10px] tracking-wider bg-emerald-800/90 px-2 py-0.5 rounded-full border border-emerald-600/60">
-              LIVE RATES
+              MARKET UPDATES
             </span>
           </div>
-          <div className="flex items-center gap-5 text-[11px] font-medium whitespace-nowrap">
-            <span>🌾 <strong>Cotton MSP:</strong> ₹7,121/qtl • Warangal APMC: <strong className="text-emerald-400">₹7,450</strong> (↑ +4.6%)</span>
-            <span className="text-emerald-700">•</span>
-            <span>🌶️ <strong>Guntur Mirchi Yard:</strong> Teja AC <strong className="text-emerald-400">₹21,800/qtl</strong></span>
-            <span className="text-emerald-700">•</span>
-            <span>🍚 <strong>Paddy Grade A:</strong> ₹2,320/qtl • Civil Supplies PPC Active</span>
-            <span className="text-emerald-700">•</span>
-            <span>🥜 <strong>Groundnut:</strong> ₹6,783/qtl • Anantapur Yard</span>
-            <span className="text-emerald-700">•</span>
-            <span>🌽 <strong>Maize:</strong> ₹2,090/qtl • Nizamabad Yard</span>
-          </div>
+          {tickerError ? (
+            <div className="text-[11px] text-emerald-300 font-medium whitespace-nowrap">
+              <span>Market data feed temporarily unavailable • Viewing statutory CACP MSP benchmarks</span>
+            </div>
+          ) : tickerItems.length > 0 ? (
+            <div className="flex items-center gap-5 text-[11px] font-medium whitespace-nowrap">
+              {tickerItems.map((item, idx) => (
+                <span key={idx} className="flex items-center gap-2">
+                  {idx > 0 && <span className="text-emerald-700 mr-2">•</span>}
+                  <strong>{item.label}:</strong>
+                  <strong className="text-emerald-300">{item.price}</strong>
+                  <span className="text-emerald-400/90">({item.market})</span>
+                  {item.date && <span className="text-[10px] text-emerald-400/70 font-mono">[{item.date}]</span>}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="text-[11px] text-emerald-300/80 font-medium whitespace-nowrap">
+              <span>Connecting to verified APMC mandi arrivals &amp; modal price feeds...</span>
+            </div>
+          )}
         </div>
       </div>
 
