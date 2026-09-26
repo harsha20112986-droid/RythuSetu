@@ -26,6 +26,7 @@ import { IvrModal } from "./components/IvrModal";
 import { KrishiAssistant } from "./components/KrishiAssistant";
 import { LoginModal } from "./components/LoginModal";
 import { AdminPortal } from "./components/AdminPortal";
+import { BottomNav } from "./components/BottomNav";
 import { Sprout } from "lucide-react";
 
 export function App() {
@@ -557,6 +558,11 @@ export function App() {
 
       <IvrModal open={ivrOpen} setOpen={setIvrOpen} farmer={farmer} />
       <PwaInstallPrompt />
+      <BottomNav
+        currentPage={page}
+        onNavigate={handleNavigate}
+        farmer={farmer}
+      />
     </main>
   );
 }

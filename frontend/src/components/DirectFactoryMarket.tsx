@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft,
   Factory,
@@ -8,6 +8,8 @@ import {
   AlertTriangle,
   RefreshCw,
   X,
+  Search,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   type Farmer,
@@ -16,6 +18,9 @@ import {
   API_BASE,
   ALL_STATES,
 } from "../types";
+import { FacilityRatingBadge, getFacilityRating } from "./FacilityRatingWidget";
+
+type SortOption = "price_high" | "price_low" | "bonus_high" | "rating_high";
 
 export function DirectFactoryMarket({
   farmer,
@@ -30,6 +35,11 @@ export function DirectFactoryMarket({
   const [contracts, setContracts] = useState<FactoryContract[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Sort & Filter state
+  const [sortBy, setSortBy] = useState<SortOption>("price_high");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [refreshSeed, setRefreshSeed] = useState(0);
 
   // Direct Gate Pass Modal State
   const [activeContract, setActiveContract] = useState<FactoryContract | null>(null);
@@ -68,6 +78,42 @@ export function DirectFactoryMarket({
   useEffect(() => {
     fetchContracts();
   }, [selectedState, selectedCrop]);
+
+  const processedContracts = useMemo(() => {
+    let list = [...contracts];
+
+    const q = searchTerm.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (f) =>
+          f.factory_name.toLowerCase().includes(q) ||
+          f.location.toLowerCase().includes(q) ||
+          f.district.toLowerCase().includes(q) ||
+          f.category.toLowerCase().includes(q) ||
+          f.crop.toLowerCase().includes(q)
+      );
+    }
+
+    switch (sortBy) {
+      case "price_high":
+        list.sort((a, b) => b.direct_offer_price_qtl - a.direct_offer_price_qtl);
+        break;
+      case "price_low":
+        list.sort((a, b) => a.direct_offer_price_qtl - b.direct_offer_price_qtl);
+        break;
+      case "bonus_high":
+        list.sort((a, b) => b.extra_profit_per_qtl - a.extra_profit_per_qtl);
+        break;
+      case "rating_high":
+        list.sort(
+          (a, b) =>
+            getFacilityRating(b.id).rating - getFacilityRating(a.id).rating
+        );
+        break;
+    }
+
+    return list;
+  }, [contracts, sortBy, searchTerm, refreshSeed]);
 
   const handleGeneratePass = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,7 +169,7 @@ export function DirectFactoryMarket({
             Rythu Direct • Farm-to-Factory Procurement
           </span>
           <h1 className="mt-2 text-2xl sm:text-4xl font-black tracking-tight">
-            Direct Industry Sales Without Brokers & Middlemen
+            Direct Industry Sales Without Brokers &amp; Middlemen
           </h1>
           <p className="mt-3 text-xs sm:text-sm text-emerald-100 leading-relaxed">
             Sell your harvested produce directly to verified Ginning Mills, Modern Rice Processing Units, Spice Extraction Plants, and Oil Expellers.
@@ -132,8 +178,8 @@ export function DirectFactoryMarket({
         </div>
       </div>
 
-      {/* Filter Controls */}
-      <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm mb-8">
+      {/* Filter & Sort Controls */}
+      <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm mb-8 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">State</label>
@@ -142,7 +188,7 @@ export function DirectFactoryMarket({
               onChange={(e) => setSelectedState(e.target.value)}
               className="w-full px-3 py-2.5 text-xs font-semibold border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white cursor-pointer"
             >
-              <option value="">All States (AP & Telangana)</option>
+              <option value="">All States (AP &amp; Telangana)</option>
               {ALL_STATES.map((st) => (
                 <option key={st} value={st}>{st}</option>
               ))}
@@ -167,6 +213,35 @@ export function DirectFactoryMarket({
             </select>
           </div>
         </div>
+
+        {/* Secondary Row: Search and Sort */}
+        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="relative flex-1 sm:w-72 w-full">
+            <Search className="size-3.5 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search factory, town, or district..."
+              className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <ArrowUpDown className="size-3.5 text-slate-400" />
+            <span className="text-xs font-bold text-slate-600">Sort by:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-white focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+            >
+              <option value="price_high">Payout Rate: High → Low</option>
+              <option value="price_low">Payout Rate: Low → High</option>
+              <option value="bonus_high">Extra Profit Bonus: Highest</option>
+              <option value="rating_high">⭐ People's Rating: Highest</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Contracts List */}
@@ -184,14 +259,23 @@ export function DirectFactoryMarket({
         </div>
       )}
 
-      {!loading && contracts.length > 0 && (
+      {!loading && (
+        <div className="mb-4 flex items-center justify-between text-xs text-slate-500">
+          <span className="font-bold text-slate-700">
+            Showing {processedContracts.length} Verified Factory Buyers
+          </span>
+          <span>Zero Middlemen Commission Guarantee</span>
+        </div>
+      )}
+
+      {!loading && processedContracts.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {contracts.map((fac) => {
+          {processedContracts.map((fac) => {
             const fulfilledPercent = Math.round((fac.procured_so_far_qtl / fac.total_demand_qtl) * 100);
             return (
               <div
                 key={fac.id}
-                className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-sm hover:shadow-md transition flex flex-col justify-between"
+                className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-sm hover:shadow-md hover:border-emerald-300 transition flex flex-col justify-between"
               >
                 <div className="p-6 sm:p-7">
                   {/* Category & Verified Badge */}
@@ -213,8 +297,17 @@ export function DirectFactoryMarket({
                     <span>{fac.location}, {fac.district} ({fac.state})</span>
                   </p>
 
+                  {/* Rating Badge */}
+                  <div className="mt-2.5">
+                    <FacilityRatingBadge
+                      facilityId={fac.id}
+                      facilityName={fac.factory_name}
+                      onRated={() => setRefreshSeed((s) => s + 1)}
+                    />
+                  </div>
+
                   {/* Price Comparison Card (Highlighting Broker-Free Profit) */}
-                  <div className="mt-5 rounded-2xl bg-emerald-50/80 border border-emerald-200 p-4">
+                  <div className="mt-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 p-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="text-[10px] font-black uppercase text-emerald-900 block">
@@ -299,6 +392,25 @@ export function DirectFactoryMarket({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {!loading && processedContracts.length === 0 && (
+        <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center">
+          <Factory className="size-10 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-base font-bold text-slate-700">No Factory Contracts Found</h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            Try choosing a different crop or clearing the search term to view all industrial procurement tenders.
+          </p>
+          <button
+            onClick={() => {
+              setSearchTerm("");
+              setSelectedCrop("All");
+            }}
+            className="mt-4 px-4 py-2 bg-emerald-700 text-white text-xs font-bold rounded-xl cursor-pointer hover:bg-emerald-800 transition"
+          >
+            Reset Crop &amp; Search
+          </button>
         </div>
       )}
 
@@ -399,7 +511,7 @@ export function DirectFactoryMarket({
                       required
                       value={deliveryDate}
                       onChange={(e) => setDeliveryDate(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white cursor-pointer"
                     />
                   </div>
                 </div>

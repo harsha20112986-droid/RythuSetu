@@ -209,8 +209,55 @@ export function Dashboard({
         </div>
       </div>
 
+      {/* Quick Action Navigation Grid */}
+      <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <button
+          onClick={onMandi}
+          className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-emerald-400 transition cursor-pointer text-left group"
+        >
+          <div className="size-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition">
+            <TrendingUp className="size-4.5" />
+          </div>
+          <div className="mt-2 font-black text-slate-900 text-xs sm:text-sm">Live Mandi Rates</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">e-NAM APMC &amp; MSP Rates</div>
+        </button>
+
+        <button
+          onClick={onNearby}
+          className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-teal-400 transition cursor-pointer text-left group"
+        >
+          <div className="size-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center group-hover:scale-110 transition">
+            <MapPin className="size-4.5" />
+          </div>
+          <div className="mt-2 font-black text-slate-900 text-xs sm:text-sm">Nearby Agro Hub</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">Mills, Mandis &amp; Godowns</div>
+        </button>
+
+        <button
+          onClick={onStorage}
+          className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-sky-400 transition cursor-pointer text-left group"
+        >
+          <div className="size-9 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center group-hover:scale-110 transition">
+            <Warehouse className="size-4.5" />
+          </div>
+          <div className="mt-2 font-black text-slate-900 text-xs sm:text-sm">Cold Storage Bays</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">e-NWR 75% Bank Loans</div>
+        </button>
+
+        <button
+          onClick={onFactory}
+          className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-amber-400 transition cursor-pointer text-left group"
+        >
+          <div className="size-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center group-hover:scale-110 transition">
+            <Truck className="size-4.5" />
+          </div>
+          <div className="mt-2 font-black text-slate-900 text-xs sm:text-sm">Direct Factory Sales</div>
+          <div className="text-[10px] text-slate-500 mt-0.5">0% Middlemen Deductions</div>
+        </button>
+      </div>
+
       {/* 2. Live Weather Station Card */}
-      <div className="mt-8 rounded-3xl border border-slate-200/90 bg-white p-6 sm:p-8 shadow-sm overflow-hidden">
+      <div className="mt-6 rounded-3xl border border-slate-200/90 bg-white p-6 sm:p-8 shadow-sm overflow-hidden">
         {/* Card Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
           <div>

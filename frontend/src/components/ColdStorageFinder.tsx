@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft,
   Warehouse,
@@ -9,6 +9,8 @@ import {
   AlertTriangle,
   RefreshCw,
   X,
+  Search,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   type Farmer,
@@ -17,6 +19,9 @@ import {
   API_BASE,
   ALL_STATES,
 } from "../types";
+import { FacilityRatingBadge, getFacilityRating } from "./FacilityRatingWidget";
+
+type SortOption = "price_low" | "price_high" | "rating_high" | "space_high";
 
 export function ColdStorageFinder({
   farmer,
@@ -32,6 +37,12 @@ export function ColdStorageFinder({
   const [facilities, setFacilities] = useState<ColdStorageFacility[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Sort & Filter state
+  const [sortBy, setSortBy] = useState<SortOption>("price_low");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [onlyEnwr, setOnlyEnwr] = useState(false);
+  const [refreshSeed, setRefreshSeed] = useState(0);
 
   // Booking Modal State
   const [activeFacility, setActiveFacility] = useState<ColdStorageFacility | null>(null);
@@ -65,6 +76,46 @@ export function ColdStorageFinder({
   useEffect(() => {
     fetchFacilities();
   }, [selectedState, selectedDistrict, selectedCommodity]);
+
+  // Sorted and filtered facilities
+  const processedFacilities = useMemo(() => {
+    let list = [...facilities];
+
+    if (onlyEnwr) {
+      list = list.filter((f) => f.enwr_pledge_loan);
+    }
+
+    const q = searchTerm.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (f) =>
+          f.name.toLowerCase().includes(q) ||
+          f.location.toLowerCase().includes(q) ||
+          f.district.toLowerCase().includes(q) ||
+          f.facility_type.toLowerCase().includes(q)
+      );
+    }
+
+    switch (sortBy) {
+      case "price_low":
+        list.sort((a, b) => a.monthly_rent_per_bag - b.monthly_rent_per_bag);
+        break;
+      case "price_high":
+        list.sort((a, b) => b.monthly_rent_per_bag - a.monthly_rent_per_bag);
+        break;
+      case "rating_high":
+        list.sort(
+          (a, b) =>
+            getFacilityRating(b.id).rating - getFacilityRating(a.id).rating
+        );
+        break;
+      case "space_high":
+        list.sort((a, b) => b.available_space_mt - a.available_space_mt);
+        break;
+    }
+
+    return list;
+  }, [facilities, sortBy, searchTerm, onlyEnwr, refreshSeed]);
 
   const handleBookSpace = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,10 +166,10 @@ export function ColdStorageFinder({
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-950 p-6 sm:p-10 text-white shadow-xl mb-8">
         <div className="relative z-10 max-w-3xl">
           <span className="text-xs font-black uppercase tracking-wider text-sky-400">
-            Post-Harvest Preservation & Pledge Loans
+            Post-Harvest Preservation &amp; Pledge Loans
           </span>
           <h1 className="mt-2 text-2xl sm:text-4xl font-black tracking-tight">
-            AC Godowns & Cold Storage Logistics Network
+            AC Godowns &amp; Cold Storage Logistics Network
           </h1>
           <p className="mt-3 text-xs sm:text-sm text-sky-100 leading-relaxed">
             Preserve your harvested Red Chilli, Turmeric, Pulses, and perishable produce up to 10 months without color loss or quality deterioration.
@@ -127,8 +178,8 @@ export function ColdStorageFinder({
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm mb-8">
+      {/* Filter & Search Bar */}
+      <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm mb-8 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">State</label>
@@ -137,7 +188,7 @@ export function ColdStorageFinder({
               onChange={(e) => setSelectedState(e.target.value)}
               className="w-full px-3 py-2.5 text-xs font-semibold border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 bg-white cursor-pointer"
             >
-              <option value="">All States (AP & Telangana)</option>
+              <option value="">All States (AP &amp; Telangana)</option>
               {ALL_STATES.map((st) => (
                 <option key={st} value={st}>{st}</option>
               ))}
@@ -145,7 +196,7 @@ export function ColdStorageFinder({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">District Search</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">District Filter</label>
             <input
               type="text"
               value={selectedDistrict}
@@ -168,8 +219,49 @@ export function ColdStorageFinder({
               <option value="Cotton Bales">Cotton Bales (పత్తి)</option>
               <option value="Paddy / Rice">Paddy / Rice (వరి)</option>
               <option value="Groundnut">Groundnut (వేరుశనగ)</option>
-              <option value="Pulses">Pulses & Red Gram (కందులు)</option>
-              <option value="Vegetables">Vegetables & Fruits</option>
+              <option value="Pulses">Pulses &amp; Red Gram (కందులు)</option>
+              <option value="Vegetables">Vegetables &amp; Fruits</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Secondary Row: Search, Sort by Price / Rating, and e-NWR filter */}
+        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+              <Search className="size-3.5 absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search facility name or location..."
+                className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              />
+            </div>
+
+            <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl cursor-pointer hover:bg-slate-100 transition">
+              <input
+                type="checkbox"
+                checked={onlyEnwr}
+                onChange={(e) => setOnlyEnwr(e.target.checked)}
+                className="rounded text-sky-600 focus:ring-sky-500"
+              />
+              <span>e-NWR Bank Loan Only</span>
+            </label>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <ArrowUpDown className="size-3.5 text-slate-400" />
+            <span className="text-xs font-bold text-slate-600">Sort by:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-white focus:ring-2 focus:ring-sky-500 cursor-pointer"
+            >
+              <option value="price_low">Rent: Low → High</option>
+              <option value="price_high">Rent: High → Low</option>
+              <option value="rating_high">⭐ People's Rating: Highest</option>
+              <option value="space_high">Available Space: Highest</option>
             </select>
           </div>
         </div>
@@ -179,7 +271,7 @@ export function ColdStorageFinder({
       {loading && (
         <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center text-slate-600 flex flex-col items-center justify-center gap-3">
           <RefreshCw className="size-8 animate-spin text-sky-600" />
-          <span className="text-sm font-semibold">Connecting to State Warehousing & Cold Chain Registry...</span>
+          <span className="text-sm font-semibold">Connecting to State Warehousing &amp; Cold Chain Registry...</span>
         </div>
       )}
 
@@ -190,14 +282,23 @@ export function ColdStorageFinder({
         </div>
       )}
 
-      {!loading && facilities.length > 0 && (
+      {!loading && (
+        <div className="mb-4 flex items-center justify-between text-xs text-slate-500">
+          <span className="font-bold text-slate-700">
+            Showing {processedFacilities.length} Verified Facilities
+          </span>
+          <span>Prices verified with AP/TS Warehousing Corporation</span>
+        </div>
+      )}
+
+      {!loading && processedFacilities.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {facilities.map((fac) => {
+          {processedFacilities.map((fac) => {
             const occupancy = Math.round(((fac.capacity_mt - fac.available_space_mt) / fac.capacity_mt) * 100);
             return (
               <div
                 key={fac.id}
-                className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-sm hover:shadow-md transition flex flex-col justify-between"
+                className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-sm hover:shadow-md hover:border-sky-300 transition flex flex-col justify-between"
               >
                 <div className="p-6 sm:p-7">
                   {/* Top Badge Strip */}
@@ -217,6 +318,15 @@ export function ColdStorageFinder({
                     <MapPin className="size-3.5 text-slate-400 shrink-0" />
                     <span>{fac.location}, {fac.district} ({fac.state})</span>
                   </p>
+
+                  {/* Rating Badge */}
+                  <div className="mt-2.5">
+                    <FacilityRatingBadge
+                      facilityId={fac.id}
+                      facilityName={fac.name}
+                      onRated={() => setRefreshSeed((s) => s + 1)}
+                    />
+                  </div>
 
                   {/* Commodities Supported */}
                   <div className="mt-4 flex flex-wrap gap-1.5">
@@ -301,6 +411,26 @@ export function ColdStorageFinder({
         </div>
       )}
 
+      {!loading && processedFacilities.length === 0 && (
+        <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center">
+          <Warehouse className="size-10 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-base font-bold text-slate-700">No Facilities Match Your Criteria</h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            Try clearing the search term, removing district constraints, or switching commodity filters to explore nearby districts.
+          </p>
+          <button
+            onClick={() => {
+              setSearchTerm("");
+              setSelectedDistrict("");
+              setOnlyEnwr(false);
+            }}
+            className="mt-4 px-4 py-2 bg-sky-700 text-white text-xs font-bold rounded-xl cursor-pointer hover:bg-sky-800 transition"
+          >
+            Reset Filters
+          </button>
+        </div>
+      )}
+
       {/* Booking Modal */}
       {activeFacility && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -371,7 +501,7 @@ export function ColdStorageFinder({
                     <select
                       value={bookingMonths}
                       onChange={(e) => setBookingMonths(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 bg-white"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 bg-white cursor-pointer"
                     >
                       <option value="1">1 Month</option>
                       <option value="3">3 Months (Recommended)</option>
@@ -438,7 +568,7 @@ export function ColdStorageFinder({
                     <strong className="text-slate-900">{bookingConfirmation.facility_name}</strong>
                   </div>
                   <div className="flex justify-between">
-                    <span>Commodity & Bags:</span>
+                    <span>Commodity &amp; Bags:</span>
                     <strong className="text-slate-900">{bookingConfirmation.commodity} ({bookingConfirmation.bags_count} bags)</strong>
                   </div>
                   <div className="flex justify-between">

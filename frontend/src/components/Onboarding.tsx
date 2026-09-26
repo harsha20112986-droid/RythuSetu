@@ -25,6 +25,7 @@ import {
   type CropItem,
   type VillageInfo,
   type LocationSearchResult,
+  REGIONAL_HIERARCHY,
   API_BASE,
 } from "../types";
 
@@ -86,7 +87,7 @@ export function Onboarding({
   const [searchingLocations, setSearchingLocations] = useState(false);
   const [selectedAutoLocation, setSelectedAutoLocation] = useState<string | null>(null);
 
-  // Search backend whenever user types in Universal Finder
+  // Search backend + local fallback whenever user types in Universal Finder
   useEffect(() => {
     const q = universalSearchQuery.trim();
     if (q.length < 2) {
@@ -96,18 +97,46 @@ export function Onboarding({
 
     const timer = setTimeout(async () => {
       setSearchingLocations(true);
+      let apiResults: LocationSearchResult[] = [];
       try {
         const res = await fetch(`${API_BASE}/locations/search?q=${encodeURIComponent(q)}`);
         if (res.ok) {
           const data = await res.json();
-          setSearchResults(data.results || []);
+          apiResults = data.results || [];
         }
       } catch (err) {
         console.warn("Location search error:", err);
-      } finally {
-        setSearchingLocations(false);
       }
-    }, 250);
+
+      if (apiResults.length > 0) {
+        setSearchResults(apiResults);
+      } else {
+        // Instant client-side fallback across REGIONAL_HIERARCHY
+        const localResults: LocationSearchResult[] = [];
+        const lowerQ = q.toLowerCase();
+        for (const [st, dists] of Object.entries(REGIONAL_HIERARCHY)) {
+          for (const [dist, mandals] of Object.entries(dists)) {
+            for (const [mandal, villages] of Object.entries(mandals)) {
+              for (const v of villages) {
+                if (v.toLowerCase().includes(lowerQ) && localResults.length < 35) {
+                  localResults.push({
+                    state: st,
+                    district: dist,
+                    mandal: mandal,
+                    village: v,
+                    native: "",
+                    pincode: "",
+                    code: "",
+                  });
+                }
+              }
+            }
+          }
+        }
+        setSearchResults(localResults);
+      }
+      setSearchingLocations(false);
+    }, 200);
 
     return () => clearTimeout(timer);
   }, [universalSearchQuery]);
@@ -429,6 +458,51 @@ export function Onboarding({
                         </div>
                       </button>
                     ))}
+
+                    {/* Quick Manual Entry Option at bottom of search list */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600 px-2">
+                      <span>Don't see your specific hamlet/thanda?</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          update("village", universalSearchQuery.trim());
+                          setShowCustomVillageInput(true);
+                          setSelectedAutoLocation(`Custom Village: ${universalSearchQuery.trim()}`);
+                          setUniversalSearchQuery("");
+                          setSearchResults([]);
+                        }}
+                        className="text-emerald-700 font-extrabold hover:underline cursor-pointer"
+                      >
+                        + Use "{universalSearchQuery}" directly
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Village Not Found Instant Helper */}
+                {universalSearchQuery.trim().length >= 2 && searchResults.length === 0 && !searchingLocations && (
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-2xl border border-amber-300 bg-white p-3.5 shadow-2xl space-y-2">
+                    <div className="text-xs text-amber-900 font-bold flex items-center gap-1.5">
+                      <AlertTriangle className="size-4 text-amber-600 shrink-0" />
+                      <span>Village "{universalSearchQuery}" not found in official LGD registry.</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Small habitations, Majras, or Thandas may not have a separate LGD code. You can register your village name directly:
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        update("village", universalSearchQuery.trim());
+                        setShowCustomVillageInput(true);
+                        setSelectedAutoLocation(`Custom Village: ${universalSearchQuery.trim()}`);
+                        setUniversalSearchQuery("");
+                        setSearchResults([]);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <Check className="size-3.5" />
+                      <span>Click to Register "{universalSearchQuery}" as My Village</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -545,13 +619,21 @@ export function Onboarding({
                         </span>
                       )}
                     </span>
-                    {!showCustomVillageInput && (
+                    {!showCustomVillageInput ? (
                       <button
                         type="button"
                         onClick={() => setShowCustomVillageInput(true)}
-                        className="text-[11px] text-emerald-700 hover:underline cursor-pointer font-semibold"
+                        className="text-[11px] text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg cursor-pointer font-bold transition"
                       >
-                        + Type Custom
+                        ✍️ Village not listed? Type manually
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomVillageInput(false)}
+                        className="text-[11px] text-slate-500 hover:text-emerald-700 cursor-pointer font-semibold"
+                      >
+                        ← Choose from list
                       </button>
                     )}
                   </div>
@@ -564,7 +646,7 @@ export function Onboarding({
                             type="text"
                             value={villageSearch}
                             onChange={(e) => setVillageSearch(e.target.value)}
-                            placeholder={`Search ${displayVillages.length} villages (English / తెలుగు / PIN)...`}
+                            placeholder={`Filter ${displayVillages.length} villages in ${form.mandal || "mandal"}...`}
                             className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-emerald-600 focus:bg-white transition"
                           />
                         </div>
@@ -576,12 +658,12 @@ export function Onboarding({
                         className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 transition cursor-pointer"
                       >
                         <option value="">-- Select Village ({filteredVillages.length} available) --</option>
+                        <option value="__custom__">✍️ Village not listed? Click here to type manually</option>
                         {filteredVillages.map((v) => (
                           <option key={`${v.village}_${v.code}`} value={v.village}>
                             {v.village}{v.native ? ` (${v.native})` : ""}{v.pincode ? ` • PIN: ${v.pincode}` : ""}{v.code ? ` • LGD: ${v.code}` : ""}
                           </option>
                         ))}
-                        <option value="__custom__">+ Other / Enter Custom Village</option>
                       </select>
                     </div>
                   ) : (

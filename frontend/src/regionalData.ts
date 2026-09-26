@@ -2719,7 +2719,10 @@ export const REGIONAL_HIERARCHY: StateHierarchy = {
         "Kovelamudi",
         "Kurnoothala",
         "Lemallepadu",
-        "Mutluru"
+        "Mutluru",
+        "Pallapadu",
+        "Vatticherukuru",
+        "Yamarru"
       ]
     },
     "Kakinada": {

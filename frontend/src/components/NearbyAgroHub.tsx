@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   MapPin,
   Building2,
@@ -14,6 +14,10 @@ import {
   AlertTriangle,
   FileCheck2,
   Coins,
+  Search,
+  ArrowUpDown,
+  Filter,
+  Globe2,
 } from "lucide-react";
 import {
   type Farmer,
@@ -26,6 +30,10 @@ import {
   getDistrictsForState,
 } from "../types";
 import { getTranslation } from "../utils/translations";
+import { FacilityRatingBadge, getFacilityRating } from "./FacilityRatingWidget";
+
+type ViewScope = "district_only" | "statewide" | "all_states";
+type SortOption = "distance_asc" | "rating_desc" | "price_low" | "price_high";
 
 export function NearbyAgroHub({
   farmer,
@@ -47,7 +55,13 @@ export function NearbyAgroHub({
   const [district, setDistrict] = useState(farmer?.form.district || "Guntur");
   const [crop, setCrop] = useState(farmer?.form.crop || "Red Chilli");
   const [activeTab, setActiveTab] = useState<"all" | "mills" | "mandis" | "godowns">("all");
-  const [maxDistance, setMaxDistance] = useState<number>(100);
+  const [maxDistance, setMaxDistance] = useState<number>(200);
+
+  // User requested: District Only vs Whole State toggle
+  const [viewScope, setViewScope] = useState<ViewScope>("district_only");
+  const [sortBy, setSortBy] = useState<SortOption>("distance_asc");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [ratingRefresh, setRatingRefresh] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -75,8 +89,112 @@ export function NearbyAgroHub({
     fetchNearbyData(state, district, crop, maxDistance);
   }, [state, district, crop, maxDistance]);
 
+  // Filter and sort mills
+  const filteredMills = useMemo(() => {
+    if (!data?.nearby_mills) return [];
+    let list = [...data.nearby_mills];
+
+    if (viewScope === "district_only") {
+      list = list.filter((m) => m.district.toLowerCase() === district.toLowerCase() || m.distance_km <= 35);
+    } else if (viewScope === "statewide") {
+      list = list.filter((m) => m.state.toLowerCase() === state.toLowerCase());
+    }
+
+    const q = searchTerm.trim().toLowerCase();
+    if (q) {
+      list = list.filter((m) => m.name.toLowerCase().includes(q) || m.location.toLowerCase().includes(q) || m.crop.toLowerCase().includes(q));
+    }
+
+    switch (sortBy) {
+      case "distance_asc":
+        list.sort((a, b) => a.distance_km - b.distance_km);
+        break;
+      case "rating_desc":
+        list.sort((a, b) => getFacilityRating(b.id).rating - getFacilityRating(a.id).rating);
+        break;
+      case "price_high":
+        list.sort((a, b) => b.direct_offer_price_qtl - a.direct_offer_price_qtl);
+        break;
+      case "price_low":
+        list.sort((a, b) => a.direct_offer_price_qtl - b.direct_offer_price_qtl);
+        break;
+    }
+
+    return list;
+  }, [data?.nearby_mills, viewScope, district, state, searchTerm, sortBy, ratingRefresh]);
+
+  // Filter and sort mandis
+  const filteredMandis = useMemo(() => {
+    if (!data?.nearby_mandis) return [];
+    let list = [...data.nearby_mandis];
+
+    if (viewScope === "district_only") {
+      list = list.filter((m) => m.district.toLowerCase() === district.toLowerCase() || m.distance_km <= 35);
+    } else if (viewScope === "statewide") {
+      list = list.filter((m) => m.state.toLowerCase() === state.toLowerCase());
+    }
+
+    const q = searchTerm.trim().toLowerCase();
+    if (q) {
+      list = list.filter((m) => m.name.toLowerCase().includes(q) || m.location.toLowerCase().includes(q) || m.district.toLowerCase().includes(q));
+    }
+
+    switch (sortBy) {
+      case "distance_asc":
+        list.sort((a, b) => a.distance_km - b.distance_km);
+        break;
+      case "rating_desc":
+        list.sort((a, b) => getFacilityRating(b.id).rating - getFacilityRating(a.id).rating);
+        break;
+      case "price_high":
+        list.sort((a, b) => b.daily_arrivals_qtl - a.daily_arrivals_qtl);
+        break;
+      case "price_low":
+        list.sort((a, b) => a.daily_arrivals_qtl - b.daily_arrivals_qtl);
+        break;
+    }
+
+    return list;
+  }, [data?.nearby_mandis, viewScope, district, state, searchTerm, sortBy, ratingRefresh]);
+
+  // Filter and sort godowns
+  const filteredGodowns = useMemo(() => {
+    if (!data?.nearby_cold_storages) return [];
+    let list = [...data.nearby_cold_storages];
+
+    if (viewScope === "district_only") {
+      list = list.filter((g) => g.district.toLowerCase() === district.toLowerCase() || g.distance_km <= 35);
+    } else if (viewScope === "statewide") {
+      list = list.filter((g) => g.state.toLowerCase() === state.toLowerCase());
+    }
+
+    const q = searchTerm.trim().toLowerCase();
+    if (q) {
+      list = list.filter((g) => g.name.toLowerCase().includes(q) || g.location.toLowerCase().includes(q) || g.district.toLowerCase().includes(q));
+    }
+
+    switch (sortBy) {
+      case "distance_asc":
+        list.sort((a, b) => a.distance_km - b.distance_km);
+        break;
+      case "rating_desc":
+        list.sort((a, b) => getFacilityRating(b.id).rating - getFacilityRating(a.id).rating);
+        break;
+      case "price_low":
+        list.sort((a, b) => a.monthly_rent_per_bag - b.monthly_rent_per_bag);
+        break;
+      case "price_high":
+        list.sort((a, b) => b.monthly_rent_per_bag - a.monthly_rent_per_bag);
+        break;
+    }
+
+    return list;
+  }, [data?.nearby_cold_storages, viewScope, district, state, searchTerm, sortBy, ratingRefresh]);
+
+  const totalFilteredCount = filteredMills.length + filteredMandis.length + filteredGodowns.length;
+
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10 animate-in fade-in duration-300">
       <button
         onClick={onBack}
         className="mb-6 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-700 hover:text-emerald-800 transition cursor-pointer"
@@ -103,7 +221,7 @@ export function NearbyAgroHub({
           {t.nearbySubtitle}
         </p>
 
-        {/* Dynamic Location Pills */}
+        {/* Dynamic Location Controls */}
         <div className="mt-6 flex flex-wrap items-center gap-3 bg-white/10 p-3 rounded-2xl border border-white/15 backdrop-blur-md text-xs">
           <span className="font-bold text-emerald-300 flex items-center gap-1">
             <MapPin className="size-3.5" />
@@ -151,7 +269,7 @@ export function NearbyAgroHub({
           </select>
 
           <div className="flex items-center gap-1.5 ml-auto">
-            <span className="text-emerald-200">Radius:</span>
+            <span className="text-emerald-200">Search Radius:</span>
             <select
               value={maxDistance}
               onChange={(e) => setMaxDistance(Number(e.target.value))}
@@ -160,82 +278,125 @@ export function NearbyAgroHub({
               <option value={25} className="bg-slate-900">Within 25 km</option>
               <option value={50} className="bg-slate-900">Within 50 km</option>
               <option value={100} className="bg-slate-900">Within 100 km</option>
-              <option value={200} className="bg-slate-900">Within 200 km</option>
+              <option value={200} className="bg-slate-900">Within 200 km (Whole Region)</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Quick Summary Metric Cards */}
-      {data?.summary && (
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          {/* Nearest Mandi */}
-          <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4">
-            <div className="flex items-center justify-between text-xs font-bold text-sky-800">
-              <span className="flex items-center gap-1.5">
-                <Building2 className="size-4 text-sky-600" />
-                Nearest APMC Mandi
-              </span>
-              {data.summary.nearest_mandi && (
-                <span className="rounded-full bg-sky-200/80 text-sky-950 px-2 py-0.5 text-[10px]">
-                  {data.summary.nearest_mandi.distance_km} km away
-                </span>
-              )}
-            </div>
-            <p className="mt-2 text-sm font-black text-slate-900 leading-tight truncate">
-              {data.summary.nearest_mandi?.name || "Regional APMC Yard"}
-            </p>
-            <p className="text-[11px] text-slate-500 mt-1 truncate">
-              {data.summary.nearest_mandi?.location || "Market Corridor"}
-            </p>
+      {/* Scope Mode Toggle Bar (User Request: Show Guntur only by default vs Whole State on demand) */}
+      <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-black uppercase text-slate-500 flex items-center gap-1">
+              <Filter className="size-3.5" />
+              Scope:
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setViewScope("district_only")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                viewScope === "district_only"
+                  ? "bg-emerald-700 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              <MapPin className="size-3.5" />
+              <span>Nearby ({district} Only)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewScope("statewide")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                viewScope === "statewide"
+                  ? "bg-emerald-700 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              <Globe2 className="size-3.5" />
+              <span>Entire State ({state})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewScope("all_states")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                viewScope === "all_states"
+                  ? "bg-emerald-700 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              <span>All AP &amp; Telangana</span>
+            </button>
           </div>
 
-          {/* Nearest Direct Mill */}
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-            <div className="flex items-center justify-between text-xs font-bold text-amber-900">
-              <span className="flex items-center gap-1.5">
-                <Truck className="size-4 text-amber-600" />
-                Nearest Direct Mill (Zero Broker)
-              </span>
-              {data.summary.nearest_mill && (
-                <span className="rounded-full bg-amber-200/80 text-amber-950 px-2 py-0.5 text-[10px]">
-                  {data.summary.nearest_mill.distance_km} km away
-                </span>
-              )}
-            </div>
-            <p className="mt-2 text-sm font-black text-slate-900 leading-tight truncate">
-              {data.summary.nearest_mill?.name || "Processing Complex"}
-            </p>
-            <p className="text-[11px] text-emerald-800 font-bold mt-1 truncate">
-              {data.summary.nearest_mill ? `Offers ₹${data.summary.nearest_mill.direct_offer_price_qtl}/qtl (+₹${data.summary.nearest_mill.extra_profit_per_qtl} bonus)` : "Zero Broker Savings"}
-            </p>
+          {/* Sort Dropdown */}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <ArrowUpDown className="size-3.5 text-slate-400" />
+            <span className="text-xs font-bold text-slate-600">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="text-xs font-bold border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+            >
+              <option value="distance_asc">Nearest First (km)</option>
+              <option value="rating_desc">⭐ People's Rating (Highest)</option>
+              <option value="price_high">Price: High → Low</option>
+              <option value="price_low">Price: Low → High</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Search bar inside scope */}
+        <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+          <div className="relative flex-1 max-w-md">
+            <Search className="size-3.5 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by facility name, town, or crop..."
+              className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            />
           </div>
 
-          {/* Nearest Cold Storage */}
-          <div className="rounded-2xl border border-teal-200 bg-teal-50/70 p-4">
-            <div className="flex items-center justify-between text-xs font-bold text-teal-900">
-              <span className="flex items-center gap-1.5">
-                <Warehouse className="size-4 text-teal-600" />
-                Nearest AC Godown
+          <div className="text-xs text-slate-500 font-semibold">
+            {viewScope === "district_only" ? (
+              <span>
+                Showing <strong>{totalFilteredCount}</strong> locations inside {district}
               </span>
-              {data.summary.nearest_cold_storage && (
-                <span className="rounded-full bg-teal-200/80 text-teal-950 px-2 py-0.5 text-[10px]">
-                  {data.summary.nearest_cold_storage.distance_km} km away
-                </span>
-              )}
-            </div>
-            <p className="mt-2 text-sm font-black text-slate-900 leading-tight truncate">
-              {data.summary.nearest_cold_storage?.name || "CWC/SWC Cold Storage"}
-            </p>
-            <p className="text-[11px] text-teal-800 font-bold mt-1 truncate">
-              {data.summary.nearest_cold_storage ? `Rent: ₹${data.summary.nearest_cold_storage.monthly_rent_per_bag}/bag • 75% e-NWR Loan` : "e-NWR Accredited"}
-            </p>
+            ) : (
+              <span>
+                Showing <strong>{totalFilteredCount}</strong> locations across {viewScope === "statewide" ? state : "AP & Telangana"}
+              </span>
+            )}
           </div>
+        </div>
+      </div>
+
+      {/* Scope Helpful Banner if district has low results */}
+      {viewScope === "district_only" && totalFilteredCount <= 1 && !loading && (
+        <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-3.5 text-xs text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="size-4 text-amber-600 shrink-0" />
+            <span>
+              Showing {totalFilteredCount} facility directly inside {district}. Want to explore all mills, mandis, and godowns across {state}?
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setViewScope("statewide")}
+            className="px-3 py-1 rounded-xl bg-amber-700 text-white font-bold text-xs hover:bg-amber-800 transition cursor-pointer shrink-0"
+          >
+            Show All in {state}
+          </button>
         </div>
       )}
 
       {/* Category Tabs */}
-      <div className="mt-8 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+      <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
         <button
           onClick={() => setActiveTab("all")}
           className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
@@ -244,7 +405,7 @@ export function NearbyAgroHub({
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
           }`}
         >
-          {t.nearbyAllTab} ({((data?.nearby_mandis.length || 0) + (data?.nearby_mills.length || 0) + (data?.nearby_cold_storages.length || 0))})
+          {t.nearbyAllTab} ({totalFilteredCount})
         </button>
 
         <button
@@ -256,7 +417,7 @@ export function NearbyAgroHub({
           }`}
         >
           <Truck className="size-3.5" />
-          <span>{t.nearbyMillsTab} ({data?.nearby_mills.length || 0})</span>
+          <span>{t.nearbyMillsTab} ({filteredMills.length})</span>
         </button>
 
         <button
@@ -268,7 +429,7 @@ export function NearbyAgroHub({
           }`}
         >
           <Building2 className="size-3.5" />
-          <span>{t.nearbyMandisTab} ({data?.nearby_mandis.length || 0})</span>
+          <span>{t.nearbyMandisTab} ({filteredMandis.length})</span>
         </button>
 
         <button
@@ -280,7 +441,7 @@ export function NearbyAgroHub({
           }`}
         >
           <Warehouse className="size-3.5" />
-          <span>{t.nearbyGodownsTab} ({data?.nearby_cold_storages.length || 0})</span>
+          <span>{t.nearbyGodownsTab} ({filteredGodowns.length})</span>
         </button>
       </div>
 
@@ -298,10 +459,10 @@ export function NearbyAgroHub({
         </div>
       )}
 
-      {!loading && data && (
+      {!loading && (
         <div className="mt-6 space-y-8">
           {/* SECTION 1: DIRECT PURCHASE MILLS & FACTORIES */}
-          {(activeTab === "all" || activeTab === "mills") && data.nearby_mills.length > 0 && (
+          {(activeTab === "all" || activeTab === "mills") && filteredMills.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -310,7 +471,7 @@ export function NearbyAgroHub({
                   </div>
                   <div>
                     <h2 className="text-base sm:text-lg font-black text-slate-900">
-                      Nearby Direct Processing Mills (Zero Broker)
+                      Direct Processing Mills (Zero Broker)
                     </h2>
                     <p className="text-xs text-slate-500">
                       Bypass middlemen commission agents. Sell directly at factory gate at guaranteed rates.
@@ -327,15 +488,20 @@ export function NearbyAgroHub({
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {data.nearby_mills.map((mill) => (
-                  <MillCard key={mill.id} mill={mill} onPass={onNavigateToFactory} />
+                {filteredMills.map((mill) => (
+                  <MillCard
+                    key={mill.id}
+                    mill={mill}
+                    onPass={onNavigateToFactory}
+                    onRated={() => setRatingRefresh((r) => r + 1)}
+                  />
                 ))}
               </div>
             </div>
           )}
 
           {/* SECTION 2: APMC AUCTION MANDIS */}
-          {(activeTab === "all" || activeTab === "mandis") && data.nearby_mandis.length > 0 && (
+          {(activeTab === "all" || activeTab === "mandis") && filteredMandis.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -344,7 +510,7 @@ export function NearbyAgroHub({
                   </div>
                   <div>
                     <h2 className="text-base sm:text-lg font-black text-slate-900">
-                      Nearby APMC Market Yards & e-NAM Corridors
+                      APMC Market Yards &amp; e-NAM Corridors
                     </h2>
                     <p className="text-xs text-slate-500">
                       Regulated auction platforms with certified digital weighbridges and electronic trade slips.
@@ -361,15 +527,20 @@ export function NearbyAgroHub({
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {data.nearby_mandis.map((mandi) => (
-                  <MandiCard key={mandi.id} mandi={mandi} onViewRates={onNavigateToMandi} />
+                {filteredMandis.map((mandi) => (
+                  <MandiCard
+                    key={mandi.id}
+                    mandi={mandi}
+                    onViewRates={onNavigateToMandi}
+                    onRated={() => setRatingRefresh((r) => r + 1)}
+                  />
                 ))}
               </div>
             </div>
           )}
 
           {/* SECTION 3: AC GODOWNS & COLD STORAGES */}
-          {(activeTab === "all" || activeTab === "godowns") && data.nearby_cold_storages.length > 0 && (
+          {(activeTab === "all" || activeTab === "godowns") && filteredGodowns.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -378,7 +549,7 @@ export function NearbyAgroHub({
                   </div>
                   <div>
                     <h2 className="text-base sm:text-lg font-black text-slate-900">
-                      Nearby Climate-Controlled AC Godowns & Cold Stores
+                      Climate-Controlled AC Godowns &amp; Cold Stores
                     </h2>
                     <p className="text-xs text-slate-500">
                       Preserve harvested chilli, turmeric, and cotton. Access e-NWR bank loans up to 75% value.
@@ -395,10 +566,35 @@ export function NearbyAgroHub({
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {data.nearby_cold_storages.map((godown) => (
-                  <GodownCard key={godown.id} godown={godown} onBook={onNavigateToStorage} />
+                {filteredGodowns.map((godown) => (
+                  <GodownCard
+                    key={godown.id}
+                    godown={godown}
+                    onBook={onNavigateToStorage}
+                    onRated={() => setRatingRefresh((r) => r + 1)}
+                  />
                 ))}
               </div>
+            </div>
+          )}
+
+          {totalFilteredCount === 0 && !loading && (
+            <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center">
+              <Building2 className="size-10 text-slate-300 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-slate-700">No Facilities in this Scope</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                No facilities found in {district} matching your filters. Switch to "Entire State" to see all options across {state}.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewScope("statewide");
+                  setSearchTerm("");
+                }}
+                className="mt-4 px-4 py-2 bg-emerald-700 text-white text-xs font-bold rounded-xl cursor-pointer hover:bg-emerald-800 transition"
+              >
+                View All in {state}
+              </button>
             </div>
           )}
         </div>
@@ -407,9 +603,17 @@ export function NearbyAgroHub({
   );
 }
 
-function MillCard({ mill, onPass }: { mill: NearbyMillItem; onPass: () => void }) {
+function MillCard({
+  mill,
+  onPass,
+  onRated,
+}: {
+  mill: NearbyMillItem;
+  onPass: () => void;
+  onRated?: () => void;
+}) {
   return (
-    <div className="rounded-3xl border border-amber-200/90 bg-white p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+    <div className="rounded-3xl border border-amber-200/90 bg-white p-5 shadow-sm hover:shadow-md hover:border-amber-400 transition flex flex-col justify-between">
       <div>
         <div className="flex items-center justify-between gap-2">
           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
@@ -420,7 +624,7 @@ function MillCard({ mill, onPass }: { mill: NearbyMillItem; onPass: () => void }
             📍 {mill.distance_km} km away
           </span>
           <span className="text-[10px] font-bold text-slate-500 truncate max-w-[140px]">
-            {mill.category}
+            {mill.district}, {mill.state}
           </span>
         </div>
 
@@ -431,6 +635,15 @@ function MillCard({ mill, onPass }: { mill: NearbyMillItem; onPass: () => void }
           <MapPin className="size-3 text-slate-400 shrink-0 mt-0.5" />
           <span>{mill.location}</span>
         </p>
+
+        {/* Rating Badge */}
+        <div className="mt-2">
+          <FacilityRatingBadge
+            facilityId={mill.id}
+            facilityName={mill.name}
+            onRated={onRated}
+          />
+        </div>
 
         {/* Pricing Comparison Box */}
         <div className="mt-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 p-3">
@@ -491,9 +704,17 @@ function MillCard({ mill, onPass }: { mill: NearbyMillItem; onPass: () => void }
   );
 }
 
-function MandiCard({ mandi, onViewRates }: { mandi: NearbyMandiItem; onViewRates: () => void }) {
+function MandiCard({
+  mandi,
+  onViewRates,
+  onRated,
+}: {
+  mandi: NearbyMandiItem;
+  onViewRates: () => void;
+  onRated?: () => void;
+}) {
   return (
-    <div className="rounded-3xl border border-sky-200/90 bg-white p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+    <div className="rounded-3xl border border-sky-200/90 bg-white p-5 shadow-sm hover:shadow-md hover:border-sky-400 transition flex flex-col justify-between">
       <div>
         <div className="flex items-center justify-between gap-2">
           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
@@ -515,8 +736,17 @@ function MandiCard({ mandi, onViewRates }: { mandi: NearbyMandiItem; onViewRates
         </h3>
         <p className="text-xs text-slate-500 mt-1 flex items-start gap-1">
           <MapPin className="size-3 text-slate-400 shrink-0 mt-0.5" />
-          <span>{mandi.location}</span>
+          <span>{mandi.location} ({mandi.district})</span>
         </p>
+
+        {/* Rating Badge */}
+        <div className="mt-2">
+          <FacilityRatingBadge
+            facilityId={mandi.id}
+            facilityName={mandi.name}
+            onRated={onRated}
+          />
+        </div>
 
         <div className="mt-3.5 rounded-2xl bg-sky-50/70 border border-sky-200/80 p-3 space-y-1.5 text-xs">
           <div className="flex items-center justify-between text-slate-700">
@@ -577,9 +807,17 @@ function MandiCard({ mandi, onViewRates }: { mandi: NearbyMandiItem; onViewRates
   );
 }
 
-function GodownCard({ godown, onBook }: { godown: NearbyGodownItem; onBook: () => void }) {
+function GodownCard({
+  godown,
+  onBook,
+  onRated,
+}: {
+  godown: NearbyGodownItem;
+  onBook: () => void;
+  onRated?: () => void;
+}) {
   return (
-    <div className="rounded-3xl border border-teal-200/90 bg-white p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+    <div className="rounded-3xl border border-teal-200/90 bg-white p-5 shadow-sm hover:shadow-md hover:border-teal-400 transition flex flex-col justify-between">
       <div>
         <div className="flex items-center justify-between gap-2">
           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
@@ -601,8 +839,17 @@ function GodownCard({ godown, onBook }: { godown: NearbyGodownItem; onBook: () =
         </h3>
         <p className="text-xs text-slate-500 mt-1 flex items-start gap-1">
           <MapPin className="size-3 text-slate-400 shrink-0 mt-0.5" />
-          <span>{godown.location}</span>
+          <span>{godown.location} ({godown.district})</span>
         </p>
+
+        {/* Rating Badge */}
+        <div className="mt-2">
+          <FacilityRatingBadge
+            facilityId={godown.id}
+            facilityName={godown.name}
+            onRated={onRated}
+          />
+        </div>
 
         <div className="mt-3.5 rounded-2xl bg-teal-50/70 border border-teal-200/80 p-3 space-y-1.5 text-xs">
           <div className="flex items-center justify-between text-slate-700">
@@ -656,7 +903,7 @@ function GodownCard({ godown, onBook }: { godown: NearbyGodownItem; onBook: () =
           className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white py-2.5 text-xs font-bold transition cursor-pointer shadow-xs"
         >
           <ShieldCheck className="size-3.5" />
-          <span>Reserve Bay & e-NWR Pledge Token</span>
+          <span>Reserve Bay &amp; e-NWR Pledge Token</span>
         </button>
       </div>
     </div>

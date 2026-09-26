@@ -44,8 +44,31 @@ export function Home({
 
   return (
     <div>
+      {/* Live Market & Weather Telemetry Ticker Strip */}
+      <div className="bg-emerald-950 border-b border-emerald-800/60 py-2.5 px-4 overflow-hidden text-xs text-emerald-200">
+        <div className="max-w-7xl mx-auto flex items-center gap-4 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="size-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span className="font-extrabold text-white uppercase text-[10px] tracking-wider bg-emerald-800/90 px-2 py-0.5 rounded-full border border-emerald-600/60">
+              LIVE RATES
+            </span>
+          </div>
+          <div className="flex items-center gap-5 text-[11px] font-medium whitespace-nowrap">
+            <span>🌾 <strong>Cotton MSP:</strong> ₹7,121/qtl • Warangal APMC: <strong className="text-emerald-400">₹7,450</strong> (↑ +4.6%)</span>
+            <span className="text-emerald-700">•</span>
+            <span>🌶️ <strong>Guntur Mirchi Yard:</strong> Teja AC <strong className="text-emerald-400">₹21,800/qtl</strong></span>
+            <span className="text-emerald-700">•</span>
+            <span>🍚 <strong>Paddy Grade A:</strong> ₹2,320/qtl • Civil Supplies PPC Active</span>
+            <span className="text-emerald-700">•</span>
+            <span>🥜 <strong>Groundnut:</strong> ₹6,783/qtl • Anantapur Yard</span>
+            <span className="text-emerald-700">•</span>
+            <span>🌽 <strong>Maize:</strong> ₹2,090/qtl • Nizamabad Yard</span>
+          </div>
+        </div>
+      </div>
+
       {/* 1. Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-emerald-950 via-slate-900 to-emerald-950 text-white py-16 lg:py-24">
+      <section className="relative overflow-hidden bg-gradient-to-b from-emerald-950 via-slate-900 to-emerald-950 text-white py-14 lg:py-20">
         {/* Ambient atmospheric glows */}
         <div className="absolute top-10 right-1/4 size-96 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
         <div className="absolute bottom-10 left-10 size-80 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
