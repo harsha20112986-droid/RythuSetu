@@ -20,6 +20,10 @@ export interface Translations {
   nearbyHub: string;
   schemes: string;
   pmfby: string;
+  machineryRental: string;
+  harvestShield: string;
+  seedVerifier: string;
+  agriKhata: string;
   registerFarmProfile: string;
   myFarm: string;
   signIn: string;
@@ -122,6 +126,10 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     nearbyHub: "Nearby Hub 📍",
     schemes: "Schemes",
     pmfby: "PMFBY Claims",
+    machineryRental: "Farm Machinery & Drones",
+    harvestShield: "Harvest Shield & Tarpaulins",
+    seedVerifier: "Seed Authenticity Check",
+    agriKhata: "Digital Agri Khata & Breakeven",
     registerFarmProfile: "Register Farm Profile",
     myFarm: "My Farm",
     signIn: "Sign In",
@@ -218,6 +226,10 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     nearbyHub: "సమీప కేంద్రాలు 📍",
     schemes: "ప్రభుత్వ పథకాలు",
     pmfby: "పంట నష్టం క్లెయిమ్",
+    machineryRental: "వ్యవసాయ యంత్రాలు & డ్రోన్లు",
+    harvestShield: "కల్లం రక్షణ & టార్పాలిన్లు",
+    seedVerifier: "విత్తన ప్రామాణికత & నకిలీ నిరోధం",
+    agriKhata: "డిజిటల్ ఖాటా & గిట్టుబాటు ధర",
     registerFarmProfile: "రైతు వివరాలు నమోదు",
     myFarm: "నా వ్యవసాయం",
     signIn: "లాగిన్ అవ్వండి",
@@ -314,6 +326,10 @@ export const TRANSLATIONS: Record<SupportedLanguage, Translations> = {
     nearbyHub: "निकटतम केंद्र 📍",
     schemes: "सरकारी योजनाएं",
     pmfby: "फसल बीमा क्लेम",
+    machineryRental: "कृषि यंत्र एवं ड्रोन",
+    harvestShield: "खलिहान सुरक्षा एवं तिरपाल",
+    seedVerifier: "बीज शुद्धता व प्रमाणन",
+    agriKhata: "डिजिटल कृषि खाता एवं न्यूनतम लागत",
     registerFarmProfile: "खेत प्रोफाइल दर्ज करें",
     myFarm: "मेरा खेत",
     signIn: "लॉग इन करें",

@@ -864,3 +864,136 @@ def api_nearby_dealers(
         )
     }
 
+
+# -------------------------------------------------------------
+# 8. Farm Machinery Custom Hiring Center (CHC) Hub
+# -------------------------------------------------------------
+from app.machinery_engine import get_machinery_rentals, create_machinery_booking
+
+class MachineryBookingRequest(BaseModel):
+    machinery_id: str
+    farmer_name: str
+    phone: str
+    district: str
+    village: str
+    acres_or_hours: float
+    required_date: str
+
+@router.get("/machinery/rentals")
+def api_machinery_rentals(
+    district: str = Query("", max_length=100),
+    category: str = Query("", max_length=100),
+    state: str = Query("", max_length=100)
+):
+    """Returns available farm machinery custom hiring center equipment."""
+    return {
+        "equipment": get_machinery_rentals(
+            district=district,
+            category=category,
+            state=state
+        )
+    }
+
+@router.post("/machinery/book")
+def api_book_machinery(payload: MachineryBookingRequest):
+    """Reserves farm machinery and issues confirmation dispatch token."""
+    return create_machinery_booking(
+        machinery_id=payload.machinery_id,
+        farmer_name=payload.farmer_name,
+        phone=payload.phone,
+        district=payload.district,
+        village=payload.village,
+        acres_or_hours=payload.acres_or_hours,
+        required_date=payload.required_date,
+    )
+
+
+# -------------------------------------------------------------
+# 9. Kallam (Drying Yard) Harvest Weather Shield & Tarpaulins
+# -------------------------------------------------------------
+from app.harvest_shield_engine import get_harvest_drying_risk
+
+@router.get("/weather/harvest-shield")
+def api_harvest_drying_risk(
+    district: str = Query("Guntur", max_length=100),
+    crop: str = Query("Red Chilli", max_length=100)
+):
+    """Calculates open yard crop moisture danger score and nearest tarpaulin centers."""
+    return get_harvest_drying_risk(district=district, crop=crop)
+
+
+# -------------------------------------------------------------
+# 10. Seed & Input Authenticity Batch Verifier & Anti-Spurious
+# -------------------------------------------------------------
+from app.seed_verifier_engine import verify_seed_lot, file_seed_grievance
+
+class SeedGrievanceRequest(BaseModel):
+    farmer_name: str
+    phone: str
+    village: str
+    district: str
+    dealer_name: str
+    seed_brand: str
+    lot_number: str
+    germination_failed_percent: float
+    notes: str = ""
+
+@router.get("/seeds/verify-batch")
+def api_verify_seed_lot(lot_number: str = Query(..., min_length=2)):
+    """Cross-verifies seed lot number against official state certification database."""
+    return verify_seed_lot(lot_number)
+
+@router.post("/seeds/report-spurious")
+def api_report_spurious_seed(payload: SeedGrievanceRequest):
+    """Files formal spurious seed complaint with Mandal Agriculture Officer (MAO)."""
+    return file_seed_grievance(
+        farmer_name=payload.farmer_name,
+        phone=payload.phone,
+        village=payload.village,
+        district=payload.district,
+        dealer_name=payload.dealer_name,
+        seed_brand=payload.seed_brand,
+        lot_number=payload.lot_number,
+        germination_failed_percent=payload.germination_failed_percent,
+        notes=payload.notes,
+    )
+
+
+# -------------------------------------------------------------
+# 11. Digital Agri Khata & Breakeven Price Calculator
+# -------------------------------------------------------------
+from app.khata_engine import (
+    get_crop_cost_template,
+    calculate_breakeven_cost,
+    get_saved_khata_entries
+)
+
+class KhataCalculationRequest(BaseModel):
+    crop: str
+    acres: float
+    expenses: dict[str, float]
+    expected_yield_quintals: float
+    expected_market_price_per_qtl: float = 0.0
+
+@router.get("/khata/template")
+def api_khata_template(crop: str = Query("Red Chilli")):
+    """Returns baseline cultivation expense template for specified crop."""
+    return get_crop_cost_template(crop)
+
+@router.post("/khata/calculate-breakeven")
+def api_calculate_breakeven(payload: KhataCalculationRequest):
+    """Calculates cost of cultivation per acre, breakeven price/qtl, and anti-distress sale advisory."""
+    return calculate_breakeven_cost(
+        crop=payload.crop,
+        acres=payload.acres,
+        expenses=payload.expenses,
+        expected_yield_quintals=payload.expected_yield_quintals,
+        expected_market_price_per_qtl=payload.expected_market_price_per_qtl,
+    )
+
+@router.get("/khata/history")
+def api_khata_history():
+    """Returns farmer's saved crop expense ledger records."""
+    return {"entries": get_saved_khata_entries()}
+
+

@@ -21,6 +21,9 @@ import {
   ChevronRight,
   User,
   Sparkles,
+  Tractor,
+  CloudRain,
+  Calculator,
 } from "lucide-react";
 import type { Page, Farmer, AuthUser } from "../types";
 import { getTranslation } from "../utils/translations";
@@ -138,6 +141,42 @@ export function Header({
       icon: FlaskConical,
       color: "blue",
       badge: "NPK Ratio",
+    },
+    {
+      id: "machinery" as Page,
+      title: t.machineryRental,
+      teluguTitle: "వ్యవసాయ యంత్రాలు & డ్రోన్లు",
+      subtitle: "Custom Hiring Centers (CHC): Tractors, 10L spray drones & harvesters",
+      icon: Tractor,
+      color: "emerald",
+      badge: "Rent Hub",
+    },
+    {
+      id: "harvest-shield" as Page,
+      title: t.harvestShield,
+      teluguTitle: "కల్లం రక్షణ & టార్పాలిన్లు",
+      subtitle: "Open drying yard rain alert & nearby heavy tarpaulin sheet rental banks",
+      icon: CloudRain,
+      color: "amber",
+      badge: "Rain Shield",
+    },
+    {
+      id: "seed-verify" as Page,
+      title: t.seedVerifier,
+      teluguTitle: "విత్తన ప్రామాణికత & నకిలీ నిరోధం",
+      subtitle: "APSCA/TSSOCA lot code cross-check & anti-spurious seed grievance cell",
+      icon: ShieldCheck,
+      color: "teal",
+      badge: "Anti-Spurious",
+    },
+    {
+      id: "khata" as Page,
+      title: t.agriKhata,
+      teluguTitle: "డిజిటల్ ఖాటా & గిట్టుబాటు ధర",
+      subtitle: "Cultivation cost per acre, breakeven price/qtl & anti-distress sale guard",
+      icon: Calculator,
+      color: "indigo",
+      badge: "Breakeven Guard",
     },
   ];
 

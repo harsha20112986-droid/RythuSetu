@@ -21,6 +21,10 @@ import { CropRecommendation } from "./components/CropRecommendation";
 import { ColdStorageFinder } from "./components/ColdStorageFinder";
 import { DirectFactoryMarket } from "./components/DirectFactoryMarket";
 import { NearbyAgroHub } from "./components/NearbyAgroHub";
+import { MachineryRentalHub } from "./components/MachineryRentalHub";
+import { HarvestShield } from "./components/HarvestShield";
+import { SeedVerifier } from "./components/SeedVerifier";
+import { AgriKhata } from "./components/AgriKhata";
 import { PwaInstallPrompt } from "./components/PwaInstallPrompt";
 import { IvrModal } from "./components/IvrModal";
 import { KrishiAssistant } from "./components/KrishiAssistant";
@@ -431,6 +435,10 @@ export function App() {
             onStorage={() => setPage("storage")}
             onFactory={() => setPage("factory")}
             onNearby={() => setPage("nearby")}
+            onMachinery={() => setPage("machinery")}
+            onHarvestShield={() => setPage("harvest-shield")}
+            onSeedVerify={() => setPage("seed-verify")}
+            onKhata={() => setPage("khata")}
           />
         )}
 
@@ -505,6 +513,38 @@ export function App() {
             onNavigateToMandi={() => setPage("mandi")}
             onNavigateToStorage={() => setPage("storage")}
             onNavigateToFactory={() => setPage("factory")}
+            language={assistantLanguage}
+          />
+        )}
+
+        {page === "machinery" && (
+          <MachineryRentalHub
+            farmer={farmer}
+            onBack={() => setPage(farmer ? "dashboard" : "home")}
+            language={assistantLanguage}
+          />
+        )}
+
+        {page === "harvest-shield" && (
+          <HarvestShield
+            farmer={farmer}
+            onBack={() => setPage(farmer ? "dashboard" : "home")}
+            language={assistantLanguage}
+          />
+        )}
+
+        {page === "seed-verify" && (
+          <SeedVerifier
+            farmer={farmer}
+            onBack={() => setPage(farmer ? "dashboard" : "home")}
+            language={assistantLanguage}
+          />
+        )}
+
+        {page === "khata" && (
+          <AgriKhata
+            farmer={farmer}
+            onBack={() => setPage(farmer ? "dashboard" : "home")}
             language={assistantLanguage}
           />
         )}

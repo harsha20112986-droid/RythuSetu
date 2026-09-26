@@ -8,7 +8,25 @@ const getApiBase = () => {
 
 export const API_BASE = getApiBase();
 
-export type Page = "home" | "onboarding" | "dashboard" | "schemes" | "benefits" | "loss" | "doctor" | "admin" | "mandi" | "fertilizer" | "recommendation" | "storage" | "factory" | "nearby";
+export type Page = 
+  | "home" 
+  | "onboarding" 
+  | "dashboard" 
+  | "schemes" 
+  | "benefits" 
+  | "loss" 
+  | "doctor" 
+  | "admin" 
+  | "mandi" 
+  | "fertilizer" 
+  | "recommendation" 
+  | "storage" 
+  | "factory" 
+  | "nearby"
+  | "machinery"
+  | "harvest-shield"
+  | "seed-verify"
+  | "khata";
 
 export type FormState = {
   name: string;
@@ -756,5 +774,173 @@ export interface AgriDealerItem {
   stock_status: string;
   operating_hours?: string;
   offers_doorstep_delivery?: boolean;
+}
+
+// -------------------------------------------------------------
+// Farm Machinery Custom Hiring Hub Types
+// -------------------------------------------------------------
+export interface MachineryItem {
+  id: string;
+  machinery_type: string;
+  telugu_name: string;
+  brand_model: string;
+  category: string;
+  owner_name: string;
+  owner_phone: string;
+  district: string;
+  state: string;
+  mandal: string;
+  village: string;
+  distance_km: number;
+  pricing_type: "per_hour" | "per_acre";
+  rate_inr: number;
+  rate_unit: string;
+  suitable_operations: string[];
+  availability_status: string;
+  image_url: string;
+  rating: number;
+  total_trips: number;
+}
+
+export interface MachineryBookingRecord {
+  booking_token: string;
+  machinery_id: string;
+  machinery_type: string;
+  telugu_name: string;
+  farmer_name: string;
+  phone: string;
+  district: string;
+  village: string;
+  acres_or_hours: number;
+  pricing_type: string;
+  rate_inr: number;
+  estimated_cost_inr: number;
+  required_date: string;
+  status: string;
+  operator_name: string;
+  operator_phone: string;
+  booked_at: string;
+  instructions: string;
+}
+
+// -------------------------------------------------------------
+// Kallam Drying Yard Harvest Weather Shield Types
+// -------------------------------------------------------------
+export interface TarpaulinCenterItem {
+  id: string;
+  supplier_name: string;
+  telugu_name: string;
+  contact_person: string;
+  phone: string;
+  district: string;
+  state: string;
+  location: string;
+  distance_km: number;
+  available_sizes: string[];
+  rental_per_day_inr: number;
+  purchase_price_inr: number;
+  stock_status: string;
+  operating_hours: string;
+}
+
+export interface HarvestShieldData {
+  district: string;
+  crop: string;
+  risk_level: string;
+  risk_score: number;
+  drying_safety: string;
+  recommended_drying_hours: string;
+  critical_moisture_target: string;
+  advisory_en: string;
+  advisory_te: string;
+  protection_steps: string[];
+  tarpaulin_centers: TarpaulinCenterItem[];
+}
+
+// -------------------------------------------------------------
+// Seed Authenticity Batch Verifier Types
+// -------------------------------------------------------------
+export interface SeedBatchData {
+  lot_number: string;
+  brand_name: string;
+  telugu_name: string;
+  crop: string;
+  producer: string;
+  producer_license: string;
+  germination_tested_percent: number;
+  min_germination_standard: number;
+  physical_purity_percent: number;
+  genetic_purity_percent: number;
+  test_date: string;
+  valid_until: string;
+  treated_chemical: string;
+  authenticity_status: string;
+  state_registry: string;
+  advisory: string;
+}
+
+export interface SeedVerificationResult {
+  found: boolean;
+  lot_number: string;
+  batch_data?: SeedBatchData;
+  is_genuine: boolean;
+  authenticity_status?: string;
+  warning_title?: string;
+  warning_details?: string;
+  action_required?: string;
+}
+
+export interface SeedGrievanceRecord {
+  complaint_id: string;
+  farmer_name: string;
+  phone: string;
+  village: string;
+  district: string;
+  dealer_name: string;
+  seed_brand: string;
+  lot_number: string;
+  germination_failed_percent: number;
+  notes: string;
+  status: string;
+  submitted_at: string;
+  resolution_timeline: string;
+}
+
+// -------------------------------------------------------------
+// Digital Agri Khata & Breakeven Calculator Types
+// -------------------------------------------------------------
+export interface KhataTemplate {
+  crop_key: string;
+  crop_name: string;
+  default_acres: number;
+  default_yield_quintals: number;
+  expenses: Record<string, number>;
+  msp_inr: number | null;
+  standard_market_price_inr: number;
+  storage_alternative: string;
+  advisory_te: string;
+}
+
+export interface KhataCalculation {
+  id: string;
+  crop: string;
+  acres: number;
+  expenses: Record<string, number>;
+  total_cost: number;
+  cost_per_acre: number;
+  expected_yield_per_acre: number;
+  total_yield_quintals: number;
+  breakeven_per_qtl: number;
+  fair_target_price_per_qtl: number;
+  offered_price_per_qtl: number;
+  total_revenue: number;
+  net_profit: number;
+  profit_margin_pct: number;
+  is_distress_loss: boolean;
+  status_label: string;
+  status_color: string;
+  action_guidance: string;
+  storage_alternative: string;
+  created_at: string;
 }
 

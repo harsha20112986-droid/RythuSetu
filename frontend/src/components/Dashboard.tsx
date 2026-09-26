@@ -24,6 +24,8 @@ import {
   Warehouse,
   TrendingUp,
   Truck,
+  Tractor,
+  ShieldCheck,
 } from "lucide-react";
 import { type Farmer, type ClimateData, type BroadcastAlert, API_BASE } from "../types";
 
@@ -42,6 +44,10 @@ export function Dashboard({
   onStorage,
   onFactory,
   onNearby,
+  onMachinery,
+  onHarvestShield,
+  onSeedVerify,
+  onKhata,
 }: {
   farmer: Farmer;
   onEdit: () => void;
@@ -57,6 +63,10 @@ export function Dashboard({
   onStorage?: () => void;
   onFactory?: () => void;
   onNearby?: () => void;
+  onMachinery?: () => void;
+  onHarvestShield?: () => void;
+  onSeedVerify?: () => void;
+  onKhata?: () => void;
 }) {
   const [climate, setClimate] = useState<ClimateData | null>(null);
   const [alerts, setAlerts] = useState<BroadcastAlert[]>([]);
@@ -773,6 +783,94 @@ export function Dashboard({
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white py-2.5 text-xs font-bold transition cursor-pointer shadow-sm"
             >
               <span>Explore Nearby Hub 📍</span>
+              <ArrowRight className="size-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card 12: Custom Hiring Center Machinery & Drones */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+          <div>
+            <div className="grid size-12 place-items-center rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700">
+              <Tractor className="size-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-black text-slate-900">Farm Machinery & Drones</h3>
+            <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+              Rent 45HP tractors, 10L foliar spray drones (@ ₹380/acre), and track harvesters at official CHC rates.
+            </p>
+          </div>
+          <div className="mt-6 pt-4 border-t border-slate-100">
+            <button
+              onClick={onMachinery}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 text-xs font-bold transition cursor-pointer"
+            >
+              <span>Rent Machinery & Drones</span>
+              <ArrowRight className="size-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card 13: Kallam Harvest Weather Shield */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+          <div>
+            <div className="grid size-12 place-items-center rounded-2xl bg-amber-50 border border-amber-200 text-amber-700">
+              <CloudRain className="size-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-black text-slate-900">Harvest Weather Shield</h3>
+            <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+              36-hour rain danger forecast for drying yards (కల్లాలు) and directory of nearby heavy tarpaulin sheet rentals.
+            </p>
+          </div>
+          <div className="mt-6 pt-4 border-t border-slate-100">
+            <button
+              onClick={onHarvestShield}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white py-2.5 text-xs font-bold transition cursor-pointer"
+            >
+              <span>Drying Yard Shield</span>
+              <ArrowRight className="size-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card 14: Seed Authenticity & Anti-Spurious Verifier */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+          <div>
+            <div className="grid size-12 place-items-center rounded-2xl bg-teal-50 border border-teal-200 text-teal-700">
+              <ShieldCheck className="size-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-black text-slate-900">Seed Batch Authenticity</h3>
+            <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+              Verify pouch lot numbers against APSCA/TSSOCA registries. Check lab germination % and file MAO complaints.
+            </p>
+          </div>
+          <div className="mt-6 pt-4 border-t border-slate-100">
+            <button
+              onClick={onSeedVerify}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white py-2.5 text-xs font-bold transition cursor-pointer"
+            >
+              <span>Verify Seed Lot</span>
+              <ArrowRight className="size-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card 15: Digital Agri Khata & Breakeven Calculator */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+          <div>
+            <div className="grid size-12 place-items-center rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-700">
+              <Calculator className="size-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-black text-slate-900">Digital Agri Khata</h3>
+            <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+              Input field expenses to compute true cultivation cost per acre and breakeven selling price to prevent distress sales.
+            </p>
+          </div>
+          <div className="mt-6 pt-4 border-t border-slate-100">
+            <button
+              onClick={onKhata}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white py-2.5 text-xs font-bold transition cursor-pointer"
+            >
+              <span>Breakeven Calculator</span>
               <ArrowRight className="size-3.5" />
             </button>
           </div>

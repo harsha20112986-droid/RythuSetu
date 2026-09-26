@@ -17,6 +17,7 @@ import {
   Warehouse,
   Truck,
   MapPin,
+  Tractor,
 } from "lucide-react";
 import { type Farmer, type Page } from "../types";
 import { getTranslation } from "../utils/translations";
@@ -653,6 +654,186 @@ export function Home({
                   className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 text-xs font-bold transition cursor-pointer shadow-xs"
                 >
                   <span>Explore Nearby Hub 📍</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </article>
+
+            {/* Card 10: Farm Machinery & Spray Drones */}
+            <article className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between group">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-600" />
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="grid size-12 place-items-center rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-2xs group-hover:scale-110 transition-transform">
+                    <Tractor className="size-6" />
+                  </div>
+                  <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[9px] font-extrabold text-emerald-800 uppercase tracking-wider">
+                    Custom Hiring (CHC)
+                  </span>
+                </div>
+
+                <h3 className="mt-5 font-black text-xl text-slate-900">Farm Machinery & Drones</h3>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Rent 45HP tractors, 10L agricultural spray drones (@ ₹380/acre), and combined harvesters at official government benchmark rates.
+                </p>
+
+                <div className="mt-4 space-y-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                    <span>Direct operator call & zero middleman fees</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                    <span>Drone spraying covers 1 acre in 7 mins</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                    <span>Instant field dispatch token generation</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <button
+                  onClick={() => onNavigate("machinery")}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 py-2.5 text-xs font-bold transition cursor-pointer"
+                >
+                  <span>Rent Machinery & Drones</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </article>
+
+            {/* Card 11: Kallam Drying Yard Harvest Weather Shield */}
+            <article className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between group">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 to-orange-600" />
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="grid size-12 place-items-center rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 shadow-2xs group-hover:scale-110 transition-transform">
+                    <CloudRain className="size-6" />
+                  </div>
+                  <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[9px] font-extrabold text-amber-800 uppercase tracking-wider">
+                    Drying Yard Alert
+                  </span>
+                </div>
+
+                <h3 className="mt-5 font-black text-xl text-slate-900">Harvest Weather Shield</h3>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Protect sun-drying red chilli and paddy on open yards (కల్లాలు) from sudden rains. Real-time danger alerts and nearby tarpaulin rentals.
+                </p>
+
+                <div className="mt-4 space-y-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-amber-600 shrink-0" />
+                    <span>36-hour thunderstorm hazard forecast</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-amber-600 shrink-0" />
+                    <span>Nearby heavy tarpaulins @ ₹50-₹80/day</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-amber-600 shrink-0" />
+                    <span>Prevents fungus mold & quality discoloration</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <button
+                  onClick={() => onNavigate("harvest-shield")}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 py-2.5 text-xs font-bold transition cursor-pointer"
+                >
+                  <span>Check Drying Yard Shield</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </article>
+
+            {/* Card 12: Seed Authenticity Verifier */}
+            <article className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between group">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-500 to-cyan-600" />
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="grid size-12 place-items-center rounded-2xl bg-teal-50 border border-teal-200 text-teal-700 shadow-2xs group-hover:scale-110 transition-transform">
+                    <ShieldCheck className="size-6" />
+                  </div>
+                  <span className="rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-[9px] font-extrabold text-teal-800 uppercase tracking-wider">
+                    Anti-Spurious Cell
+                  </span>
+                </div>
+
+                <h3 className="mt-5 font-black text-xl text-slate-900">Seed Batch Authenticity</h3>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Cross-verify seed packet lot numbers against official state certification agencies (APSCA/TSSOCA). Check lab germination test % and file spurious complaints.
+                </p>
+
+                <div className="mt-4 space-y-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-teal-600 shrink-0" />
+                    <span>Tested germination % vs Govt standards</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-teal-600 shrink-0" />
+                    <span>Counterfeit / spurious seed warning alerts</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-teal-600 shrink-0" />
+                    <span>Direct MAO complaint submission under Seeds Act</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <button
+                  onClick={() => onNavigate("seed-verify")}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 py-2.5 text-xs font-bold transition cursor-pointer"
+                >
+                  <span>Verify Seed Lot Code</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </article>
+
+            {/* Card 13: Digital Agri Khata & Breakeven Calculator */}
+            <article className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between group">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-600" />
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="grid size-12 place-items-center rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-700 shadow-2xs group-hover:scale-110 transition-transform">
+                    <Calculator className="size-6" />
+                  </div>
+                  <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[9px] font-extrabold text-indigo-800 uppercase tracking-wider">
+                    Anti-Distress Sale
+                  </span>
+                </div>
+
+                <h3 className="mt-5 font-black text-xl text-slate-900">Digital Agri Khata</h3>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Track all field expenses (seeds, fertilizers, picking labor). Compute true cost of production per quintal and never sell below your breakeven price.
+                </p>
+
+                <div className="mt-4 space-y-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-indigo-600 shrink-0" />
+                    <span>Exact production cost (COP) per quintal</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-indigo-600 shrink-0" />
+                    <span>Swaminathan C2 + 50% target price guide</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-indigo-600 shrink-0" />
+                    <span>Distress loss warning & warehouse holding advice</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <button
+                  onClick={() => onNavigate("khata")}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 py-2.5 text-xs font-bold transition cursor-pointer"
+                >
+                  <span>Open Agri Khata Calculator</span>
                   <ArrowRight className="size-3.5" />
                 </button>
               </div>
