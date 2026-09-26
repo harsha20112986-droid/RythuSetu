@@ -42,10 +42,65 @@ class InMemorySlidingWindowRateLimiter:
             self.requests[key] = [t for t in self.requests[key] if now - t < 3600]
             if not self.requests[key]:
                 del self.requests[key]
-        self.last_cleanup = now
+class RedisSlidingWindowRateLimiter:
+    """Distributed sliding-window rate limiter using Redis sorted sets (ZADD/ZREMRANGEBYSCORE)."""
+    def __init__(self, redis_url: str):
+        import redis
+        self.client = redis.from_url(redis_url, decode_responses=True, socket_timeout=2.0)
+
+    def is_allowed(self, identifier: str, max_requests: int, window_seconds: int) -> tuple[bool, int]:
+        now = time.time()
+        window_start = now - window_seconds
+        key = f"rythusetu:ratelimit:{identifier}"
+
+        pipe = self.client.pipeline()
+        pipe.zremrangebyscore(key, 0, window_start)
+        pipe.zcard(key)
+        pipe.zadd(key, {f"{now}:{time.time_ns()}": now})
+        pipe.expire(key, window_seconds + 60)
+        pipe.zrange(key, 0, 0, withscores=True)
+        results = pipe.execute()
+
+        request_count = results[1]
+        if request_count >= max_requests:
+            oldest_ts = results[4][0][1] if results[4] else window_start
+            retry_after = max(1, int(window_seconds - (now - oldest_ts)) + 1)
+            return False, retry_after
+
+        return True, 0
 
 
-rate_limiter = InMemorySlidingWindowRateLimiter()
+class HybridRateLimiter:
+    """Dispatches to Redis if configured and reachable; otherwise uses local sliding window."""
+    def __init__(self):
+        self._memory = InMemorySlidingWindowRateLimiter()
+        self._redis: RedisSlidingWindowRateLimiter | None = None
+        self._redis_failed = False
+
+        if getattr(settings, "redis_url", None):
+            try:
+                import redis
+                self._redis = RedisSlidingWindowRateLimiter(settings.redis_url)
+            except Exception as e:
+                print(f"[RATE LIMIT NOTICE] Redis rate limiter initialization skipped: {e}")
+                self._redis = None
+
+    def is_allowed(self, identifier: str, max_requests: int, window_seconds: int) -> tuple[bool, int]:
+        if self._redis and not self._redis_failed:
+            try:
+                return self._redis.is_allowed(identifier, max_requests, window_seconds)
+            except Exception as e:
+                print(f"[RATE LIMIT WARNING] Redis rate limit check failed ({e}), falling back to memory.")
+                self._redis_failed = True
+
+        return self._memory.is_allowed(identifier, max_requests, window_seconds)
+
+    def reset(self):
+        self._memory.requests.clear()
+        self._redis_failed = False
+
+
+rate_limiter = HybridRateLimiter()
 
 
 def get_client_ip(request: Request) -> str:
@@ -61,7 +116,7 @@ def get_client_ip(request: Request) -> str:
 
 def reset_rate_limiter():
     """Resets sliding window history (useful for test isolation)."""
-    rate_limiter.requests.clear()
+    rate_limiter.reset()
 
 
 def enforce_rate_limit(max_requests: int, window_seconds: int = 60, key_prefix: str = "api"):
@@ -89,4 +144,5 @@ def enforce_rate_limit(max_requests: int, window_seconds: int = 60, key_prefix: 
         return True
 
     return dependency
+
 

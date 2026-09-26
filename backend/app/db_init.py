@@ -52,37 +52,12 @@ def log_audit(
         print(f"[AUDIT LOG ERROR] Failed to record audit log: {e}")
 
 
-def migrate_existing_schema():
-    """Migrates existing legacy SQLite/PostgreSQL columns if tables were created previously."""
-    from sqlalchemy import text
-    try:
-        with engine.begin() as conn:
-            if engine.dialect.name == "sqlite":
-                result = conn.execute(text("PRAGMA table_info(user_accounts)")).fetchall()
-                existing_cols = [row[1] for row in result]
-                if existing_cols:
-                    if "hashed_password" not in existing_cols:
-                        conn.execute(text("ALTER TABLE user_accounts ADD COLUMN hashed_password VARCHAR(255)"))
-                        if "password" in existing_cols:
-                            rows = conn.execute(text("SELECT id, password FROM user_accounts")).fetchall()
-                            for row in rows:
-                                u_id, plain = row[0], row[1]
-                                if plain:
-                                    hp = hash_password(plain)
-                                    conn.execute(
-                                        text("UPDATE user_accounts SET hashed_password = :hp WHERE id = :id"),
-                                        {"hp": hp, "id": u_id}
-                                    )
-                    if "is_active" not in existing_cols:
-                        conn.execute(text("ALTER TABLE user_accounts ADD COLUMN is_active BOOLEAN DEFAULT 1"))
-    except Exception as e:
-        print(f"[MIGRATION NOTICE] {e}")
-
-
 def initialize_database():
     """Initializes tables and master registries idempotently."""
-    migrate_existing_schema()
-    Base.metadata.create_all(bind=engine)
+    # In non-production environments, ensure tables are created automatically
+    if not settings.is_production:
+        Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
     try:
         # 1. Ensure initial admin exists with bcrypt hash
@@ -109,7 +84,6 @@ def initialize_database():
                     admin.hashed_password = hash_password(settings.admin_initial_password)
                     db.commit()
                     print("[INIT] Synced administrator password with configured credentials.")
-
 
         # 2. Seed Storage Facilities if empty
         if db.query(StorageFacility).count() == 0:
@@ -200,8 +174,8 @@ def initialize_database():
             db.commit()
             print("[INIT] Seeded default agricultural broadcast advisories.")
 
-        # 5. Seed initial registered cultivators if empty
-        if db.query(FarmerProfile).count() == 0:
+        # 5. Seed initial demo cultivators ONLY in non-production environments
+        if not settings.is_production and db.query(FarmerProfile).count() == 0:
             demo_cultivators = [
                 {
                     "id": 101,

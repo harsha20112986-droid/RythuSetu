@@ -90,9 +90,6 @@ CROP_COST_TEMPLATES: dict[str, dict[str, Any]] = {
     }
 }
 
-# In-memory cache for fallback when db is not provided
-SAVED_KHATA_ENTRIES: list[dict[str, Any]] = []
-
 def get_crop_cost_template(crop: str = "Red Chilli") -> dict[str, Any]:
     """Returns baseline cultivation budget template for the crop."""
     norm = crop.strip().lower()
@@ -113,7 +110,7 @@ def calculate_breakeven_cost(
 ) -> dict[str, Any]:
     """
     Computes accurate cultivation cost per acre, breakeven cost per quintal,
-    profit margin, and anti-distress sale advice. Persists in database.
+    profit margin, and anti-distress sale advice. Persists directly in database.
     """
     import json
     from datetime import datetime, timezone
@@ -206,12 +203,12 @@ def calculate_breakeven_cost(
         except Exception as e:
             db.rollback()
             print(f"[KHATA PERSISTENCE ERROR] {e}")
+            raise e
 
-    SAVED_KHATA_ENTRIES.insert(0, entry)
     return entry
 
 def get_saved_khata_entries(db: Any = None, user_id: int | None = None) -> list[dict[str, Any]]:
-    """Returns saved ledger history from database."""
+    """Returns saved ledger history directly from persistent database."""
     from app.models import AgriKhataEntry
     import json
     
@@ -241,9 +238,9 @@ def get_saved_khata_entries(db: Any = None, user_id: int | None = None) -> list[
                     "is_distress_loss": e.expected_market_price_per_qtl < e.breakeven_price_per_qtl,
                     "created_at": e.created_at.strftime("%d %b %Y, %I:%M %p") if e.created_at else "",
                 })
-            if results:
-                return results
-        except Exception:
-            pass
+            return results
+        except Exception as e:
+            print(f"[KHATA QUERY ERROR] {e}")
 
-    return SAVED_KHATA_ENTRIES
+    return []
+

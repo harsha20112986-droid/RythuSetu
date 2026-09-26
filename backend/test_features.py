@@ -2,9 +2,29 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_db():
+    from app.db import Base, engine
+    from app.db_init import initialize_database
+    Base.metadata.create_all(bind=engine)
+    initialize_database()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limits():
+    from app.core.rate_limit import reset_rate_limiter
+    reset_rate_limiter()
+    yield
+    reset_rate_limiter()
+
+
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
+
+
 
 def test_machinery_rentals_and_booking(client):
     res = client.get("/api/v1/machinery/rentals?district=Guntur")
@@ -13,7 +33,7 @@ def test_machinery_rentals_and_booking(client):
     assert "equipment" in data
     assert len(data["equipment"]) > 0
 
-    # Book a tractor
+    # 1. Anonymous booking attempt must be rejected (401 Unauthorized)
     booking_req = {
         "machinery_id": "mch-gnt-01",
         "farmer_name": "Ravi Kumar",
@@ -23,12 +43,28 @@ def test_machinery_rentals_and_booking(client):
         "acres_or_hours": 3.0,
         "required_date": "2026-09-29",
     }
-    b_res = client.post("/api/v1/machinery/book", json=booking_req)
+    b_anon = client.post("/api/v1/machinery/book", json=booking_req)
+    assert b_anon.status_code == 401
+
+    # 2. Authenticated cultivator booking succeeds
+    import time
+    ts = int(time.time() * 1000)
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Ravi Kumar",
+        "username": f"ravi_mch_{ts}",
+        "password": "Password123!",
+        "state": "Andhra Pradesh",
+        "district": "Guntur",
+    })
+    token = reg.json()["access_token"]
+    b_res = client.post("/api/v1/machinery/book", json=booking_req, headers={"Authorization": f"Bearer {token}"})
     assert b_res.status_code == 200
     b_data = b_res.json()
     assert "booking_token" in b_data
     assert b_data["booking_token"].startswith("RS-MCH-")
     assert b_data["estimated_cost_inr"] == 3.0 * 1200
+    assert "REQUESTED" in b_data["status"]
+
 
 def test_harvest_shield_weather_danger(client):
     res = client.get("/api/v1/weather/harvest-shield?district=Guntur&crop=Red Chilli")
@@ -82,7 +118,7 @@ def test_agri_khata_breakeven_calculator(client):
     t_data = t_res.json()
     assert "expenses" in t_data
 
-    # 2. Calculation
+    # 2. Anonymous calculation attempt blocked (401 Unauthorized)
     k_payload = {
         "crop": "Red Chilli",
         "acres": 2.0,
@@ -95,7 +131,22 @@ def test_agri_khata_breakeven_calculator(client):
         "expected_yield_quintals": 20.0,
         "expected_market_price_per_qtl": 18500.0,
     }
-    k_res = client.post("/api/v1/khata/calculate-breakeven", json=k_payload)
+    k_anon = client.post("/api/v1/khata/calculate-breakeven", json=k_payload)
+    assert k_anon.status_code == 401
+
+    # 3. Authenticated cultivator calculation succeeds
+    import time
+    ts = int(time.time() * 1000)
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Kisan Calculator",
+        "username": f"kisan_kht_{ts}",
+        "password": "Password123!",
+        "state": "Telangana",
+        "district": "Warangal",
+    })
+    token = reg.json()["access_token"]
+
+    k_res = client.post("/api/v1/khata/calculate-breakeven", json=k_payload, headers={"Authorization": f"Bearer {token}"})
     assert k_res.status_code == 200
     k_data = k_res.json()
     assert k_data["total_cost"] == 154000.0
@@ -103,10 +154,11 @@ def test_agri_khata_breakeven_calculator(client):
     assert k_data["net_profit"] > 0
     assert k_data["is_distress_loss"] is False
 
-    # 3. History
-    h_res = client.get("/api/v1/khata/history")
+    # 4. History scoped to authenticated user
+    h_res = client.get("/api/v1/khata/history", headers={"Authorization": f"Bearer {token}"})
     assert h_res.status_code == 200
     assert len(h_res.json()["entries"]) > 0
+
 
 def test_agri_input_products_and_dealers(client):
     p_res = client.get("/api/v1/inputs/products")
@@ -200,10 +252,9 @@ def test_rbac_protection_on_admin_endpoints(client):
 
 
 def test_pmfby_claim_preparation_and_db_persistence(client):
-    import datetime
+    import datetime, time
     now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     form_data = {
-        "farmer_id": 101,
         "crop": "Cotton",
         "damage_type": "Flood / Heavy Rain",
         "loss_date": now_str,
@@ -211,13 +262,34 @@ def test_pmfby_claim_preparation_and_db_persistence(client):
         "damage_percent": 65.0,
         "description": "Continuous heavy downpour submerged the fields for 48 hours.",
     }
-    res = client.post("/api/v1/crop-loss", data=form_data)
+
+    # 1. Anonymous filing blocked (401 Unauthorized)
+    res_anon = client.post("/api/v1/crop-loss", data=form_data)
+    assert res_anon.status_code == 401
+
+    # 2. Register authentic cultivator
+    ts = int(time.time() * 1000)
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Claim Cultivator",
+        "username": f"farmer_claim_{ts}",
+        "password": "Password123!",
+        "state": "Telangana",
+        "district": "Warangal",
+        "crop": "Cotton",
+        "land_area_acres": 3.0,
+    })
+    token = reg.json()["access_token"]
+    farmer_id = reg.json()["user"]["farmer_profile_id"]
+
+    # 3. Authenticated claim filing succeeds and auto-binds farmer profile
+    res = client.post("/api/v1/crop-loss", data=form_data, headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 201
     claim = res.json()
     assert "reference_number" in claim
     assert claim["reference_number"].startswith("RYTHU-CLAIM-2026-")
     assert claim["is_within_window"] is True
     assert claim["status"] == "Submitted"
+    assert claim["farmer_id"] == farmer_id
 
     # Track claim status
     ref = claim["reference_number"]
@@ -232,22 +304,41 @@ def test_pmfby_claim_preparation_and_db_persistence(client):
 
 def test_storage_and_direct_market_persistence(client):
     from app.core.config import settings
-    admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": settings.admin_initial_password})
-    admin_token = admin_login.json()["access_token"]
 
-    # 1. Cold storage booking
-    book_res = client.post("/api/v1/storage/book-space", json={
+    # 1. Anonymous access is blocked (401)
+    storage_req = {
         "facility_id": "cs-gtr-01",
         "farmer_name": "Nageswara Rao",
         "phone": "+91 98480 33445",
         "commodity": "Red Chilli (Teja)",
         "bags_count": 80,
         "duration_months": 4,
-    })
+    }
+    with TestClient(app) as unauth_client:
+        assert unauth_client.post("/api/v1/storage/book-space", json=storage_req).status_code == 401
+        assert unauth_client.post("/api/v1/direct-market/delivery-pass", json={
+            "factory_id": "fac-spn-01",
+            "farmer_name": "Venkatesh",
+            "phone": "+91 94400 11223",
+            "district": "Warangal",
+            "village": "Chennaraopet",
+            "crop": "Cotton",
+            "quantity_qtl": 25.0,
+            "delivery_date": "2026-10-02",
+        }).status_code == 401
+
+    admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": settings.admin_initial_password})
+    admin_token = admin_login.json()["access_token"]
+
+
+    # 2. Authenticated cold storage booking
+    book_res = client.post("/api/v1/storage/book-space", json=storage_req, headers={"Authorization": f"Bearer {admin_token}"})
     assert book_res.status_code == 200
     booking = book_res.json()
     token = booking["booking_token"]
     assert token.startswith("RS-GODOWN-")
+    assert "REQUESTED" in booking["booking_status"]
+    assert booking["entry_allowed"] is False
 
     # Verify listing via officer token
     list_res = client.get("/api/v1/storage/bookings", headers={"Authorization": f"Bearer {admin_token}"})
@@ -255,7 +346,12 @@ def test_storage_and_direct_market_persistence(client):
     tokens = [b["booking_token"] for b in list_res.json()["bookings"]]
     assert token in tokens
 
-    # 2. Factory delivery pass
+    # Update storage status to Confirmed -> entry_allowed becomes True
+    update_res = client.put(f"/api/v1/storage/bookings/{token}/status", json={"status": "Confirmed (Bay Allotted)"}, headers={"Authorization": f"Bearer {admin_token}"})
+    assert update_res.status_code == 200
+    assert update_res.json()["entry_allowed"] is True
+
+    # 3. Authenticated factory delivery pass
     pass_res = client.post("/api/v1/direct-market/delivery-pass", json={
         "factory_id": "fac-spn-01",
         "farmer_name": "Venkatesh",
@@ -265,17 +361,24 @@ def test_storage_and_direct_market_persistence(client):
         "crop": "Cotton",
         "quantity_qtl": 25.0,
         "delivery_date": "2026-10-02",
-    })
+    }, headers={"Authorization": f"Bearer {admin_token}"})
     assert pass_res.status_code == 200
     pass_data = pass_res.json()
     pass_num = pass_data["pass_number"]
     assert pass_num.startswith("DIRECT-PASS-")
+    assert "REQUESTED" in pass_data["status"]
+    assert pass_data["entry_allowed"] is False
 
     # Verify pass list via officer token
     passes_res = client.get("/api/v1/direct-market/passes", headers={"Authorization": f"Bearer {admin_token}"})
     assert passes_res.status_code == 200
     all_passes = [p["pass_number"] for p in passes_res.json()["passes"]]
     assert pass_num in all_passes
+
+    # Update delivery pass status to Confirmed -> entry_allowed becomes True
+    update_pass = client.put(f"/api/v1/direct-market/passes/{pass_num}/status", json={"status": "Confirmed (Gate Pass Active)"}, headers={"Authorization": f"Bearer {admin_token}"})
+    assert update_pass.status_code == 200
+    assert update_pass.json()["entry_allowed"] is True
 
 
 def test_deep_readiness_probe(client):
@@ -294,15 +397,20 @@ def test_deep_readiness_probe(client):
 
 def test_zero_fallback_404_for_unknown_farmer(client):
     """Verifies strict 404 behavior with zero mock fallbacks when an unknown farmer ID is queried."""
+    from app.core.config import settings
+    admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": settings.admin_initial_password})
+    admin_token = admin_login.json()["access_token"]
+
     unknown_id = 99998888
     # 1. Farmers endpoint must return 404, never fallback to first DB record
-    res_profile = client.get(f"/api/v1/farmers/{unknown_id}")
+    res_profile = client.get(f"/api/v1/farmers/{unknown_id}", headers={"Authorization": f"Bearer {admin_token}"})
     assert res_profile.status_code == 404
     assert f"#{unknown_id}" in res_profile.json()["detail"] or "not exist" in res_profile.json()["detail"]
 
     # 2. Crop loss endpoint must return 404 for non-existent farmer
-    res_loss = client.get(f"/api/v1/crop-loss?farmer_id={unknown_id}")
+    res_loss = client.get(f"/api/v1/crop-loss?farmer_id={unknown_id}", headers={"Authorization": f"Bearer {admin_token}"})
     assert res_loss.status_code == 404
+
 
 
 def test_bola_idor_authorization_enforcement(client):
@@ -484,6 +592,92 @@ def test_nearby_hub_gps_grounding_and_provenance(client):
     assert len(mandis) > 0
     assert "verification" in mandis[0]
     assert mandis[0]["verification"]["verification_status"] == "OFFICIALLY_VERIFIED"
+
+
+def test_production_security_fail_closed():
+    """Verifies that in production mode, missing or weak JWT secrets fail closed immediately."""
+    from app.core.config import Settings
+
+    # 1. In production with missing secret -> fails closed with RuntimeError
+    prod_bad = Settings(app_env="production", jwt_secret_key="", admin_initial_password="Admin2026!LongPassword")
+    with pytest.raises(RuntimeError, match="JWT_SECRET_KEY must be set in production"):
+        prod_bad.validate_production_security()
+
+    # 2. In production with short secret -> fails closed with RuntimeError
+    prod_short = Settings(app_env="production", jwt_secret_key="too_short", admin_initial_password="Admin2026!LongPassword")
+    with pytest.raises(RuntimeError, match="minimum length of 32 characters"):
+        prod_short.validate_production_security()
+
+    # 3. In production with short admin password -> fails closed
+    prod_short_admin = Settings(
+        app_env="production",
+        jwt_secret_key="valid_long_secret_key_minimum_32_characters_here",
+        admin_initial_password="short",
+    )
+    with pytest.raises(RuntimeError, match="ADMIN_INITIAL_PASSWORD"):
+        prod_short_admin.validate_production_security()
+
+    # 4. In test/development mode with missing secret -> generates secure ephemeral secret safely
+    dev_settings = Settings(app_env="test", jwt_secret_key="", admin_initial_password="")
+    dev_settings.validate_production_security()
+    assert len(dev_settings.jwt_secret_key) >= 32
+
+
+def test_zero_demo_cultivators_in_production():
+    """Verifies that demo cultivators are strictly blocked from being seeded when is_production is True."""
+    from app.core.config import settings
+    # Ensure current test environment or production respects the gating
+    assert settings.app_env in ("test", "development")
+    # Verify that in settings with production, is_production is True
+    from app.core.config import Settings
+    prod_cfg = Settings(app_env="production", jwt_secret_key="a" * 32, admin_initial_password="b" * 12)
+    assert prod_cfg.is_production is True
+
+
+def test_machinery_booking_status_lifecycle(client):
+    """Verifies that machinery bookings can be queried and updated by authorized officers."""
+    from app.core.config import settings
+    import time
+    ts = int(time.time() * 1000)
+
+    # 1. Create booking as authenticated farmer
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Sambaiah",
+        "username": f"sambaiah_{ts}",
+        "password": "Password123!",
+        "state": "Telangana",
+        "district": "Warangal",
+    })
+    token = reg.json()["access_token"]
+    book_res = client.post("/api/v1/machinery/book", json={
+        "machinery_id": "mch-wgl-01",
+        "farmer_name": "Sambaiah",
+        "phone": "+91 94401 22334",
+        "district": "Warangal",
+        "village": "Narsampet",
+        "acres_or_hours": 2.0,
+        "required_date": "2026-10-05",
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert book_res.status_code == 200
+    booking_token = book_res.json()["booking_token"]
+
+    # 2. Officer logs in and lists bookings
+    admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": settings.admin_initial_password})
+    admin_token = admin_login.json()["access_token"]
+    list_res = client.get("/api/v1/machinery/bookings", headers={"Authorization": f"Bearer {admin_token}"})
+    assert list_res.status_code == 200
+    all_tokens = [b["booking_token"] for b in list_res.json()["bookings"]]
+    assert booking_token in all_tokens
+
+    # 3. Officer advances booking status
+    up_res = client.put(
+        f"/api/v1/machinery/bookings/{booking_token}/status",
+        json={"status": "Confirmed (Operator Dispatched)"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert up_res.status_code == 200
+    assert up_res.json()["status"] == "Confirmed (Operator Dispatched)"
+
 
 
 

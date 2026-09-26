@@ -62,42 +62,38 @@ class Settings(BaseSettings):
 
     def validate_production_security(self) -> None:
         """
-        Validates production security configuration.
-        Ensures cryptographic keys are present (either explicitly configured or cryptographically generated).
-        Prevents unhandled crashes on cloud hosts like Render while guaranteeing high-entropy secrets.
+        Validates security configuration.
+        In production (APP_ENV=production):
+          - Missing or short JWT_SECRET_KEY (< 32 chars) strictly fails closed with RuntimeError.
+          - Missing or short ADMIN_INITIAL_PASSWORD (< 10 chars) strictly fails closed with RuntimeError.
+        In non-production (development, test):
+          - Auto-generates high-entropy ephemeral 256-bit keys and safe defaults.
         """
-        if not self.jwt_secret_key:
-            self.jwt_secret_key = secrets.token_hex(32)
-            print(
-                "[SECURITY NOTICE] JWT_SECRET_KEY not set in environment. "
-                "Generated ephemeral 256-bit cryptographically secure secret. "
-                "Set JWT_SECRET_KEY in your hosting dashboard for persistent sessions across redeploys."
-            )
-        elif len(self.jwt_secret_key) < 16:
-            print(
-                "[SECURITY WARNING] JWT_SECRET_KEY is shorter than 16 characters. "
-                "Recommend setting a 32+ character high-entropy key."
-            )
-
-        if not self.jwt_refresh_secret_key:
-            self.jwt_refresh_secret_key = secrets.token_hex(32)
-
-        if not self.admin_initial_password:
-            self.admin_initial_password = "DevKisanAdmin2026!Secure"
-            print(
-                "[SECURITY NOTICE] ADMIN_INITIAL_PASSWORD not explicitly set in environment. "
-                "Initial admin credential initialized to secure default."
-            )
+        if self.is_production:
+            if not self.jwt_secret_key or len(self.jwt_secret_key) < 32:
+                raise RuntimeError(
+                    "CRITICAL SECURITY CONFIGURATION ERROR: JWT_SECRET_KEY must be set in production "
+                    "with a minimum length of 32 characters. Do not deploy without setting JWT_SECRET_KEY."
+                )
+            if not self.admin_initial_password or len(self.admin_initial_password) < 10:
+                raise RuntimeError(
+                    "CRITICAL SECURITY CONFIGURATION ERROR: ADMIN_INITIAL_PASSWORD must be explicitly set "
+                    "in production with a minimum length of 10 characters."
+                )
+            if not self.jwt_refresh_secret_key or len(self.jwt_refresh_secret_key) < 32:
+                self.jwt_refresh_secret_key = secrets.token_hex(32)
+        else:
+            if not self.jwt_secret_key:
+                self.jwt_secret_key = secrets.token_hex(32)
+            if not self.jwt_refresh_secret_key:
+                self.jwt_refresh_secret_key = secrets.token_hex(32)
+            if not self.admin_initial_password:
+                self.admin_initial_password = "DevKisanAdmin2026!Secure"
 
 
 settings = Settings()
+settings.validate_production_security()
 
-# Ensure high-entropy cryptographic secrets are always initialized
-if not settings.jwt_secret_key:
-    settings.jwt_secret_key = secrets.token_hex(32)
-
-if not settings.jwt_refresh_secret_key:
-    settings.jwt_refresh_secret_key = secrets.token_hex(32)
 
 if not settings.admin_initial_password:
     settings.admin_initial_password = "DevKisanAdmin2026!Secure"

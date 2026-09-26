@@ -41,4 +41,8 @@ jobs:
       - name: Verify application import
         run: python -c "from app.main import app; print('App title:', app.title)"
       - name: Run automated test suite
+        env:
+          APP_ENV: test
+          JWT_SECRET_KEY: ci_test_secret_key_minimum_32_characters_safe
+          ADMIN_INITIAL_PASSWORD: CiAdmin2026!Secure
         run: pytest test_features.py -v

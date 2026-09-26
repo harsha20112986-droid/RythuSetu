@@ -185,37 +185,6 @@ VERIFIED_FACTORIES_DATA: list[dict[str, Any]] = [
     },
 ]
 
-DIRECT_DELIVERY_PASSES: list[dict[str, Any]] = [
-    {
-        "pass_number": "DIRECT-PASS-260924-201",
-        "factory_id": "fac-gnt-02",
-        "factory_name": "Guntur Spices & Agro Oleoresins Extraction Unit",
-        "factory_location": "Ankireddypalem Industrial Corridor, Guntur",
-        "factory_district": "Guntur",
-        "factory_state": "Andhra Pradesh",
-        "procurement_officer": "B. Srinivasa Rao",
-        "officer_phone": "+91 863 229 4810",
-        "farmer_name": "B. Rama Rao",
-        "phone": "+91 94401 56789",
-        "origin_village": "Pallapadu",
-        "origin_district": "Guntur",
-        "crop": "Red Chilli (Teja Export Grade)",
-        "allocated_quantity_qtl": 25.0,
-        "agreed_rate_per_qtl": 22500,
-        "total_estimated_payout_inr": 562500,
-        "broker_commission_saved_inr": 37500,
-        "delivery_date": "28-09-2026",
-        "status": "Gate Pass Active (Direct Entry Approved)",
-        "factory_owner_notified": True,
-        "entry_allowed": True,
-        "generated_at": "24 Sep 2026, 02:15 PM",
-        "instructions": "Approved by Sourcing Officer B. Srinivasa Rao. Present this Delivery Pass at Factory Gate Weighbridge for priority unloading with ZERO deductions.",
-    }
-]
-
-# In-memory cache for fallback when db is not provided
-DIRECT_DELIVERY_PASSES: list[dict[str, Any]] = []
-
 def get_factory_contracts(
     state: str = "",
     district: str = "",
@@ -251,7 +220,7 @@ def create_factory_delivery_pass(
     user_id: int | None = None,
     db: Any = None,
 ) -> dict[str, Any]:
-    """Generates official Zero-Broker Direct Factory Delivery Pass and persists record."""
+    """Generates official Zero-Broker Direct Factory Delivery Pass and persists record in database."""
     from datetime import datetime, timezone
     from app.models import DirectMarketOrder
     
@@ -263,6 +232,7 @@ def create_factory_delivery_pass(
     
     now = datetime.now(timezone.utc)
     pass_number = f"DIRECT-PASS-{now.strftime('%y%m%d')}-{abs(hash(farmer_name + str(now.timestamp()))) % 899 + 201}"
+    initial_status = "REQUESTED (Pending Factory Sourcing Confirmation)"
     
     delivery_pass = {
         "pass_number": pass_number,
@@ -283,11 +253,11 @@ def create_factory_delivery_pass(
         "total_estimated_payout_inr": round(total_factory_payout, 2),
         "broker_commission_saved_inr": round(broker_commission_savings, 2),
         "delivery_date": delivery_date,
-        "status": "Gate Pass Active (Direct Entry Approved)",
+        "status": initial_status,
         "factory_owner_notified": True,
-        "entry_allowed": True,
+        "entry_allowed": False,
         "generated_at": now.strftime("%d %b %Y, %I:%M %p"),
-        "instructions": f"Approved by Sourcing Officer {factory['procurement_officer']}. Present this Delivery Pass at the Factory Gate Weighbridge for priority unloading with ZERO deductions.",
+        "instructions": f"Delivery pass request submitted to procurement officer {factory['procurement_officer']}. Gate pass and weighbridge entry clearance will be issued upon factory schedule confirmation.",
     }
 
     if db is not None:
@@ -307,9 +277,9 @@ def create_factory_delivery_pass(
                 total_estimated_payout_inr=round(float(total_factory_payout), 2),
                 broker_commission_saved_inr=round(float(broker_commission_savings), 2),
                 delivery_date=delivery_date,
-                status="Gate Pass Active (Direct Entry Approved)",
+                status=initial_status,
                 factory_owner_notified=True,
-                entry_allowed=True,
+                entry_allowed=False,
                 instructions=delivery_pass["instructions"],
                 generated_at=now,
             )
@@ -320,12 +290,12 @@ def create_factory_delivery_pass(
         except Exception as e:
             db.rollback()
             print(f"[DIRECT MARKET PASS ERROR] {e}")
+            raise e
 
-    DIRECT_DELIVERY_PASSES.insert(0, delivery_pass)
     return delivery_pass
 
 def get_all_delivery_passes(db: Any = None) -> list[dict[str, Any]]:
-    """Returns all factory delivery passes from persistent database."""
+    """Returns all factory delivery passes directly from persistent database."""
     from app.models import DirectMarketOrder
     if db is not None:
         try:
@@ -353,15 +323,14 @@ def get_all_delivery_passes(db: Any = None) -> list[dict[str, Any]]:
                     "generated_at": p.generated_at.strftime("%d %b %Y, %I:%M %p") if p.generated_at else "",
                     "instructions": p.instructions,
                 })
-            if results:
-                return results
-        except Exception:
-            pass
+            return results
+        except Exception as e:
+            print(f"[DIRECT MARKET QUERY ERROR] {e}")
 
-    return DIRECT_DELIVERY_PASSES
+    return []
 
-def update_delivery_pass_status(pass_number: str, new_status: str, db: Any = None) -> dict[str, Any] | None:
-    """Allows factory procurement manager or officer to update pass status."""
+def update_delivery_pass_status(pass_number: str, new_status: str, current_officer: Any = None, db: Any = None) -> dict[str, Any] | None:
+    """Allows factory procurement manager or officer to update pass status in database."""
     from datetime import datetime, timezone
     from app.models import DirectMarketOrder
     
@@ -370,6 +339,12 @@ def update_delivery_pass_status(pass_number: str, new_status: str, db: Any = Non
             order = db.query(DirectMarketOrder).filter(DirectMarketOrder.pass_number == pass_number).first()
             if order:
                 order.status = new_status
+                norm_status = new_status.lower()
+                if "approv" in norm_status or "confirm" in norm_status or "active" in norm_status or "issued" in norm_status:
+                    order.entry_allowed = True
+                elif "reject" in norm_status or "cancel" in norm_status:
+                    order.entry_allowed = False
+
                 order.updated_at = datetime.now(timezone.utc)
                 db.commit()
                 db.refresh(order)
@@ -377,15 +352,12 @@ def update_delivery_pass_status(pass_number: str, new_status: str, db: Any = Non
                     "id": order.id,
                     "pass_number": order.pass_number,
                     "status": order.status,
+                    "entry_allowed": order.entry_allowed,
                     "updated_at": order.updated_at.strftime("%d %b %Y, %I:%M %p"),
                 }
         except Exception as e:
             db.rollback()
             print(f"[DIRECT PASS STATUS ERROR] {e}")
 
-    for p in DIRECT_DELIVERY_PASSES:
-        if p["pass_number"] == pass_number:
-            p["status"] = new_status
-            p["updated_at"] = datetime.now(timezone.utc).strftime("%d %b %Y, %I:%M %p")
-            return p
     return None
+

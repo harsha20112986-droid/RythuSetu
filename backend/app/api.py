@@ -35,6 +35,7 @@ from app.core.auth import (
     require_officer,
     require_admin,
     verify_object_ownership,
+    require_authenticated_user,
 )
 from app.core.rate_limit import enforce_rate_limit
 from app.event_engine import (
@@ -69,6 +70,8 @@ from app.direct_market_engine import (
 from app.machinery_engine import (
     get_machinery_rentals,
     create_machinery_booking,
+    get_all_machinery_bookings,
+    update_machinery_booking_status,
 )
 from app.seed_verifier_engine import (
     verify_seed_lot,
@@ -252,7 +255,7 @@ def get_climate_risk_endpoint(
 @router.post("/assistant/chat")
 def assistant_chat(
     payload: AssistantRequest,
-    current_user: UserAccount | None = Depends(get_optional_current_user),
+    current_user: UserAccount = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     farmer = get_farmer_or_404(db, payload.farmer_id, current_user=current_user)
@@ -296,18 +299,46 @@ def assistant_chat(
 
 @router.post("/crop-loss", status_code=201, dependencies=[Depends(enforce_rate_limit(10, 60))])
 async def create_crop_loss_report(
-    farmer_id: int = Form(...),
     crop: str = Form(...),
     damage_type: str = Form(...),
     loss_date: str = Form(...),
     affected_area_acres: float = Form(..., gt=0),
     damage_percent: float = Form(..., ge=0, le=100),
     description: str = Form(..., min_length=5, max_length=2000),
+    farmer_id: int | None = Form(default=None),
     evidence: UploadFile | None = File(default=None),
-    current_user: UserAccount | None = Depends(get_optional_current_user),
+    current_user: UserAccount = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    farmer = get_farmer_or_404(db, farmer_id, current_user=current_user)
+    # Auto-bind farmer profile to the authenticated user to eliminate client tampering
+    if current_user.role == "farmer":
+        actual_farmer_id = current_user.farmer_profile_id
+        if not actual_farmer_id:
+            fp = db.query(FarmerProfile).filter(FarmerProfile.user_id == current_user.id).first()
+            if fp:
+                actual_farmer_id = fp.id
+                current_user.farmer_profile_id = fp.id
+                db.commit()
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cultivator profile not found. Please register your agricultural profile first."
+                )
+        if farmer_id is not None and farmer_id != actual_farmer_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Forbidden: You cannot file a claim for another cultivator."
+            )
+    else:
+        # Officer/Admin may specify farmer_id
+        actual_farmer_id = farmer_id or current_user.farmer_profile_id
+        if not actual_farmer_id:
+            raise HTTPException(
+                status_code=400,
+                detail="farmer_id is required when filing as an officer or administrator."
+            )
+
+    farmer = get_farmer_or_404(db, actual_farmer_id, current_user=current_user)
     if damage_type not in ALLOWED_DAMAGE_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported damage type")
     if affected_area_acres > farmer.land_area_acres:
@@ -355,24 +386,43 @@ async def create_crop_loss_report(
 
 @router.get("/crop-loss")
 def get_crop_loss_reports(
-    farmer_id: int = Query(..., gt=0),
-    current_user: UserAccount | None = Depends(get_optional_current_user),
+    farmer_id: int | None = Query(default=None, gt=0),
+    current_user: UserAccount = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    farmer = get_farmer_or_404(db, farmer_id, current_user=current_user)
+    if current_user.role == "farmer":
+        actual_farmer_id = current_user.farmer_profile_id
+        if not actual_farmer_id:
+            fp = db.query(FarmerProfile).filter(FarmerProfile.user_id == current_user.id).first()
+            actual_farmer_id = fp.id if fp else None
+        if not actual_farmer_id:
+            return {"farmer_id": None, "reports": [], "disclaimer": "No cultivator profile found."}
+        if farmer_id is not None and farmer_id != actual_farmer_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Forbidden: You can only view your own crop loss reports."
+            )
+        farmer = get_farmer_or_404(db, actual_farmer_id, current_user=current_user)
+        target_id = farmer.id
+    else:
+        if farmer_id is not None:
+            farmer = get_farmer_or_404(db, farmer_id, current_user=current_user)
+            target_id = farmer.id
+        else:
+            target_id = None
 
-    reports = (
-        db.query(CropLossReport)
-        .filter(CropLossReport.farmer_id == farmer.id)
-        .order_by(CropLossReport.submitted_at.desc())
-        .all()
-    )
+    query = db.query(CropLossReport)
+    if target_id is not None:
+        query = query.filter(CropLossReport.farmer_id == target_id)
+    reports = query.order_by(CropLossReport.submitted_at.desc()).all()
+
     return {
-        "farmer_id": farmer.id,
+        "farmer_id": target_id,
         "reports": [
             {
                 "id": report.id,
                 "reference_number": report.reference_number,
+                "farmer_id": report.farmer_id,
                 "crop": report.crop,
                 "damage_type": report.damage_type,
                 "loss_date": report.loss_date,
@@ -803,19 +853,21 @@ def list_cold_storages(
 @router.post("/storage/book-space")
 def book_cold_storage_space(
     payload: StorageBookingRequest,
-    current_user: UserAccount | None = Depends(get_optional_current_user),
+    current_user: UserAccount = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Generates official AC Godown slot reservation token and alerts facility in-charge."""
+    farmer_name = payload.farmer_name or current_user.name
+    phone = payload.phone or current_user.phone or ""
     return create_storage_booking(
         db=db,
         facility_id=payload.facility_id,
-        farmer_name=payload.farmer_name,
-        phone=payload.phone,
+        farmer_name=farmer_name,
+        phone=phone,
         commodity=payload.commodity,
         bags_count=payload.bags_count,
         duration_months=payload.duration_months,
-        user_id=current_user.id if current_user else None,
+        user_id=current_user.id,
     )
 
 
@@ -867,21 +919,23 @@ def list_factory_contracts(state: str = "", district: str = "", crop: str = ""):
 @router.post("/direct-market/delivery-pass")
 def generate_delivery_pass(
     payload: FactoryDeliveryPassRequest,
-    current_user: UserAccount | None = Depends(get_optional_current_user),
+    current_user: UserAccount = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Generates Zero-Broker Factory Gate Entry Delivery Pass with procurement approval."""
+    farmer_name = payload.farmer_name or current_user.name
+    phone = payload.phone or current_user.phone or ""
     return create_factory_delivery_pass(
         db=db,
         factory_id=payload.factory_id,
-        farmer_name=payload.farmer_name,
-        phone=payload.phone,
+        farmer_name=farmer_name,
+        phone=phone,
         district=payload.district,
         village=payload.village,
         crop=payload.crop,
         quantity_qtl=payload.quantity_qtl,
         delivery_date=payload.delivery_date,
-        user_id=current_user.id if current_user else None,
+        user_id=current_user.id,
     )
 
 
@@ -1074,21 +1128,47 @@ def api_machinery_rentals(
 @router.post("/machinery/book")
 def api_book_machinery(
     payload: MachineryBookingRequest,
-    current_user: UserAccount | None = Depends(get_optional_current_user),
+    current_user: UserAccount = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Reserves farm machinery and issues confirmation dispatch token."""
+    farmer_name = payload.farmer_name or current_user.name
+    phone = payload.phone or current_user.phone or ""
     return create_machinery_booking(
         db=db,
         machinery_id=payload.machinery_id,
-        farmer_name=payload.farmer_name,
-        phone=payload.phone,
+        farmer_name=farmer_name,
+        phone=phone,
         district=payload.district,
         village=payload.village,
         acres_or_hours=payload.acres_or_hours,
         required_date=payload.required_date,
-        user_id=current_user.id if current_user else None,
+        user_id=current_user.id,
     )
+
+
+@router.get("/machinery/bookings")
+def list_machinery_bookings(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_officer)):
+    """Lists all incoming machinery hiring requests for CHC operators and officers."""
+    return {"bookings": get_all_machinery_bookings(db=db)}
+
+
+@router.put("/machinery/bookings/{token}/status")
+def update_machinery_booking_state(
+    token: str,
+    payload: StatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
+    res = update_machinery_booking_status(
+        db=db,
+        token=token,
+        new_status=payload.status,
+        current_officer=current_user,
+    )
+    if not res:
+        raise HTTPException(status_code=404, detail="Machinery booking token not found")
+    return res
 
 
 # -------------------------------------------------------------
@@ -1164,7 +1244,7 @@ def api_khata_template(crop: str = Query("Red Chilli")):
 @router.post("/khata/calculate-breakeven")
 def api_calculate_breakeven(
     payload: KhataCalculationRequest,
-    current_user: UserAccount | None = Depends(get_optional_current_user),
+    current_user: UserAccount = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Calculates cost of cultivation per acre, breakeven price/qtl, and anti-distress sale advisory."""
@@ -1175,17 +1255,17 @@ def api_calculate_breakeven(
         expenses=payload.expenses,
         expected_yield_quintals=payload.expected_yield_quintals,
         expected_market_price_per_qtl=payload.expected_market_price_per_qtl,
-        user_id=current_user.id if current_user else None,
-        farmer_name=current_user.name if current_user else "Cultivator",
+        user_id=current_user.id,
+        farmer_name=current_user.name,
     )
 
 
 @router.get("/khata/history")
 def api_khata_history(
-    current_user: UserAccount | None = Depends(get_optional_current_user),
+    current_user: UserAccount = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Returns farmer's saved crop expense ledger records."""
-    user_id = current_user.id if (current_user and current_user.role == "farmer") else None
+    user_id = current_user.id if current_user.role == "farmer" else None
     return {"entries": get_saved_khata_entries(db=db, user_id=user_id)}
 

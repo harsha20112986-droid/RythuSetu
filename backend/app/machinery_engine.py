@@ -164,23 +164,6 @@ VERIFIED_MACHINERY_REGISTRY: list[dict[str, Any]] = [
     },
 ]
 
-MACHINERY_BOOKINGS: list[dict[str, Any]] = [
-    {
-        "booking_token": "RS-MCH-260925-101",
-        "machinery_id": "mch-gnt-02",
-        "machinery_type": "Agricultural Spray Drone (10L Tank)",
-        "farmer_name": "Kishan Rao",
-        "phone": "+91 98480 11223",
-        "district": "Guntur",
-        "village": "Pallapadu",
-        "acres_booked": 3.5,
-        "required_date": "28-09-2026",
-        "estimated_cost_inr": 1330,
-        "status": "Confirmed by Operator (Drone Pilot Dispatched)",
-    }
-]
-
-
 def get_machinery_rentals(
     district: str = "",
     category: str = "",
@@ -262,7 +245,7 @@ def create_machinery_booking(
     user_id: int | None = None,
     db: Any = None,
 ) -> dict[str, Any]:
-    """Books farm machinery with instant confirmation and database persistence."""
+    """Books farm machinery with operator notification and persistent database audit."""
     from datetime import datetime, timezone
     from app.models import MachineryListing, MachineryBooking
     
@@ -286,6 +269,7 @@ def create_machinery_booking(
     total_cost = acres_or_hours * machinery["rate_inr"]
     now = datetime.now(timezone.utc)
     token = f"RS-MCH-{now.strftime('%y%m%d')}-{abs(hash(farmer_name + str(now.timestamp()))) % 899 + 101}"
+    initial_status = "REQUESTED (Pending CHC Operator Confirmation)"
 
     booking = {
         "booking_token": token,
@@ -301,11 +285,11 @@ def create_machinery_booking(
         "rate_inr": machinery["rate_inr"],
         "estimated_cost_inr": round(total_cost, 2),
         "required_date": required_date,
-        "status": "Confirmed (Operator Notified for On-Field Dispatch)",
+        "status": initial_status,
         "operator_name": machinery["owner_name"],
         "operator_phone": machinery["owner_phone"],
         "booked_at": now.strftime("%d %b %Y, %I:%M %p"),
-        "instructions": f"Operator {machinery['owner_name']} will arrive at your field in {village} on {required_date}. Pay directly upon completion.",
+        "instructions": f"Booking request for {machinery['machinery_type']} has been sent to CHC Operator {machinery['owner_name']}. The operator will contact you at {phone} to coordinate field arrival on {required_date}.",
     }
 
     if db is not None:
@@ -325,7 +309,7 @@ def create_machinery_booking(
                 rate_inr=float(machinery["rate_inr"]),
                 estimated_cost_inr=round(float(total_cost), 2),
                 required_date=required_date,
-                status="Confirmed (Operator Notified for Dispatch)",
+                status=initial_status,
                 operator_name=machinery["owner_name"],
                 operator_phone=machinery["owner_phone"],
                 instructions=booking["instructions"],
@@ -338,12 +322,12 @@ def create_machinery_booking(
         except Exception as e:
             db.rollback()
             print(f"[MACHINERY BOOKING ERROR] {e}")
+            raise e
 
-    MACHINERY_BOOKINGS.insert(0, booking)
     return booking
 
 def get_all_machinery_bookings(db: Any = None) -> list[dict[str, Any]]:
-    """Returns all machinery bookings from persistent database."""
+    """Returns all machinery bookings directly from persistent database."""
     from app.models import MachineryBooking
     if db is not None:
         try:
@@ -371,9 +355,34 @@ def get_all_machinery_bookings(db: Any = None) -> list[dict[str, Any]]:
                     "booked_at": b.booked_at.strftime("%d %b %Y, %I:%M %p") if b.booked_at else "",
                     "instructions": b.instructions,
                 })
-            if results:
-                return results
-        except Exception:
-            pass
+            return results
+        except Exception as e:
+            print(f"[MACHINERY QUERY ERROR] {e}")
 
-    return MACHINERY_BOOKINGS
+    return []
+
+def update_machinery_booking_status(token: str, new_status: str, current_officer: Any = None, db: Any = None) -> dict[str, Any] | None:
+    """Allows CHC operator or officer to update machinery booking status in persistent database."""
+    from datetime import datetime, timezone
+    from app.models import MachineryBooking
+    
+    if db is not None:
+        try:
+            b = db.query(MachineryBooking).filter(MachineryBooking.booking_token == token).first()
+            if b:
+                b.status = new_status
+                b.updated_at = datetime.now(timezone.utc)
+                db.commit()
+                db.refresh(b)
+                return {
+                    "id": b.id,
+                    "booking_token": b.booking_token,
+                    "status": b.status,
+                    "updated_at": b.updated_at.strftime("%d %b %Y, %I:%M %p"),
+                }
+        except Exception as e:
+            db.rollback()
+            print(f"[MACHINERY STATUS ERROR] {e}")
+
+    return None
+

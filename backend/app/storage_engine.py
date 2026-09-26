@@ -151,9 +151,6 @@ VERIFIED_COLD_STORAGES: list[dict[str, Any]] = [
     },
 ]
 
-# In-memory cache for fallback when db is not provided
-STORAGE_BOOKINGS: list[dict[str, Any]] = []
-
 def get_cold_storages(
     state: str = "",
     district: str = "",
@@ -260,6 +257,7 @@ def create_storage_booking(
     total_cost = monthly_cost * duration_months
     now = datetime.now(timezone.utc)
     token = f"RS-GODOWN-{now.strftime('%y%m%d')}-{abs(hash(farmer_name + str(now.timestamp()))) % 899 + 101}"
+    initial_status = "REQUESTED (Pending Bay Allocation & Owner Confirmation)"
 
     booking_record = {
         "booking_token": token,
@@ -276,13 +274,13 @@ def create_storage_booking(
         "monthly_rent_inr": monthly_cost,
         "total_estimated_rent_inr": total_cost,
         "enwr_pledge_loan_eligible": facility_dict["enwr_pledge_loan"],
-        "booking_status": "Approved by Owner (Bay Allotted)",
+        "booking_status": initial_status,
         "owner_notified": True,
         "manager_name": facility_dict["contact_person"],
         "manager_phone": facility_dict["phone"],
-        "entry_allowed": True,
+        "entry_allowed": False,
         "created_at": now.strftime("%d %b %Y, %I:%M %p"),
-        "instructions": f"Your preservation request has been registered and verified by Godown In-Charge {facility_dict['contact_person']}. Present token {token} at the weighbridge to unload your {commodity}.",
+        "instructions": f"Your storage reservation request has been registered and transmitted to Godown In-Charge {facility_dict['contact_person']}. Bay allocation and entry pass will be activated upon owner confirmation.",
     }
 
     if db is not None:
@@ -303,11 +301,11 @@ def create_storage_booking(
                 monthly_rent_inr=float(monthly_cost),
                 total_estimated_rent_inr=float(total_cost),
                 enwr_pledge_loan_eligible=facility_dict["enwr_pledge_loan"],
-                booking_status="Approved by Owner (Bay Allotted)",
+                booking_status=initial_status,
                 owner_notified=True,
                 manager_name=facility_dict["contact_person"],
                 manager_phone=facility_dict["phone"],
-                entry_allowed=True,
+                entry_allowed=False,
                 instructions=booking_record["instructions"],
                 created_at=now,
             )
@@ -318,12 +316,12 @@ def create_storage_booking(
         except Exception as e:
             db.rollback()
             print(f"[STORAGE BOOKING ERROR] {e}")
+            raise e
 
-    STORAGE_BOOKINGS.insert(0, booking_record)
     return booking_record
 
 def get_all_storage_bookings(db: Any = None) -> list[dict[str, Any]]:
-    """Returns all storage bookings from persistent database."""
+    """Returns all storage bookings directly from the persistent database."""
     from app.models import StorageBooking
     if db is not None:
         try:
@@ -354,14 +352,13 @@ def get_all_storage_bookings(db: Any = None) -> list[dict[str, Any]]:
                     "created_at": b.created_at.strftime("%d %b %Y, %I:%M %p") if b.created_at else "",
                     "instructions": b.instructions,
                 })
-            if results:
-                return results
-        except Exception:
-            pass
+            return results
+        except Exception as e:
+            print(f"[STORAGE QUERY ERROR] {e}")
 
-    return STORAGE_BOOKINGS
+    return []
 
-def update_storage_booking_status(token: str, new_status: str, db: Any = None) -> dict[str, Any] | None:
+def update_storage_booking_status(token: str, new_status: str, current_officer: Any = None, db: Any = None) -> dict[str, Any] | None:
     """Allows godown owner or officer to update booking state in persistent database."""
     from datetime import datetime, timezone
     from app.models import StorageBooking
@@ -371,6 +368,13 @@ def update_storage_booking_status(token: str, new_status: str, db: Any = None) -
             b = db.query(StorageBooking).filter(StorageBooking.booking_token == token).first()
             if b:
                 b.booking_status = new_status
+                # If confirmed or approved, grant entry allowance
+                norm_status = new_status.lower()
+                if "approv" in norm_status or "confirm" in norm_status or "allott" in norm_status:
+                    b.entry_allowed = True
+                elif "reject" in norm_status or "cancel" in norm_status:
+                    b.entry_allowed = False
+
                 b.updated_at = datetime.now(timezone.utc)
                 db.commit()
                 db.refresh(b)
@@ -378,15 +382,12 @@ def update_storage_booking_status(token: str, new_status: str, db: Any = None) -
                     "id": b.id,
                     "booking_token": b.booking_token,
                     "booking_status": b.booking_status,
+                    "entry_allowed": b.entry_allowed,
                     "updated_at": b.updated_at.strftime("%d %b %Y, %I:%M %p"),
                 }
         except Exception as e:
             db.rollback()
             print(f"[STORAGE STATUS ERROR] {e}")
 
-    for b in STORAGE_BOOKINGS:
-        if b["booking_token"] == token:
-            b["booking_status"] = new_status
-            b["updated_at"] = datetime.now(timezone.utc).strftime("%d %b %Y, %I:%M %p")
-            return b
     return None
+
