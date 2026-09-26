@@ -1035,7 +1035,7 @@ def admin_mandi_sync(
     current_user: UserAccount = Depends(require_officer),
 ):
     """Triggers upstream market data sync from Government OGD Agmarknet endpoint."""
-    service = MandiIngestionService()
+    service = MandiIngestionService(api_key=settings.data_gov_api_key)
     result = service.run_sync(db=db, state=state, limit=limit)
     log_audit(
         db=db,
@@ -1047,6 +1047,7 @@ def admin_mandi_sync(
             "limit": limit,
             "sync_status": result.get("status"),
             "records_received": result.get("records_received", 0),
+            "api_key_configured": bool(settings.data_gov_api_key),
         },
     )
     return result

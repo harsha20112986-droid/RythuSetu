@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
     weather_api_key: str | None = os.getenv("WEATHER_API_KEY", None)
 
+    # Mandi Ingestion Pipeline (Data.gov.in OGD)
+    # Set DATA_GOV_API_KEY in Render Dashboard to enable live APMC sync.
+    # Without it the ingestion service runs in OFFLINE_UNCONFIGURED mode (safe fallback).
+    data_gov_api_key: str | None = os.getenv("DATA_GOV_API_KEY") or os.getenv("MANDI_API_KEY") or None
+
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
