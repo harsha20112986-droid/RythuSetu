@@ -139,7 +139,12 @@ export function LoginModal({
         body: JSON.stringify({ username: rawUser, password: rawPw }),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        // Fallback for non-JSON server error response
+      }
 
       if (res.ok) {
         localStorage.setItem("rythusetu_user", JSON.stringify(data.user));
@@ -169,7 +174,7 @@ export function LoginModal({
         return;
       } else {
         setLoading(false);
-        setError(data.detail || "Invalid credentials. Please verify your username, mobile number, and password.");
+        setError(data.detail || (res.status >= 500 ? "Server is initializing database tables. Please retry in a few moments." : "Invalid credentials. Please verify your username, mobile number, and password."));
         return;
       }
     } catch {
@@ -212,7 +217,13 @@ export function LoginModal({
         }),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        // Fallback for non-JSON server error response
+      }
+
       if (res.ok) {
         localStorage.setItem("rythusetu_user", JSON.stringify(data.user));
         if (data.access_token) {
@@ -221,7 +232,7 @@ export function LoginModal({
         localStorage.removeItem("rythusetu_registered_users");
 
         let farmerObj: Farmer | undefined = undefined;
-        if (data.user.farmer_profile_id) {
+        if (data.user?.farmer_profile_id) {
           try {
             const fRes = await fetch(`${API_BASE}/farmers/${data.user.farmer_profile_id}`);
             if (fRes.ok) {
@@ -239,11 +250,11 @@ export function LoginModal({
         onClose();
       } else {
         setLoading(false);
-        setError(data.detail || "Registration failed. Please check your inputs.");
+        setError(data.detail || (res.status >= 500 ? "Backend database tables are provisioning. Please retry in a few seconds." : "Registration failed. Please check your inputs."));
       }
     } catch {
       setLoading(false);
-      setError("Unable to register account at this time. Please check your connection.");
+      setError("Unable to register account at this time. Please check your connection or retry shortly.");
     }
   };
 
