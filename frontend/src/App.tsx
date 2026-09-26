@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, lazy, Suspense, type FormEvent } from "react";
 import {
   type Page,
   type FormState,
@@ -7,31 +7,34 @@ import {
   type AuthUser,
   API_BASE,
 } from "./types";
+// Always-visible shell components — keep eager for zero-flash
 import { Header } from "./components/Header";
-import { Home } from "./components/Home";
-import { Onboarding } from "./components/Onboarding";
-import { Dashboard } from "./components/Dashboard";
-import { SchemeFinder } from "./components/SchemeFinder";
-import { BenefitEstimator } from "./components/BenefitEstimator";
-import { CropLossReporter } from "./components/CropLossReporter";
-import { CropDoctor } from "./components/CropDoctor";
-import { MandiPrices } from "./components/MandiPrices";
-import { FertilizerOptimizer } from "./components/FertilizerOptimizer";
-import { CropRecommendation } from "./components/CropRecommendation";
-import { ColdStorageFinder } from "./components/ColdStorageFinder";
-import { DirectFactoryMarket } from "./components/DirectFactoryMarket";
-import { NearbyAgroHub } from "./components/NearbyAgroHub";
-import { MachineryRentalHub } from "./components/MachineryRentalHub";
-import { HarvestShield } from "./components/HarvestShield";
-import { SeedVerifier } from "./components/SeedVerifier";
-import { AgriKhata } from "./components/AgriKhata";
+import { BottomNav } from "./components/BottomNav";
 import { PwaInstallPrompt } from "./components/PwaInstallPrompt";
 import { IvrModal } from "./components/IvrModal";
-import { KrishiAssistant } from "./components/KrishiAssistant";
 import { LoginModal } from "./components/LoginModal";
-import { AdminPortal } from "./components/AdminPortal";
-import { BottomNav } from "./components/BottomNav";
 import { Sprout } from "lucide-react";
+
+// Page-level components — lazy loaded to reduce initial bundle parse cost
+const Home = lazy(() => import("./components/Home").then((m) => ({ default: m.Home })));
+const Onboarding = lazy(() => import("./components/Onboarding").then((m) => ({ default: m.Onboarding })));
+const Dashboard = lazy(() => import("./components/Dashboard").then((m) => ({ default: m.Dashboard })));
+const SchemeFinder = lazy(() => import("./components/SchemeFinder").then((m) => ({ default: m.SchemeFinder })));
+const BenefitEstimator = lazy(() => import("./components/BenefitEstimator").then((m) => ({ default: m.BenefitEstimator })));
+const CropLossReporter = lazy(() => import("./components/CropLossReporter").then((m) => ({ default: m.CropLossReporter })));
+const CropDoctor = lazy(() => import("./components/CropDoctor").then((m) => ({ default: m.CropDoctor })));
+const MandiPrices = lazy(() => import("./components/MandiPrices").then((m) => ({ default: m.MandiPrices })));
+const FertilizerOptimizer = lazy(() => import("./components/FertilizerOptimizer").then((m) => ({ default: m.FertilizerOptimizer })));
+const CropRecommendation = lazy(() => import("./components/CropRecommendation").then((m) => ({ default: m.CropRecommendation })));
+const ColdStorageFinder = lazy(() => import("./components/ColdStorageFinder").then((m) => ({ default: m.ColdStorageFinder })));
+const DirectFactoryMarket = lazy(() => import("./components/DirectFactoryMarket").then((m) => ({ default: m.DirectFactoryMarket })));
+const NearbyAgroHub = lazy(() => import("./components/NearbyAgroHub").then((m) => ({ default: m.NearbyAgroHub })));
+const MachineryRentalHub = lazy(() => import("./components/MachineryRentalHub").then((m) => ({ default: m.MachineryRentalHub })));
+const HarvestShield = lazy(() => import("./components/HarvestShield").then((m) => ({ default: m.HarvestShield })));
+const SeedVerifier = lazy(() => import("./components/SeedVerifier").then((m) => ({ default: m.SeedVerifier })));
+const AgriKhata = lazy(() => import("./components/AgriKhata").then((m) => ({ default: m.AgriKhata })));
+const KrishiAssistant = lazy(() => import("./components/KrishiAssistant").then((m) => ({ default: m.KrishiAssistant })));
+const AdminPortal = lazy(() => import("./components/AdminPortal").then((m) => ({ default: m.AdminPortal })));
 
 export function App() {
   const [page, setPage] = useState<Page>("home");
@@ -405,6 +408,16 @@ export function App() {
       />
 
       <div className="flex-1 pb-16">
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="flex flex-col items-center gap-3 text-emerald-600">
+                <Sprout className="size-10 animate-pulse" />
+                <span className="text-sm font-medium text-slate-500">Loading…</span>
+              </div>
+            </div>
+          }
+        >
         {/* Officer Administration Portal */}
         {currentUser?.role === "admin" && page === "admin" && (
           <AdminPortal
@@ -572,7 +585,8 @@ export function App() {
             onBack={() => setPage(farmer ? "dashboard" : "home")}
             language={assistantLanguage}
           />
-        )}
+        )}\r
+        </Suspense>
       </div>
 
       {/* Floating Krishi AI Assistant - Only for Farmers */}

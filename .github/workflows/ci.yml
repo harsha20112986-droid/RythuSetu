@@ -45,4 +45,4 @@ jobs:
           APP_ENV: test
           JWT_SECRET_KEY: ci_test_secret_key_minimum_32_characters_safe
           ADMIN_INITIAL_PASSWORD: CiAdmin2026!Secure
-        run: pytest test_features.py -v
+        run: pytest test_features.py test_mandi_pipeline.py -v --tb=short
