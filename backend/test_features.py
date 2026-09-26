@@ -679,5 +679,143 @@ def test_machinery_booking_status_lifecycle(client):
     assert up_res.json()["status"] == "Confirmed (Operator Dispatched)"
 
 
+def test_mandi_prices_database_query_and_provenance(client):
+    """Verifies mandi prices endpoint returns database-grounded records with full provenance metadata."""
+    res = client.get("/api/v1/mandi/prices?crop=Red%20Chilli&district=Guntur")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["crop"] == "Red Chilli"
+    assert data["govt_msp_inr"] == 15200.0
+    assert "markets" in data
+    assert len(data["markets"]) > 0
+
+    # Verify provenance block
+    assert "provenance" in data
+    prov = data["provenance"]
+    assert prov["source_type"] in ["OFFICIAL_APMC_DATABASE", "CURATED_REFERENCE"]
+    assert prov["verification_status"] == "OFFICIALLY_VERIFIED"
+    assert prov["confidence"] >= 0.95
+    assert "source_url" in prov
+
+    # Verify market item metadata
+    first_market = data["markets"][0]
+    assert "modal_price" in first_market
+    assert "source" in first_market
+    assert "verification_status" in first_market
+    assert first_market["verification_status"] == "OFFICIALLY_VERIFIED"
+
+
+def test_officer_mandi_price_lifecycle(client):
+    """Verifies official APMC price record publishing, updating, auditing, and expiration lifecycle."""
+    from app.core.config import settings
+
+    # 1. Login as officer/admin
+    login_res = client.post("/api/v1/auth/login", json={
+        "username": settings.admin_initial_username,
+        "password": settings.admin_initial_password,
+    })
+    assert login_res.status_code == 200
+    officer_token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {officer_token}"}
+
+    # 2. Publish new APMC daily arrival benchmark
+    payload = {
+        "crop": "Cotton",
+        "variety": "Suvin Extra Long Staple",
+        "market": "Guntur APMC Yard",
+        "district": "Guntur",
+        "min_price": 9100.0,
+        "max_price": 9800.0,
+        "modal_price": 9500.0,
+        "arrival_quantity_qtl": 350.0,
+        "telugu_name": "సువిన్ పొడవు దూది",
+        "grade_tag": "Deluxe Premium Export",
+        "state": "Andhra Pradesh",
+        "recommendation": "Peak export demand: Sell at Guntur yard.",
+        "action": "SELL",
+        "source": "Guntur APMC Daily Electronic Bulletin",
+        "source_url": "https://enam.gov.in/web/dashboard/trade-data",
+    }
+    create_res = client.post("/api/v1/admin/mandi/prices", json=payload, headers=headers)
+    assert create_res.status_code == 200
+    create_data = create_res.json()
+    assert create_data["status"] == "success"
+    record_id = create_data["record_id"]
+    assert record_id is not None
+    assert create_data["verification_status"] == "OFFICIALLY_VERIFIED"
+
+    # 3. Query public endpoint and verify the published record appears
+    pub_res = client.get("/api/v1/mandi/prices?crop=Cotton&district=Guntur")
+    assert pub_res.status_code == 200
+    pub_data = pub_res.json()
+    cotton_varieties = [m["variety"] for m in pub_data["markets"]]
+    assert "Suvin Extra Long Staple" in cotton_varieties
+
+    # 4. Officer updates pricing
+    update_res = client.put(f"/api/v1/admin/mandi/prices/{record_id}", json={
+        "modal_price": 9650.0,
+        "max_price": 9900.0,
+        "recommendation": "Surge bonus: Mills offering immediate settlement.",
+    }, headers=headers)
+    assert update_res.status_code == 200
+    assert update_res.json()["modal_price"] == 9650.0
+
+    # 5. Query admin registry
+    admin_list = client.get("/api/v1/admin/mandi/prices?crop=Cotton", headers=headers)
+    assert admin_list.status_code == 200
+    found_rec = next((r for r in admin_list.json()["prices"] if r["id"] == record_id), None)
+    assert found_rec is not None
+    assert found_rec["modal_price"] == 9650.0
+
+    # 6. Officer expires/soft-deletes outdated record
+    del_res = client.delete(f"/api/v1/admin/mandi/prices/{record_id}", headers=headers)
+    assert del_res.status_code == 200
+    assert del_res.json()["status"] == "success"
+
+    # 7. Expired record no longer in active public endpoint results
+    after_res = client.get("/api/v1/mandi/prices?crop=Cotton&district=Guntur")
+    assert after_res.status_code == 200
+    active_varieties = [m.get("id") for m in after_res.json()["markets"]]
+    assert record_id not in active_varieties
+
+
+def test_mandi_admin_endpoints_require_officer_role(client):
+    """Verifies strict RBAC: unauthenticated or regular farmers are blocked from modifying mandi records."""
+    import time
+    ts = int(time.time() * 1000)
+
+    test_payload = {
+        "crop": "Cotton",
+        "variety": "Unauthorized Variety",
+        "market": "Fake Yard",
+        "district": "Warangal",
+        "min_price": 5000.0,
+        "max_price": 6000.0,
+        "modal_price": 5500.0,
+    }
+
+    # 1. Anonymous access is strictly rejected (401 Unauthorized)
+    client.cookies.clear()
+    assert client.post("/api/v1/admin/mandi/prices", json=test_payload).status_code == 401
+    assert client.put("/api/v1/admin/mandi/prices/1", json={"modal_price": 6000.0}).status_code == 401
+    assert client.delete("/api/v1/admin/mandi/prices/1").status_code == 401
+
+    # 2. Regular farmer authenticated access is denied (403 Forbidden)
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Kisan Farmer",
+        "username": f"farmer_mandi_{ts}",
+        "password": "Password123!",
+        "state": "Telangana",
+        "district": "Warangal",
+    })
+    farmer_token = reg.json()["access_token"]
+    farmer_headers = {"Authorization": f"Bearer {farmer_token}"}
+
+    assert client.post("/api/v1/admin/mandi/prices", json=test_payload, headers=farmer_headers).status_code == 403
+    assert client.put("/api/v1/admin/mandi/prices/1", json={"modal_price": 6000.0}, headers=farmer_headers).status_code == 403
+    assert client.delete("/api/v1/admin/mandi/prices/1", headers=farmer_headers).status_code == 403
+    client.cookies.clear()
+
+
 
 

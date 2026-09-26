@@ -560,7 +560,9 @@ export type CropVarietyItem = {
 };
 
 export type MandiMarketItem = {
+  id?: number;
   mandi_name: string;
+  market_hub?: string;
   district: string;
   state: string;
   crop: string;
@@ -578,7 +580,29 @@ export type MandiMarketItem = {
   price_trend: "bullish" | "bearish" | "stable";
   trend_percent: number;
   recommendation: string;
-  verified_date: string;
+  verified_date?: string;
+  source?: string;
+  source_url?: string;
+  effective_date?: string;
+  last_verified_at?: string;
+  verification_status?: string;
+  confidence?: number;
+  data_trust_label?: string;
+  data_trust_badge?: string;
+  last_verified?: string;
+};
+
+export type MandiProvenance = {
+  source_type: string;
+  source_name: string;
+  source_url?: string;
+  effective_date: string;
+  last_verified_at: string;
+  verification_status: string;
+  confidence: number;
+  record_count?: number;
+  trust_label?: string;
+  disclaimer?: string;
 };
 
 export type MandiData = {
@@ -595,7 +619,13 @@ export type MandiData = {
   varieties?: CropVarietyItem[];
   markets: MandiMarketItem[];
   source: string;
-  timestamp: string;
+  source_url?: string;
+  timestamp?: string;
+  last_verified?: string;
+  last_verified_at?: string;
+  verification_status?: string;
+  confidence?: number;
+  provenance?: MandiProvenance;
 };
 
 export type FertilizerStage = {

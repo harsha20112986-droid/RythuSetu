@@ -82,7 +82,14 @@ from app.khata_engine import (
     calculate_breakeven_cost,
     get_saved_khata_entries,
 )
-from app.mandi_engine import get_mandi_prices_for_farmer
+from app.mandi_engine import (
+    get_mandi_prices_for_farmer,
+    create_mandi_price_record,
+    update_mandi_price_record,
+    soft_delete_mandi_price_record,
+    get_all_admin_mandi_records,
+)
+from app.db_init import log_audit
 from app.soil_engine import calculate_fertilizer_plan
 from app.recommendation_engine import recommend_crops
 from app.location_engine import (
@@ -750,9 +757,155 @@ def get_alerts(db: Session = Depends(get_db)):
 # -------------------------------------------------------------
 
 @router.get("/mandi/prices")
-def mandi_prices(crop: str = "Cotton", district: str = "Warangal"):
-    """Fetches e-NAM APMC market arrivals, modal rates, and MSP comparison."""
-    return get_mandi_prices_for_farmer(crop=crop, district=district)
+def mandi_prices(
+    crop: str = "Cotton",
+    district: str = "Warangal",
+    db: Session = Depends(get_db),
+):
+    """Fetches e-NAM APMC market arrivals, modal rates, and MSP comparison backed by SQL database."""
+    return get_mandi_prices_for_farmer(crop=crop, district=district, db=db)
+
+
+class MandiPriceCreate(BaseModel):
+    crop: str
+    variety: str
+    market: str
+    district: str
+    min_price: float
+    max_price: float
+    modal_price: float
+    arrival_quantity_qtl: float = 0.0
+    telugu_name: str | None = None
+    grade_tag: str | None = None
+    state: str = "Telangana"
+    key_trait: str | None = None
+    recommendation: str | None = None
+    action: str = "SELL"
+    source: str = "Government e-NAM / APMC Portal"
+    source_url: str = "https://enam.gov.in/web/dashboard/trade-data"
+
+
+class MandiPriceUpdate(BaseModel):
+    min_price: float | None = None
+    max_price: float | None = None
+    modal_price: float | None = None
+    arrival_quantity_qtl: float | None = None
+    grade_tag: str | None = None
+    recommendation: str | None = None
+    action: str | None = None
+    verification_status: str | None = None
+    is_active: bool | None = None
+
+
+@router.get("/admin/mandi/prices")
+def admin_get_mandi_prices(
+    crop: str | None = None,
+    district: str | None = None,
+    is_active: bool | None = None,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
+    """Master registry query of verified APMC mandi records for officers and administrators."""
+    records = get_all_admin_mandi_records(db=db, crop=crop, district=district, is_active=is_active)
+    return {"total": len(records), "prices": records}
+
+
+@router.post("/admin/mandi/prices")
+def admin_create_mandi_price(
+    payload: MandiPriceCreate,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
+    """Officer registers official APMC daily arrival and modal benchmark."""
+    rec = create_mandi_price_record(
+        db=db,
+        crop=payload.crop,
+        variety=payload.variety,
+        market=payload.market,
+        district=payload.district,
+        min_price=payload.min_price,
+        max_price=payload.max_price,
+        modal_price=payload.modal_price,
+        arrival_quantity_qtl=payload.arrival_quantity_qtl,
+        telugu_name=payload.telugu_name,
+        grade_tag=payload.grade_tag,
+        state=payload.state,
+        key_trait=payload.key_trait,
+        recommendation=payload.recommendation,
+        action=payload.action,
+        source=payload.source,
+        source_url=payload.source_url,
+        officer_user_id=current_user.id,
+    )
+    log_audit(
+        db=db,
+        action="MANDI_PRICE_RECORD_CREATED",
+        resource_type="mandi_price",
+        user=current_user,
+        resource_id=str(rec.id),
+        details={"crop": rec.crop, "variety": rec.variety, "market": rec.market, "modal_price": rec.modal_price},
+    )
+    return {
+        "status": "success",
+        "message": f"Verified APMC price record registered for {rec.crop} ({rec.variety}) at {rec.market}.",
+        "record_id": rec.id,
+        "verification_status": rec.verification_status,
+        "last_verified_at": rec.last_verified_at,
+    }
+
+
+@router.put("/admin/mandi/prices/{price_id}")
+def admin_update_mandi_price(
+    price_id: int,
+    payload: MandiPriceUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
+    """Officer updates pricing, lot grading, or re-verifies active APMC records."""
+    updates = payload.model_dump(exclude_unset=True)
+    rec = update_mandi_price_record(db=db, price_id=price_id, updates=updates, officer_user_id=current_user.id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Mandi price record not found")
+    log_audit(
+        db=db,
+        action="MANDI_PRICE_RECORD_UPDATED",
+        resource_type="mandi_price",
+        user=current_user,
+        resource_id=str(rec.id),
+        details=updates,
+    )
+    return {
+        "status": "success",
+        "message": f"Price record #{price_id} updated and verified.",
+        "record_id": rec.id,
+        "modal_price": rec.modal_price,
+        "verification_status": rec.verification_status,
+        "last_verified_at": rec.last_verified_at,
+    }
+
+
+@router.delete("/admin/mandi/prices/{price_id}")
+def admin_delete_mandi_price(
+    price_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
+    """Marks outdated or replaced market price records as expired."""
+    success = soft_delete_mandi_price_record(db=db, price_id=price_id, officer_user_id=current_user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Mandi price record not found")
+    log_audit(
+        db=db,
+        action="MANDI_PRICE_RECORD_DEPRECATED",
+        resource_type="mandi_price",
+        user=current_user,
+        resource_id=str(price_id),
+    )
+    return {
+        "status": "success",
+        "message": f"Mandi price record #{price_id} marked as EXPIRED.",
+        "price_id": price_id,
+    }
 
 
 class FertilizerPlanRequest(BaseModel):

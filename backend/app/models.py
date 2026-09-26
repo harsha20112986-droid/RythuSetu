@@ -333,3 +333,41 @@ class Notification(Base):
     status: Mapped[str] = mapped_column(String(40), default="UNREAD", index=True)  # UNREAD, READ, DISMISSED
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+
+class MandiPriceRecord(Base):
+    """
+    Authoritative, timestamped APMC Mandi market price and arrival record.
+    Stores audited spot prices, modal benchmarks, and provenance metadata.
+    """
+    __tablename__ = "mandi_prices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    crop: Mapped[str] = mapped_column(String(100), index=True)
+    variety: Mapped[str] = mapped_column(String(100), index=True)
+    telugu_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    grade_tag: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    market: Mapped[str] = mapped_column(String(150), index=True)
+    district: Mapped[str] = mapped_column(String(100), index=True)
+    state: Mapped[str] = mapped_column(String(100), default="Telangana")
+    min_price: Mapped[float] = mapped_column(Float)
+    max_price: Mapped[float] = mapped_column(Float)
+    modal_price: Mapped[float] = mapped_column(Float, index=True)
+    arrival_quantity_qtl: Mapped[float] = mapped_column(Float, default=0.0)
+    key_trait: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recommendation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    action: Mapped[str] = mapped_column(String(40), default="SELL")
+    source: Mapped[str] = mapped_column(String(150), default="Government e-NAM / APMC Portal")
+    source_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    effective_date: Mapped[str] = mapped_column(String(50), default=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_verified_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    verification_status: Mapped[str] = mapped_column(String(50), default="OFFICIALLY_VERIFIED", index=True)  # OFFICIALLY_VERIFIED, PROVISIONAL, EXPIRED
+    confidence: Mapped[float] = mapped_column(Float, default=0.98)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("user_accounts.id"), nullable=True)
+
+    __table_args__ = (
+        Index("ix_mandi_prices_crop_active", "crop", "is_active"),
+        Index("ix_mandi_prices_district_crop", "district", "crop"),
+    )
+

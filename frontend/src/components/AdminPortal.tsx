@@ -18,6 +18,11 @@ import {
   ShieldCheck,
   Warehouse,
   Truck,
+  TrendingUp,
+  Plus,
+  Trash2,
+  Edit3,
+  ExternalLink,
 } from "lucide-react";
 import {
   type AuthUser,
@@ -35,7 +40,7 @@ export function AdminPortal({
   user: AuthUser;
   onSwitchToFarmerView: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"claims" | "storage" | "factory" | "users" | "directory" | "broadcasts">("claims");
+  const [activeTab, setActiveTab] = useState<"claims" | "storage" | "factory" | "users" | "directory" | "broadcasts" | "mandi">("claims");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [claims, setClaims] = useState<AdminClaimItem[]>([]);
   const [storageBookings, setStorageBookings] = useState<any[]>([]);
@@ -43,11 +48,30 @@ export function AdminPortal({
   const [registeredFarmers, setRegisteredFarmers] = useState<any[]>([]);
   const [userAccounts, setUserAccounts] = useState<AdminUserItem[]>([]);
   const [alerts, setAlerts] = useState<BroadcastAlert[]>([]);
+  const [mandiPrices, setMandiPrices] = useState<any[]>([]);
   const [_loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [claimFilter, setClaimFilter] = useState<string>("all");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string>("");
+
+  // Mandi Admin state
+  const [mandiCropFilter, setMandiCropFilter] = useState<string>("All");
+  const [mandiSearch, setMandiSearch] = useState<string>("");
+  const [editingPriceId, setEditingPriceId] = useState<number | null>(null);
+  const [editModalValue, setEditModalValue] = useState<string>("");
+  const [showAddMandiModal, setShowAddMandiModal] = useState<boolean>(false);
+  const [newMandiCrop, setNewMandiCrop] = useState<string>("Cotton");
+  const [newMandiVariety, setNewMandiVariety] = useState<string>("");
+  const [newMandiMarket, setNewMandiMarket] = useState<string>("");
+  const [newMandiDistrict, setNewMandiDistrict] = useState<string>("Warangal");
+  const [newMandiMinPrice, setNewMandiMinPrice] = useState<string>("");
+  const [newMandiMaxPrice, setNewMandiMaxPrice] = useState<string>("");
+  const [newMandiModalPrice, setNewMandiModalPrice] = useState<string>("");
+  const [newMandiArrivals, setNewMandiArrivals] = useState<string>("150");
+  const [newMandiTeluguName, setNewMandiTeluguName] = useState<string>("");
+  const [newMandiGradeTag, setNewMandiGradeTag] = useState<string>("APMC Daily Arrival");
+  const [savingMandi, setSavingMandi] = useState<boolean>(false);
 
   // User Accounts Filter state
   const [userSearch, setUserSearch] = useState("");
@@ -73,7 +97,7 @@ export function AdminPortal({
     try {
       setRefreshing(true);
       const headers = getAuthHeaders();
-      const [statsRes, claimsRes, alertsRes, farmersRes, usersRes, storageRes, factoryRes] = await Promise.all([
+      const [statsRes, claimsRes, alertsRes, farmersRes, usersRes, storageRes, factoryRes, mandiRes] = await Promise.all([
         fetch(`${API_BASE}/admin/dashboard-stats`, { headers }),
         fetch(`${API_BASE}/admin/all-claims`, { headers }),
         fetch(`${API_BASE}/admin/broadcast-alerts`, { headers }),
@@ -81,6 +105,7 @@ export function AdminPortal({
         fetch(`${API_BASE}/admin/users`, { headers }).catch(() => null),
         fetch(`${API_BASE}/storage/bookings`, { headers }).catch(() => null),
         fetch(`${API_BASE}/direct-market/passes`, { headers }).catch(() => null),
+        fetch(`${API_BASE}/admin/mandi/prices`, { headers }).catch(() => null),
       ]);
 
       if (statsRes.ok) {
@@ -112,6 +137,12 @@ export function AdminPortal({
       if (usersRes && usersRes.ok) {
         const uData = await usersRes.json();
         setUserAccounts(uData.users || []);
+      }
+
+      // Process authentic Mandi Prices from database
+      if (mandiRes && mandiRes.ok) {
+        const mData = await mandiRes.json();
+        setMandiPrices(mData.prices || []);
       }
     } catch (e) {
       console.error("Failed to load admin telemetry", e);
@@ -208,6 +239,101 @@ export function AdminPortal({
       console.error("Failed to update delivery pass status", e);
     }
   };
+
+  const handleUpdateMandiPrice = async (priceId: number) => {
+    const val = parseFloat(editModalValue);
+    if (!val || val <= 0) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mandi/prices/${priceId}`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ modal_price: val }),
+      });
+      if (res.ok) {
+        setActionMessage(`Market price record #${priceId} updated & verified.`);
+        setEditingPriceId(null);
+        fetchAdminData();
+        setTimeout(() => setActionMessage(""), 4500);
+      }
+    } catch (e) {
+      console.error("Failed to update mandi price", e);
+    }
+  };
+
+  const handleExpireMandiPrice = async (priceId: number) => {
+    if (!confirm("Are you sure you want to mark this mandi price record as expired?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mandi/prices/${priceId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        setActionMessage(`Market price record #${priceId} marked as EXPIRED.`);
+        fetchAdminData();
+        setTimeout(() => setActionMessage(""), 4500);
+      }
+    } catch (e) {
+      console.error("Failed to expire mandi price", e);
+    }
+  };
+
+  const handleCreateMandiPrice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMandiVariety || !newMandiMarket || !newMandiModalPrice) return;
+    setSavingMandi(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/mandi/prices`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          crop: newMandiCrop,
+          variety: newMandiVariety,
+          market: newMandiMarket,
+          district: newMandiDistrict,
+          min_price: parseFloat(newMandiMinPrice) || parseFloat(newMandiModalPrice) * 0.95,
+          max_price: parseFloat(newMandiMaxPrice) || parseFloat(newMandiModalPrice) * 1.05,
+          modal_price: parseFloat(newMandiModalPrice),
+          arrival_quantity_qtl: parseFloat(newMandiArrivals) || 100,
+          telugu_name: newMandiTeluguName || undefined,
+          grade_tag: newMandiGradeTag || undefined,
+        }),
+      });
+      if (res.ok) {
+        setActionMessage(`Published new verified APMC price record for ${newMandiCrop}.`);
+        setShowAddMandiModal(false);
+        setNewMandiVariety("");
+        setNewMandiMarket("");
+        setNewMandiModalPrice("");
+        setNewMandiMinPrice("");
+        setNewMandiMaxPrice("");
+        setNewMandiTeluguName("");
+        fetchAdminData();
+        setTimeout(() => setActionMessage(""), 4500);
+      }
+    } catch (e) {
+      console.error("Failed to add mandi price", e);
+    } finally {
+      setSavingMandi(false);
+    }
+  };
+
+  const filteredMandiPrices = useMemo(() => {
+    let list = [...mandiPrices];
+    if (mandiCropFilter !== "All") {
+      list = list.filter((m) => m.crop.toLowerCase().includes(mandiCropFilter.toLowerCase()));
+    }
+    const q = mandiSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (m) =>
+          m.market.toLowerCase().includes(q) ||
+          m.variety.toLowerCase().includes(q) ||
+          m.district.toLowerCase().includes(q) ||
+          (m.telugu_name && m.telugu_name.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [mandiPrices, mandiCropFilter, mandiSearch]);
 
   const filteredClaims = claims.filter((c) => {
     if (claimFilter === "all") return true;
@@ -420,6 +546,18 @@ export function AdminPortal({
         >
           <Radio className="size-4 text-red-500" />
           <span>Emergency Alerts ({alerts.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("mandi")}
+          className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs border-b-2 transition cursor-pointer shrink-0 ${
+            activeTab === "mandi"
+              ? "border-emerald-600 text-emerald-950 font-black"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <TrendingUp className="size-4 text-emerald-600" />
+          <span>APMC Mandi Rates ({mandiPrices.length})</span>
         </button>
 
         <button
@@ -1260,6 +1398,347 @@ export function AdminPortal({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: APMC MANDI RATES DESK */}
+      {activeTab === "mandi" && (
+        <div className="space-y-4">
+          <div className="rounded-3xl bg-white p-6 border border-slate-200 shadow-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <div>
+                <span className="text-[11px] font-black uppercase text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                  Officer Verification Desk
+                </span>
+                <h3 className="text-xl font-black text-slate-900 mt-1">
+                  APMC Mandi Benchmark Registry &amp; Spot Rates
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Update daily modal benchmarks, verify arrival lots, or publish new APMC yard arrivals.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowAddMandiModal(true)}
+                  className="px-4 py-2 rounded-2xl bg-emerald-700 text-white hover:bg-emerald-800 text-xs font-black flex items-center gap-2 transition cursor-pointer shadow-xs"
+                >
+                  <Plus className="size-4" />
+                  <span>Publish New Mandi Entry</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-6 items-start sm:items-center justify-between">
+              <div className="relative w-full sm:w-72">
+                <Search className="size-3.5 absolute left-3 top-3 text-slate-400" />
+                <input
+                  type="text"
+                  value={mandiSearch}
+                  onChange={(e) => setMandiSearch(e.target.value)}
+                  placeholder="Search market yard, crop, variety..."
+                  className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar w-full sm:w-auto">
+                <span className="text-xs font-bold text-slate-500 shrink-0">Crop:</span>
+                {["All", "Cotton", "Red Chilli", "Paddy / Rice", "Turmeric", "Groundnut", "Maize"].map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setMandiCropFilter(c)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                      mandiCropFilter === c
+                        ? "bg-emerald-800 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Mandi Price Registry Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-bold border-y border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">Market Yard / District</th>
+                    <th className="py-3 px-4">Crop &amp; Variety</th>
+                    <th className="py-3 px-4">Modal Price (₹/qtl)</th>
+                    <th className="py-3 px-4">Trading Range</th>
+                    <th className="py-3 px-4">Daily Arrivals</th>
+                    <th className="py-3 px-4">Last Verified</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredMandiPrices.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        No mandi records match your filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredMandiPrices.map((m: any) => (
+                      <tr key={m.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-4 font-bold text-slate-900">
+                          <div>{m.market}</div>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {m.district}, {m.state}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-black text-emerald-950 block">{m.variety}</span>
+                          <span className="text-[11px] text-slate-500">
+                            {m.crop} {m.telugu_name ? `• ${m.telugu_name}` : ""}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          {editingPriceId === m.id ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                value={editModalValue}
+                                onChange={(e) => setEditModalValue(e.target.value)}
+                                className="w-24 px-2 py-1 border border-emerald-500 rounded-lg text-xs font-black"
+                              />
+                              <button
+                                onClick={() => handleUpdateMandiPrice(m.id)}
+                                className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-black cursor-pointer"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingPriceId(null)}
+                                className="px-2 py-1 bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold cursor-pointer"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="font-mono font-black text-sm text-slate-900">
+                              ₹{m.modal_price?.toLocaleString()}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-600">
+                          ₹{m.min_price?.toLocaleString()} - ₹{m.max_price?.toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-600">
+                          {m.arrival_quantity_qtl || 150} qtl
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
+                            <CheckCircle2 className="size-3 text-emerald-600" />
+                            {m.verification_status || "VERIFIED"}
+                          </span>
+                          <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                            <span>{m.last_verified_at || m.effective_date}</span>
+                            {m.source_url && (
+                              <a
+                                href={m.source_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-emerald-700 hover:text-emerald-950 inline-flex items-center"
+                                title="Open e-NAM Feed Source"
+                              >
+                                <ExternalLink className="size-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => {
+                                setEditingPriceId(m.id);
+                                setEditModalValue(String(m.modal_price));
+                              }}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                              title="Edit Modal Price"
+                            >
+                              <Edit3 className="size-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleExpireMandiPrice(m.id)}
+                              className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition cursor-pointer"
+                              title="Expire / Soft-delete Record"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Publish New Mandi Entry Modal */}
+      {showAddMandiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs">
+          <div className="relative max-w-lg w-full bg-white rounded-3xl overflow-hidden shadow-2xl p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div>
+                <h4 className="text-base font-black text-slate-900">Publish Verified APMC Rate</h4>
+                <p className="text-xs text-slate-500">Official Agriculture Extension entry for AP &amp; Telangana</p>
+              </div>
+              <button
+                onClick={() => setShowAddMandiModal(false)}
+                className="size-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateMandiPrice} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">Crop</label>
+                  <select
+                    value={newMandiCrop}
+                    onChange={(e) => setNewMandiCrop(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-xl font-bold bg-white"
+                  >
+                    <option value="Cotton">Cotton</option>
+                    <option value="Red Chilli">Red Chilli</option>
+                    <option value="Paddy / Rice">Paddy / Rice</option>
+                    <option value="Turmeric">Turmeric</option>
+                    <option value="Groundnut">Groundnut</option>
+                    <option value="Maize">Maize</option>
+                    <option value="Pigeon Pea / Red Gram (Tur)">Red Gram (Tur)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">District</label>
+                  <input
+                    type="text"
+                    value={newMandiDistrict}
+                    onChange={(e) => setNewMandiDistrict(e.target.value)}
+                    required
+                    placeholder="e.g. Warangal / Guntur"
+                    className="w-full p-2 border border-slate-200 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-600 block mb-1">Variety / Breed</label>
+                <input
+                  type="text"
+                  value={newMandiVariety}
+                  onChange={(e) => setNewMandiVariety(e.target.value)}
+                  required
+                  placeholder="e.g. Teja / S17 or Basmati 1121"
+                  className="w-full p-2 border border-slate-200 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-600 block mb-1">Market Yard Hub</label>
+                <input
+                  type="text"
+                  value={newMandiMarket}
+                  onChange={(e) => setNewMandiMarket(e.target.value)}
+                  required
+                  placeholder="e.g. Warangal Enumamula Yard or Guntur Yard"
+                  className="w-full p-2 border border-slate-200 rounded-xl"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">Min Price (₹)</label>
+                  <input
+                    type="number"
+                    value={newMandiMinPrice}
+                    onChange={(e) => setNewMandiMinPrice(e.target.value)}
+                    placeholder="Min"
+                    className="w-full p-2 border border-slate-200 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">Modal Price (₹)</label>
+                  <input
+                    type="number"
+                    value={newMandiModalPrice}
+                    onChange={(e) => setNewMandiModalPrice(e.target.value)}
+                    required
+                    placeholder="Today's Modal"
+                    className="w-full p-2 border border-slate-200 rounded-xl font-black text-emerald-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">Max Price (₹)</label>
+                  <input
+                    type="number"
+                    value={newMandiMaxPrice}
+                    onChange={(e) => setNewMandiMaxPrice(e.target.value)}
+                    placeholder="Max"
+                    className="w-full p-2 border border-slate-200 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">Arrivals (Quintals)</label>
+                  <input
+                    type="number"
+                    value={newMandiArrivals}
+                    onChange={(e) => setNewMandiArrivals(e.target.value)}
+                    placeholder="150"
+                    className="w-full p-2 border border-slate-200 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-600 block mb-1">Grade Tag</label>
+                  <input
+                    type="text"
+                    value={newMandiGradeTag}
+                    onChange={(e) => setNewMandiGradeTag(e.target.value)}
+                    placeholder="e.g. Deluxe Export Grade"
+                    className="w-full p-2 border border-slate-200 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-600 block mb-1">Telugu Name (Optional)</label>
+                <input
+                  type="text"
+                  value={newMandiTeluguName}
+                  onChange={(e) => setNewMandiTeluguName(e.target.value)}
+                  placeholder="తెలుగు పేరు"
+                  className="w-full p-2 border border-slate-200 rounded-xl"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddMandiModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingMandi}
+                  className="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black cursor-pointer shadow-xs"
+                >
+                  {savingMandi ? "Publishing..." : "Publish to Farmers"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
