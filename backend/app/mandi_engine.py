@@ -1,11 +1,31 @@
 """
-RythuSetu Live Mandi & APMC Price Intelligence Engine (e-NAM standard)
-Provides real-time APMC arrivals, Minimum Support Price (MSP) benchmarks,
+RythuSetu Curated Mandi Benchmark Intelligence & Price Discovery Engine
+Provides verified APMC modal price benchmarks, CACP statutory Minimum Support Price (MSP) comparisons,
 and detailed crop breeds/varieties pricing (High to Low) including Teja, Naatu Vittanam, Byadgi, etc.
 """
 
 from typing import Any
 import datetime
+import os
+
+
+class AgmarknetIngestionService:
+    """
+    Ingestion adapter interface for Agmarknet / e-NAM live daily bulletin feeds.
+    Provides verified fallback to official seasonal benchmarks when remote feed is unconfigured.
+    """
+    def __init__(self, api_key: str | None = None):
+        self.api_key = api_key or os.getenv("AGMARKNET_API_KEY")
+
+    def get_market_data(self, crop: str, district: str = "") -> dict[str, Any]:
+        # If API key configured, remote feed would be fetched here
+        return {
+            "is_live_stream": False,
+            "provider": "AGMARKNET / e-NAM APMC Benchmark Reference & CACP MSP 2025-26",
+            "tier": "Curated Mandi Benchmark Intelligence",
+            "status": "BENCHMARK_CURATED",
+        }
+
 
 # Verified 2025-2026 Kharif/Rabi Minimum Support Price (MSP) in INR per Quintal (100 kg)
 GOVT_MSP_RATES = {

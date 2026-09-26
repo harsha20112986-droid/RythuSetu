@@ -102,11 +102,14 @@ def initialize_database():
             db.add(admin_user)
             db.commit()
             print(f"[INIT] Created initial administrator account: {settings.admin_initial_username}")
-        elif not admin.hashed_password.startswith(("$2a$", "$2b$", "$2y$")):
-            # Migrate legacy password to bcrypt
-            admin.hashed_password = hash_password(settings.admin_initial_password)
-            db.commit()
-            print("[INIT] Upgraded admin password to bcrypt hash.")
+        else:
+            from app.core.security import verify_password
+            if not verify_password(settings.admin_initial_password, admin.hashed_password):
+                if not settings.is_production or not admin.hashed_password.startswith(("$2a$", "$2b$", "$2y$")):
+                    admin.hashed_password = hash_password(settings.admin_initial_password)
+                    db.commit()
+                    print("[INIT] Synced administrator password with configured credentials.")
+
 
         # 2. Seed Storage Facilities if empty
         if db.query(StorageFacility).count() == 0:
@@ -196,6 +199,85 @@ def initialize_database():
             db.add_all(alerts_seed)
             db.commit()
             print("[INIT] Seeded default agricultural broadcast advisories.")
+
+        # 5. Seed initial registered cultivators if empty
+        if db.query(FarmerProfile).count() == 0:
+            demo_cultivators = [
+                {
+                    "id": 101,
+                    "name": "Kishan Rao",
+                    "language": "Telugu",
+                    "state": "Telangana",
+                    "district": "Warangal",
+                    "mandal": "Narsampet",
+                    "village": "Chennaraopet",
+                    "crop": "Cotton",
+                    "season": "Kharif",
+                    "land_area_acres": 3.5,
+                    "username": "kishan_rao",
+                    "phone": "+91 98491 10101",
+                },
+                {
+                    "id": 102,
+                    "name": "Lakshmi Devi",
+                    "language": "Telugu",
+                    "state": "Andhra Pradesh",
+                    "district": "Anantapur",
+                    "mandal": "Dharmavaram",
+                    "village": "Marala",
+                    "crop": "Groundnut",
+                    "season": "Kharif",
+                    "land_area_acres": 2.5,
+                    "username": "lakshmi_devi",
+                    "phone": "+91 98491 10202",
+                },
+                {
+                    "id": 103,
+                    "name": "Ramesh Goud",
+                    "language": "Hindi",
+                    "state": "Telangana",
+                    "district": "Karimnagar",
+                    "mandal": "Huzurabad",
+                    "village": "Bornapalli",
+                    "crop": "Rice",
+                    "season": "Kharif",
+                    "land_area_acres": 4.0,
+                    "username": "ramesh_goud",
+                    "phone": "+91 98491 10303",
+                },
+            ]
+            for c in demo_cultivators:
+                farmer = FarmerProfile(
+                    id=c["id"],
+                    name=c["name"],
+                    language=c["language"],
+                    state=c["state"],
+                    district=c["district"],
+                    mandal=c["mandal"],
+                    village=c["village"],
+                    crop=c["crop"],
+                    season=c["season"],
+                    land_area_acres=c["land_area_acres"],
+                )
+                db.add(farmer)
+                db.flush()
+                user = UserAccount(
+                    username=c["username"],
+                    hashed_password=hash_password(f"{c['username']}@2026"),
+                    name=c["name"],
+                    role="farmer",
+                    phone=c["phone"],
+                    designation="Registered Cultivator",
+                    district=c["district"],
+                    state=c["state"],
+                    farmer_profile_id=farmer.id,
+                    is_active=True,
+                )
+                db.add(user)
+                db.flush()
+                farmer.user_id = user.id
+            db.commit()
+            print("[INIT] Seeded initial registered cultivators and linked user accounts.")
 
     except Exception as e:
         db.rollback()

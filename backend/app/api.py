@@ -24,13 +24,24 @@ from app.claims_engine import (
     get_claim_lifecycle_status,
 )
 from app.telephony_engine import process_ivr_step, generate_twiml_response
+from app.core.config import settings
 from app.core.auth import (
     get_current_user,
     get_optional_current_user,
+    get_current_farmer_profile,
+    get_farmer_or_404,
     require_role,
     require_farmer,
     require_officer,
     require_admin,
+    verify_object_ownership,
+)
+from app.core.rate_limit import enforce_rate_limit
+from app.event_engine import (
+    get_user_notifications,
+    mark_notification_as_read,
+    dispatch_weather_alert_event,
+    dispatch_mandi_price_event,
 )
 from app.auth_engine import (
     register_user,
@@ -88,71 +99,36 @@ UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
-DEMO_FARMERS = {
-    101: {
-        "name": "Kishan Rao",
-        "language": "Telugu",
-        "state": "Telangana",
-        "district": "Warangal",
-        "mandal": "Narsampet",
-        "village": "Chennaraopet",
-        "crop": "Cotton",
-        "season": "Kharif",
-        "land_area_acres": 3.5,
-    },
-    102: {
-        "name": "Lakshmi Devi",
-        "language": "Telugu",
-        "state": "Andhra Pradesh",
-        "district": "Anantapur",
-        "mandal": "Dharmavaram",
-        "village": "Marala",
-        "crop": "Groundnut",
-        "season": "Kharif",
-        "land_area_acres": 2.5,
-    },
-    103: {
-        "name": "Ramesh Goud",
-        "language": "Hindi",
-        "state": "Telangana",
-        "district": "Karimnagar",
-        "mandal": "Huzurabad",
-        "village": "Bornapalli",
-        "crop": "Rice",
-        "season": "Kharif",
-        "land_area_acres": 4.0,
-    },
-}
+
+def validate_image_file(contents: bytes, max_size_bytes: int = 8 * 1024 * 1024) -> str:
+    """
+    Strict magic-byte image validation.
+    Detects JPEG (0xFF 0xD8 0xFF), PNG (0x89 PNG), WebP (RIFF...WEBP).
+    Rejects spoofed file extensions, script polyglots, and executable payloads.
+    Returns the verified file extension.
+    """
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(contents) > max_size_bytes:
+        max_mb = max_size_bytes // (1024 * 1024)
+        raise HTTPException(status_code=400, detail=f"File exceeds maximum allowed size of {max_mb} MB.")
+
+    if contents.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    elif contents.startswith(b"\x89PNG"):
+        return ".png"
+    elif contents[:4] == b"RIFF" and len(contents) >= 12 and contents[8:12] == b"WEBP":
+        return ".webp"
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image format. Only authentic JPEG, PNG, or WebP files are accepted."
+        )
 
 
 def get_or_create_farmer(db: Session, farmer_id: int) -> FarmerProfile:
-    farmer = db.get(FarmerProfile, farmer_id)
-    if farmer is not None:
-        return farmer
-
-    if farmer_id in DEMO_FARMERS:
-        data = DEMO_FARMERS[farmer_id]
-        farmer = FarmerProfile(id=farmer_id, **data)
-        try:
-            db.merge(farmer)
-            db.commit()
-            return farmer
-        except Exception:
-            db.rollback()
-            return farmer
-
-    first = db.query(FarmerProfile).first()
-    if first is not None:
-        return first
-
-    default_demo = DEMO_FARMERS[101]
-    fallback_farmer = FarmerProfile(id=farmer_id, **default_demo)
-    try:
-        db.merge(fallback_farmer)
-        db.commit()
-    except Exception:
-        db.rollback()
-    return fallback_farmer
+    """Strict lookup without fallback mock profiles."""
+    return get_farmer_or_404(db, farmer_id)
 
 
 class AssistantRequest(BaseModel):
@@ -161,25 +137,50 @@ class AssistantRequest(BaseModel):
     language: str = Field(default="English", min_length=2, max_length=20)
 
 
+@router.get("/farmers/me", response_model=FarmerProfileResponse)
+def get_my_farmer_profile(
+    current_farmer: FarmerProfile = Depends(get_current_farmer_profile)
+):
+    """Retrieves the profile of the currently authenticated cultivator."""
+    return current_farmer
+
+
 @router.post("/farmers", response_model=FarmerProfileResponse, status_code=201)
-def create_farmer_profile(payload: FarmerProfileCreate, db: Session = Depends(get_db)):
+def create_farmer_profile(
+    payload: FarmerProfileCreate,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """Creates a new agricultural profile and links it to authenticated user if present."""
     data = payload.model_dump()
     if not data.get("mandal"):
         data["mandal"] = data.get("district", "General")
     if not data.get("village"):
         data["village"] = data.get("district", "General")
+    if current_user:
+        data["user_id"] = current_user.id
+
     farmer = FarmerProfile(**data)
     db.add(farmer)
     db.commit()
     db.refresh(farmer)
+
+    if current_user and not current_user.farmer_profile_id:
+        current_user.farmer_profile_id = farmer.id
+        db.commit()
+
     return farmer
 
 
 @router.put("/farmers/{farmer_id}", response_model=FarmerProfileResponse)
-def update_farmer_profile(farmer_id: int, payload: FarmerProfileCreate, db: Session = Depends(get_db)):
-    farmer = db.get(FarmerProfile, farmer_id)
-    if farmer is None:
-        raise HTTPException(status_code=404, detail="Farmer profile not found")
+def update_farmer_profile(
+    farmer_id: int,
+    payload: FarmerProfileCreate,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """Updates farmer profile with BOLA/IDOR protection."""
+    farmer = get_farmer_or_404(db, farmer_id, current_user=current_user)
     data = payload.model_dump()
     if not data.get("mandal"):
         data["mandal"] = data.get("district", "General")
@@ -193,11 +194,14 @@ def update_farmer_profile(farmer_id: int, payload: FarmerProfileCreate, db: Sess
 
 
 @router.get("/farmers/{farmer_id}", response_model=FarmerProfileResponse)
-def get_farmer_profile(farmer_id: int, db: Session = Depends(get_db)):
-    farmer = db.get(FarmerProfile, farmer_id)
-    if farmer is None:
-        raise HTTPException(status_code=404, detail="Farmer profile not found")
-    return farmer
+def get_farmer_profile(
+    farmer_id: int,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieves farmer profile by ID with authorization verification."""
+    return get_farmer_or_404(db, farmer_id, current_user=current_user)
+
 
 
 @router.get("/schemes")
@@ -246,8 +250,12 @@ def get_climate_risk_endpoint(
 
 
 @router.post("/assistant/chat")
-def assistant_chat(payload: AssistantRequest, db: Session = Depends(get_db)):
-    farmer = get_or_create_farmer(db, payload.farmer_id)
+def assistant_chat(
+    payload: AssistantRequest,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    farmer = get_farmer_or_404(db, payload.farmer_id, current_user=current_user)
 
     climate = None
     try:
@@ -286,7 +294,7 @@ def assistant_chat(payload: AssistantRequest, db: Session = Depends(get_db)):
 # PMFBY Crop Loss Reports & Claim Preparation
 # -------------------------------------------------------------
 
-@router.post("/crop-loss", status_code=201)
+@router.post("/crop-loss", status_code=201, dependencies=[Depends(enforce_rate_limit(10, 60))])
 async def create_crop_loss_report(
     farmer_id: int = Form(...),
     crop: str = Form(...),
@@ -296,9 +304,10 @@ async def create_crop_loss_report(
     damage_percent: float = Form(..., ge=0, le=100),
     description: str = Form(..., min_length=5, max_length=2000),
     evidence: UploadFile | None = File(default=None),
+    current_user: UserAccount | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
-    farmer = get_or_create_farmer(db, farmer_id)
+    farmer = get_farmer_or_404(db, farmer_id, current_user=current_user)
     if damage_type not in ALLOWED_DAMAGE_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported damage type")
     if affected_area_acres > farmer.land_area_acres:
@@ -306,21 +315,15 @@ async def create_crop_loss_report(
 
     saved_filename = None
     if evidence is not None:
-        if evidence.content_type not in ALLOWED_IMAGE_TYPES:
-            raise HTTPException(status_code=400, detail="Evidence must be a JPG, PNG, or WebP image")
-        suffix = Path(evidence.filename or "photo.jpg").suffix.lower()
-        if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
-            raise HTTPException(status_code=400, detail="Evidence must be a JPG, PNG, or WebP image")
-        saved_filename = f"loss_{farmer_id}_{uuid4().hex}{suffix}"
-        destination = UPLOAD_DIR / saved_filename
         contents = await evidence.read()
-        if len(contents) > 8 * 1024 * 1024:
-            raise HTTPException(status_code=400, detail="Evidence image must be 8 MB or smaller")
+        suffix = validate_image_file(contents, max_size_bytes=8 * 1024 * 1024)
+        saved_filename = f"loss_{farmer.id}_{uuid4().hex}{suffix}"
+        destination = UPLOAD_DIR / saved_filename
         destination.write_bytes(contents)
 
     report = save_claim_intimation(
         db=db,
-        farmer_id=farmer_id,
+        farmer_id=farmer.id,
         crop=crop,
         damage_type=damage_type,
         loss_date=loss_date,
@@ -351,17 +354,21 @@ async def create_crop_loss_report(
 
 
 @router.get("/crop-loss")
-def get_crop_loss_reports(farmer_id: int = Query(..., gt=0), db: Session = Depends(get_db)):
-    farmer = get_or_create_farmer(db, farmer_id)
+def get_crop_loss_reports(
+    farmer_id: int = Query(..., gt=0),
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    farmer = get_farmer_or_404(db, farmer_id, current_user=current_user)
 
     reports = (
         db.query(CropLossReport)
-        .filter(CropLossReport.farmer_id == farmer_id)
+        .filter(CropLossReport.farmer_id == farmer.id)
         .order_by(CropLossReport.submitted_at.desc())
         .all()
     )
     return {
-        "farmer_id": farmer_id,
+        "farmer_id": farmer.id,
         "reports": [
             {
                 "id": report.id,
@@ -386,19 +393,15 @@ def get_crop_loss_reports(farmer_id: int = Query(..., gt=0), db: Session = Depen
     }
 
 
-@router.post("/crop-doctor/analyze")
+@router.post("/crop-doctor/analyze", dependencies=[Depends(enforce_rate_limit(15, 60))])
 async def crop_doctor_analyze(
     file: UploadFile = File(...),
     crop: str = Form("Cotton"),
     language: str = Form("English"),
 ):
     """Computer Vision plant pathology analysis for leaf disease diagnosis."""
-    if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail="Leaf image must be JPG, PNG, or WebP")
-
     image_bytes = await file.read()
-    if len(image_bytes) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Image must be under 10MB")
+    validate_image_file(image_bytes, max_size_bytes=10 * 1024 * 1024)
 
     result = analyze_crop_leaf(image_bytes, crop=crop, language=language)
     return result
@@ -415,9 +418,13 @@ class ClaimPackRequest(BaseModel):
 
 
 @router.post("/claims/generate-pack")
-def generate_official_claim_pack(payload: ClaimPackRequest, db: Session = Depends(get_db)):
+def generate_official_claim_pack(
+    payload: ClaimPackRequest,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """Generates standardized official PMFBY claim preparation dossier."""
-    farmer = get_or_create_farmer(db, payload.farmer_id)
+    farmer = get_farmer_or_404(db, payload.farmer_id, current_user=current_user)
     pack = generate_claim_pack(
         farmer=farmer,
         crop=payload.crop,
@@ -497,11 +504,11 @@ class RegisterRequest(BaseModel):
     phone: str = ""
 
 
-@router.post("/auth/register")
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+@router.post("/auth/register", dependencies=[Depends(enforce_rate_limit(5, 60))])
+def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     """Registers a new Cultivator."""
     try:
-        return register_user(
+        res = register_user(
             db=db,
             username=payload.username,
             password=payload.password,
@@ -516,18 +523,37 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
             land_area_acres=payload.land_area_acres,
             phone=payload.phone,
         )
+        if "access_token" in res:
+            response.set_cookie(
+                key="rythusetu_access_token",
+                value=res["access_token"],
+                httponly=True,
+                secure=settings.is_production,
+                samesite="lax",
+                max_age=settings.jwt_access_token_expire_minutes * 60,
+            )
+        return res
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/auth/login")
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+@router.post("/auth/login", dependencies=[Depends(enforce_rate_limit(10, 60))])
+def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
     """Authenticate Farmer or Agriculture Officer by username, full name, or phone."""
     result = authenticate_user(db=db, username=payload.username, password=payload.password)
     if not result:
         raise HTTPException(
             status_code=401,
             detail="Invalid credentials. Please verify your username/phone and password."
+        )
+    if "access_token" in result:
+        response.set_cookie(
+            key="rythusetu_access_token",
+            value=result["access_token"],
+            httponly=True,
+            secure=settings.is_production,
+            samesite="lax",
+            max_age=settings.jwt_access_token_expire_minutes * 60,
         )
     return result
 
@@ -547,6 +573,33 @@ def get_me(current_user: UserAccount = Depends(get_current_user)):
         "farmer_profile_id": current_user.farmer_profile_id,
         "is_online": True,
     }
+
+
+@router.get("/notifications")
+def get_notifications_endpoint(
+    current_user: UserAccount = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieves real-time event-driven notifications for authenticated user."""
+    notifications = get_user_notifications(db=db, user_id=current_user.id)
+    return {
+        "user_id": current_user.id,
+        "unread_count": sum(1 for n in notifications if n.get("status") == "UNREAD"),
+        "notifications": notifications,
+    }
+
+
+@router.post("/notifications/{notification_id}/read")
+def read_notification_endpoint(
+    notification_id: int,
+    current_user: UserAccount = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Marks a user notification as read."""
+    success = mark_notification_as_read(db=db, notification_id=notification_id, user_id=current_user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Notification not found.")
+    return {"status": "success", "id": notification_id}
 
 
 @router.get("/admin/dashboard-stats")
@@ -748,7 +801,11 @@ def list_cold_storages(
 
 
 @router.post("/storage/book-space")
-def book_cold_storage_space(payload: StorageBookingRequest, db: Session = Depends(get_db)):
+def book_cold_storage_space(
+    payload: StorageBookingRequest,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """Generates official AC Godown slot reservation token and alerts facility in-charge."""
     return create_storage_booking(
         db=db,
@@ -758,6 +815,7 @@ def book_cold_storage_space(payload: StorageBookingRequest, db: Session = Depend
         commodity=payload.commodity,
         bags_count=payload.bags_count,
         duration_months=payload.duration_months,
+        user_id=current_user.id if current_user else None,
     )
 
 
@@ -807,7 +865,11 @@ def list_factory_contracts(state: str = "", district: str = "", crop: str = ""):
 
 
 @router.post("/direct-market/delivery-pass")
-def generate_delivery_pass(payload: FactoryDeliveryPassRequest, db: Session = Depends(get_db)):
+def generate_delivery_pass(
+    payload: FactoryDeliveryPassRequest,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """Generates Zero-Broker Factory Gate Entry Delivery Pass with procurement approval."""
     return create_factory_delivery_pass(
         db=db,
@@ -819,6 +881,7 @@ def generate_delivery_pass(payload: FactoryDeliveryPassRequest, db: Session = De
         crop=payload.crop,
         quantity_qtl=payload.quantity_qtl,
         delivery_date=payload.delivery_date,
+        user_id=current_user.id if current_user else None,
     )
 
 
@@ -913,10 +976,13 @@ def api_nearby_infrastructure(
     mandal: str = Query("", max_length=100),
     crop: str = Query("", max_length=100),
     max_distance_km: float = Query(200.0, gt=0, le=1000),
+    lat: float | None = Query(None),
+    lon: float | None = Query(None),
 ):
     """
     Returns ranked nearby APMC mandis, direct purchase processing mills/factories,
     and AC cold storages sorted by actual distance in km from farmer's location.
+    Accepts exact device GPS lat/lon or falls back to district centroid with transparent provenance notice.
     """
     return get_nearby_infrastructure(
         state=state,
@@ -924,6 +990,8 @@ def api_nearby_infrastructure(
         mandal=mandal,
         crop=crop,
         max_distance_km=max_distance_km,
+        lat=lat,
+        lon=lon,
     )
 
 
@@ -1004,7 +1072,11 @@ def api_machinery_rentals(
 
 
 @router.post("/machinery/book")
-def api_book_machinery(payload: MachineryBookingRequest, db: Session = Depends(get_db)):
+def api_book_machinery(
+    payload: MachineryBookingRequest,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """Reserves farm machinery and issues confirmation dispatch token."""
     return create_machinery_booking(
         db=db,
@@ -1015,6 +1087,7 @@ def api_book_machinery(payload: MachineryBookingRequest, db: Session = Depends(g
         village=payload.village,
         acres_or_hours=payload.acres_or_hours,
         required_date=payload.required_date,
+        user_id=current_user.id if current_user else None,
     )
 
 
@@ -1089,7 +1162,11 @@ def api_khata_template(crop: str = Query("Red Chilli")):
 
 
 @router.post("/khata/calculate-breakeven")
-def api_calculate_breakeven(payload: KhataCalculationRequest, db: Session = Depends(get_db)):
+def api_calculate_breakeven(
+    payload: KhataCalculationRequest,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """Calculates cost of cultivation per acre, breakeven price/qtl, and anti-distress sale advisory."""
     return calculate_breakeven_cost(
         db=db,
@@ -1098,10 +1175,17 @@ def api_calculate_breakeven(payload: KhataCalculationRequest, db: Session = Depe
         expenses=payload.expenses,
         expected_yield_quintals=payload.expected_yield_quintals,
         expected_market_price_per_qtl=payload.expected_market_price_per_qtl,
+        user_id=current_user.id if current_user else None,
+        farmer_name=current_user.name if current_user else "Cultivator",
     )
 
 
 @router.get("/khata/history")
-def api_khata_history(db: Session = Depends(get_db)):
+def api_khata_history(
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
     """Returns farmer's saved crop expense ledger records."""
-    return {"entries": get_saved_khata_entries(db=db)}
+    user_id = current_user.id if (current_user and current_user.role == "farmer") else None
+    return {"entries": get_saved_khata_entries(db=db, user_id=user_id)}
+

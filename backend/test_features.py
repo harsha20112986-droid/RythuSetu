@@ -278,3 +278,212 @@ def test_storage_and_direct_market_persistence(client):
     assert pass_num in all_passes
 
 
+def test_deep_readiness_probe(client):
+    """Verifies that orchestrator readiness probe executes deep database, storage, and security checks."""
+    res = client.get("/readiness")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ready"
+    assert "database" in data["checks"]
+    assert data["checks"]["database"]["status"] == "ok"
+    assert "storage" in data["checks"]
+    assert data["checks"]["storage"]["status"] == "ok"
+    assert "security" in data["checks"]
+    assert data["checks"]["security"]["status"] == "ok"
+
+
+def test_zero_fallback_404_for_unknown_farmer(client):
+    """Verifies strict 404 behavior with zero mock fallbacks when an unknown farmer ID is queried."""
+    unknown_id = 99998888
+    # 1. Farmers endpoint must return 404, never fallback to first DB record
+    res_profile = client.get(f"/api/v1/farmers/{unknown_id}")
+    assert res_profile.status_code == 404
+    assert f"#{unknown_id}" in res_profile.json()["detail"] or "not exist" in res_profile.json()["detail"]
+
+    # 2. Crop loss endpoint must return 404 for non-existent farmer
+    res_loss = client.get(f"/api/v1/crop-loss?farmer_id={unknown_id}")
+    assert res_loss.status_code == 404
+
+
+def test_bola_idor_authorization_enforcement(client):
+    """Verifies Broken Object Level Authorization (BOLA/IDOR) protection between distinct cultivators."""
+    import time
+    ts = int(time.time() * 1000)
+
+    # 1. Register Cultivator A
+    reg_a = client.post("/api/v1/auth/register", json={
+        "name": "Cultivator Alpha",
+        "username": f"farmer_a_{ts}",
+        "password": "Password123!",
+        "state": "Telangana",
+        "district": "Warangal",
+        "crop": "Cotton",
+        "land_area_acres": 3.0,
+    })
+    assert reg_a.status_code == 200
+    token_a = reg_a.json()["access_token"]
+    farmer_a_id = reg_a.json()["user"]["farmer_profile_id"]
+
+    # 2. Register Cultivator B
+    reg_b = client.post("/api/v1/auth/register", json={
+        "name": "Cultivator Beta",
+        "username": f"farmer_b_{ts}",
+        "password": "Password123!",
+        "state": "Andhra Pradesh",
+        "district": "Guntur",
+        "crop": "Red Chilli",
+        "land_area_acres": 4.0,
+    })
+    assert reg_b.status_code == 200
+    token_b = reg_b.json()["access_token"]
+    farmer_b_id = reg_b.json()["user"]["farmer_profile_id"]
+
+    # 3. Cultivator A querying own profile via /farmers/me succeeds
+    me_res = client.get("/api/v1/farmers/me", headers={"Authorization": f"Bearer {token_a}"})
+    assert me_res.status_code == 200
+    assert me_res.json()["id"] == farmer_a_id
+
+    # 4. Cultivator A attempting to query Cultivator B's claims is blocked (403 Forbidden)
+    idor_query = client.get(
+        f"/api/v1/crop-loss?farmer_id={farmer_b_id}",
+        headers={"Authorization": f"Bearer {token_a}"}
+    )
+    assert idor_query.status_code == 403
+    assert "Forbidden" in idor_query.json()["detail"]
+
+    # 5. Cultivator A attempting to tamper with Cultivator B's profile is blocked (403 Forbidden)
+    idor_update = client.put(
+        f"/api/v1/farmers/{farmer_b_id}",
+        json={
+            "name": "Tampered Name",
+            "state": "Telangana",
+            "district": "Warangal",
+            "crop": "Cotton",
+            "season": "Kharif",
+            "land_area_acres": 10.0,
+        },
+        headers={"Authorization": f"Bearer {token_a}"}
+    )
+    assert idor_update.status_code == 403
+
+
+def test_magic_bytes_image_validation(client):
+    """Verifies that image endpoints reject MIME-spoofed files and enforce authentic magic byte headers."""
+    # 1. Spoofed JPEG (text disguised as jpg) must be rejected with 400
+    fake_jpeg_content = b"<html><script>alert('xss')</script></html>"
+    files = {"file": ("malicious.jpg", fake_jpeg_content, "image/jpeg")}
+    res_fake = client.post("/api/v1/crop-doctor/analyze", files=files, data={"crop": "Cotton"})
+    assert res_fake.status_code == 400
+    assert "Invalid image format" in res_fake.json()["detail"]
+
+    # 2. Genuine PNG magic byte header is accepted
+    genuine_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+    files_ok = {"file": ("valid.png", genuine_png, "image/png")}
+    res_ok = client.post("/api/v1/crop-doctor/analyze", files=files_ok, data={"crop": "Cotton"})
+    # Result must succeed in validation (200 status from crop-doctor)
+    assert res_ok.status_code == 200
+
+
+def test_rate_limiter_blocking(client):
+    """Verifies that rapid requests trigger HTTP 429 Too Many Requests with Retry-After header."""
+    from app.core.rate_limit import reset_rate_limiter
+    reset_rate_limiter()
+
+    # The rate limit on /auth/login is 10 requests per minute
+    hit_429 = False
+    for _ in range(12):
+        res = client.post("/api/v1/auth/login", json={"username": "nonexistent", "password": "wrongpassword"})
+        if res.status_code == 429:
+            hit_429 = True
+            assert "Retry-After" in res.headers
+            assert "Rate limit exceeded" in res.json()["detail"]
+            break
+
+    assert hit_429 is True
+    # Reset limiter after test
+    reset_rate_limiter()
+
+
+def test_event_driven_notification_engine(client):
+    """Verifies dispatching and retrieval of persistent user notifications."""
+    import time
+    from app.db import SessionLocal
+    from app.event_engine import dispatch_weather_alert_event, dispatch_mandi_price_event
+
+    ts = int(time.time() * 1000)
+    # Register test cultivator
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Notification Farmer",
+        "username": f"farmer_notif_{ts}",
+        "password": "Password123!",
+        "state": "Telangana",
+        "district": "Warangal",
+        "crop": "Cotton",
+        "land_area_acres": 2.5,
+    })
+    assert reg.status_code == 200
+    token = reg.json()["access_token"]
+    user_id = reg.json()["user"]["id"]
+
+    db = SessionLocal()
+    try:
+        # Dispatch weather and mandi events
+        dispatch_weather_alert_event(
+            db=db,
+            user_id=user_id,
+            district="Warangal",
+            crop="Cotton",
+            hazard_title="Imminent Heavy Rain Warning",
+            advisory="Cover harvested cotton immediately to avoid grade downgrading.",
+            severity="CRITICAL",
+        )
+        dispatch_mandi_price_event(
+            db=db,
+            user_id=user_id,
+            crop="Cotton",
+            variety="Medium Staple",
+            market="Warangal Enumamula",
+            modal_price=7850.0,
+            msp_spread=329.0,
+        )
+    finally:
+        db.close()
+
+    # Fetch notifications
+    notif_res = client.get("/api/v1/notifications", headers={"Authorization": f"Bearer {token}"})
+    assert notif_res.status_code == 200
+    data = notif_res.json()
+    assert data["unread_count"] >= 2
+    assert len(data["notifications"]) >= 2
+
+    # Mark first notification as read
+    first_id = data["notifications"][0]["id"]
+    read_res = client.post(f"/api/v1/notifications/{first_id}/read", headers={"Authorization": f"Bearer {token}"})
+    assert read_res.status_code == 200
+    assert read_res.json()["status"] == "success"
+
+
+def test_nearby_hub_gps_grounding_and_provenance(client):
+    """Verifies honest GPS coordinates vs district centroid labeling and facility verification metadata."""
+    # 1. Device GPS provided
+    res_gps = client.get("/api/v1/nearby/hub?state=Telangana&district=Warangal&lat=17.9850&lon=79.6250")
+    assert res_gps.status_code == 200
+    loc_gps = res_gps.json()["farmer_location"]
+    assert loc_gps["is_exact_gps"] is True
+    assert loc_gps["location_basis"] == "EXACT_DEVICE_GPS"
+
+    # 2. No GPS provided (centroid fallback with honest disclosure)
+    res_centroid = client.get("/api/v1/nearby/hub?state=Telangana&district=Warangal")
+    assert res_centroid.status_code == 200
+    loc_centroid = res_centroid.json()["farmer_location"]
+    assert loc_centroid["is_exact_gps"] is False
+    assert loc_centroid["location_basis"] == "DISTRICT_ADMINISTRATIVE_CENTROID"
+
+    # 3. Verify facility verification audit trail
+    mandis = res_gps.json()["nearby_mandis"]
+    assert len(mandis) > 0
+    assert "verification" in mandis[0]
+    assert mandis[0]["verification"]["verification_status"] == "OFFICIALLY_VERIFIED"
+
+
+

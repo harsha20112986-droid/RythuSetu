@@ -317,3 +317,19 @@ class AuditLog(Base):
     details_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(60), nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class Notification(Base):
+    """Event-driven farmer alerts and notifications."""
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("user_accounts.id"), index=True)
+    category: Mapped[str] = mapped_column(String(40), index=True)  # weather, market, claim, advisory, pest
+    title: Mapped[str] = mapped_column(String(200))
+    message: Mapped[str] = mapped_column(Text)
+    severity: Mapped[str] = mapped_column(String(40), default="info")  # info, warning, urgent, critical
+    action_link: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="UNREAD", index=True)  # UNREAD, READ, DISMISSED
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
