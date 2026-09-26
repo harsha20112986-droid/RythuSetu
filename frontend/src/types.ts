@@ -603,6 +603,12 @@ export type MandiProvenance = {
   record_count?: number;
   trust_label?: string;
   disclaimer?: string;
+  // Pipeline freshness fields (from get_mandi_prices_pipeline)
+  freshness?: "LATEST" | "RECENT" | "DELAYED" | "STALE" | string;
+  data_source_status?: "OFFICIAL_LATEST" | "OFFICIAL_LATEST_AVAILABLE" | "SOURCE_DELAYED" | "REFERENCE_ONLY" | "SOURCE_ERROR" | string;
+  tier?: "DAILY_DB" | "VERIFIED_RECORDS" | "CURATED_REFERENCE" | string;
+  age_days?: number;
+  latest_record_date?: string;
 };
 
 export type MandiData = {
