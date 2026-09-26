@@ -27,6 +27,7 @@ export type Page =
   | "harvest-shield"
   | "seed-verify"
   | "khata"
+  | "action-center"
   | "privacy"
   | "terms";
 
@@ -40,6 +41,7 @@ export type FormState = {
   crop: string;
   season: string;
   land_area_acres: string;
+  khata_survey_no?: string;
 };
 
 export type Farmer = {
@@ -50,16 +52,26 @@ export type Farmer = {
 export type Scheme = {
   id: string;
   name: string;
+  scheme_name?: string;
+  government_department?: string;
   category: string;
   scope: string;
+  state?: string;
   icon: string;
   summary: string;
   benefit: string;
   eligibility_note: string;
+  eligibility_rules?: string;
+  crop_occupation_criteria?: string;
+  application_channel?: string;
+  required_documents?: string[];
   official_url: string;
+  helpline?: string;
   last_verified: string;
+  last_verified_date?: string;
   match_label: string;
   reasons: string[];
+  eligibility_guidance_disclaimer?: string;
 };
 
 export type BenefitItem = {
@@ -82,16 +94,28 @@ export type BenefitData = {
 
 export type LossReport = {
   id: number;
+  reference_number?: string;
   crop: string;
   damage_type: string;
   loss_date: string;
   affected_area_acres: number;
   damage_percent: number;
   description: string;
+  survey_number?: string;
+  mandal?: string;
+  village?: string;
   evidence_filename: string | null;
   status: string;
+  farmer_self_status?: string;
+  official_reference_number?: string;
+  submission_date?: string;
+  follow_up_date?: string;
+  farmer_notes?: string;
+  verifier_notes?: string;
+  officer_notes?: string;
   submitted_at: string;
   next_step: string;
+  is_within_window?: boolean;
 };
 
 export type HourlyForecastItem = {
@@ -468,7 +492,37 @@ export type ClaimPacket = {
 };
 
 
-export type UserRole = "farmer" | "admin";
+export type UserRole = "farmer" | "data_verifier" | "support_agent" | "admin" | "super_admin";
+
+export type ActionCenterItem = {
+  action_id: string;
+  action_key?: string;
+  category: "CROP_INSURANCE" | "SCHEME" | "GRIEVANCE" | "DIRECT_MARKET" | "crop_loss" | "scheme" | "advisory" | "procurement" | string;
+  action_type?: "GOVERNMENT_PORTAL" | "HELPLINE" | "DIRECT_PROCUREMENT" | "SERVICE_BOOKING" | "BENEFIT_APPLICATION" | string;
+  title: string;
+  description: string;
+  official_organization: string;
+  official_url: string;
+  official_portal_url?: string;
+  helpline: string | null;
+  deadline: string | null;
+  required_documents?: string[];
+  preparation_checklist?: any[];
+  rythusetu_generated_info?: Record<string, any>;
+  verification_warning?: string;
+  disclaimer?: string;
+  user_action_label?: string;
+  official_reference_number?: string | null;
+  application_reference_number?: string | null;
+  farmer_self_status?: string;
+  self_tracked_status?: string;
+  submission_date?: string | null;
+  follow_up_date?: string | null;
+  notes?: string | null;
+  last_verified_date?: string;
+  source?: string;
+  freshness_status?: string;
+};
 
 export type AuthUser = {
   username: string;

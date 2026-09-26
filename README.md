@@ -1,5 +1,5 @@
 # RythuSetu 🌾
-> **Production-Grade Agricultural Intelligence, PMFBY Preparation & Farm-to-Market Platform**
+> **Farmer Support Platform with Government-Data Integrations, Agricultural Intelligence Tools, Marketplace Workflows & Auditable Claim-Preparation Assistance**
 
 [![Production CI](https://github.com/harsha20112986-droid/RythuSetu/actions/workflows/ci.yml/badge.svg)](https://github.com/harsha20112986-droid/RythuSetu/actions)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -10,7 +10,7 @@
 [![Security: BCrypt & JWT](https://img.shields.io/badge/Security-BCrypt%20%7C%20JWT%20RBAC-success)](https://jwt.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**RythuSetu** is an enterprise-grade, multilingual agricultural intelligence and governance platform designed for Indian smallholder cultivators, tenant farmers, and agriculture extension officers. Built with deterministic agronomic rules, real database persistence, cryptographic authentication, and transparent data provenance, RythuSetu bridges fragmented agricultural systems across meteorological radar, computer vision plant pathology, e-NAM market arrivals, WDRA-certified cold storage, Custom Hiring Machinery Centers, and statutory 72-hour PMFBY crop loss preparation.
+**RythuSetu** is an advanced, multilingual agricultural intelligence and governance platform designed for Indian smallholder cultivators, tenant farmers, and agricultural operations teams. Built with deterministic agronomic rules, relational database persistence, cryptographic authentication, and transparent data provenance, RythuSetu bridges fragmented agricultural systems across Open-Meteo meteorological radar, plant disease symptom pattern matching, official Data.gov.in / Agmarknet APMC market arrivals, regional cold storage directories, Custom Hiring Machinery rental workflows, and statutory 72-hour PMFBY crop loss claim-preparation assistance.
 
 ---
 
@@ -18,9 +18,9 @@
 
 RythuSetu adheres to a **deterministic rules-first, server-authoritative, auditable** architecture:
 * **Server Authority**: Zero client-side authority for logins, roles, or claims. All authentication uses bcrypt (12 rounds) salted password hashing and cryptographic JSON Web Tokens (JWT).
-* **Role-Based Access Control (RBAC)**: Distinct permissions for `farmer`, `officer`, and `admin` roles, with endpoint-level dependency enforcement and BOLA/IDOR protection.
+* **Role-Based Access Control (RBAC)**: Distinct permissions for `farmer`, `data_verifier`, `support_agent`, `admin`, and `super_admin` roles, with endpoint-level dependency enforcement and BOLA/IDOR protection.
 * **Persistent Relational Core**: Fully normalized relational schema with connection pooling, supporting PostgreSQL in production and SQLite in local development.
-* **Immutable Audit Trail**: Every PMFBY status transition is recorded in `ClaimEvent` audit logs, while security-relevant actions are tracked in `AuditLog`.
+* **Immutable Audit Trail**: Every status transition is recorded in `ClaimEvent` audit logs, while security-relevant actions are tracked in `AuditLog`.
 * **Transparent Data Provenance**: Every price, seed lot, and godown listing carries explicit trust and freshness labels (`VERIFIED`, `CURATED`, `ESTIMATED`, `OFFLINE`).
 
 ```text
@@ -34,21 +34,22 @@ RythuSetu adheres to a **deterministic rules-first, server-authoritative, audita
                ┌────────────────────────────────────────────────────────┐
                │                 FastAPI Security Core                  │
                │   • Native BCrypt (12 rounds) Salted Hashing           │
-               │   • Server-Side RBAC (Farmer / Officer / Admin)        │
+               │   • Server-Side RBAC (Farmer / Verifier / Admin)       │
                │   • Security Headers (nosniff, DENY, XSS-block)        │
                │   • BOLA / IDOR Authorization Ownership Checks         │
                └───────────────────────────┬────────────────────────────┘
                                            │
                      ┌─────────────────────┴─────────────────────┐
                      ▼                                           ▼
-        🌾 Cultivator Services                      🏛️ Officer Command Center
-      • Hyperlocal Weather Radar                  • PMFBY Claim Review & Inspection
+        🌾 Cultivator Services                      🏢 Operations Console
+      • Hyperlocal Weather Radar                  • Dossier Completeness Review
       • Vision AI Leaf Pathology                  • Evidence Photo Verification
-      • e-NAM APMC Benchmark Rates                • Direct Benefit Transfer (DBT) Audit
-      • Soil Health & NPK Dosage                  • Emergency Broadcast Alerts
+      • e-NAM APMC Benchmark Rates                • Scale of Finance Valuation Check
+      • Soil Health & NPK Dosage                  • Emergency Broadcast Advisories
       • PMFBY 72-hr Claim Dossier                 • Registered Cultivator Directory
-      • WDRA Cold Godown Booking                  • Cold Storage Slot Oversight
-      • Factory Direct Gate Passes                • Factory Delivery Authorizations
+      • Official Action Center (14447)            • Cold Storage Slot Oversight
+      • WDRA Cold Godown Booking                  • Factory Delivery Authorizations
+      • Factory Direct Gate Passes                • Upstream Mandi Ingestion Telemetry
       • Farm Machinery CHC Rentals                • Immutable System Audit Log
                      │                                           │
                      └─────────────────────┬─────────────────────┘
@@ -61,7 +62,7 @@ RythuSetu adheres to a **deterministic rules-first, server-authoritative, audita
                │   • machinery_listings     • machinery_bookings        │
                │   • direct_market_orders   • agri_khata_entries        │
                │   • seed_grievances        • broadcast_alerts          │
-               │   • audit_logs                                         │
+               │   • official_action_records• audit_logs                │
                └────────────────────────────────────────────────────────┘
 ```
 
@@ -71,15 +72,20 @@ RythuSetu adheres to a **deterministic rules-first, server-authoritative, audita
 
 ### 🌾 1. Cultivator & Smallholder Capabilities
 
-* **📋 PMFBY 72-Hour Claim Preparation Assistance (`claims_engine.py`)**:
+* **📋 PMFBY 72-Hour Claim Preparation Assistant (`claims_engine.py`)**:
   * Calculates statutory 72-hour window compliance (`is_within_window`, remaining hours) from loss incident date.
-  * Formats official claim dossiers with sequential tracking IDs (`RYTHU-CLAIM-2026-XXXX`).
+  * Formats standard preparation dossiers with sequential tracking IDs (`RYTHU-CLAIM-2026-XXXX`).
   * Generates printable facilitation packets adhering to Ministry of Agriculture SLBC benchmarks.
-  * Transparently declares facilitation role without promising automated government treasury payouts.
+  * Directs cultivators to official filing channels: `pmfby.gov.in` and Kisan Helpline `14447`.
+  * Enables cultivators to store their self-entered official claim reference numbers and track status truthfully.
+
+* **🏛️ Official Action Center (`action_center_engine.py`)**:
+  * Centralizes statutory deadlines, official government portals, helplines, and preparation checklists.
+  * Transparently declares that RythuSetu is an independent preparatory tool and not a government body.
 
 * **📈 Live Mandi & APMC Price Intelligence (`mandi_engine.py`)**:
   * Real market arrivals, modal rates, and MSP comparison across major APMC yards (Guntur Mirchi Yard, Warangal Enamamula, Nizamabad, Anantapur, Khammam).
-  * Labeled with explicit data provenance (`e-NAM APMC Benchmark Reference & CACP MSP 2025-26`, trust label: `CURATED`).
+  * Labeled with explicit data provenance (`e-NAM APMC Benchmark Reference & CACP MSP 2025-26`, trust label: `CURATED` / `VERIFIER_ENTERED`).
   * Crop-specific variety tracking (e.g. Teja, 334/Sannam, Byadagi, Naatu for Red Chilli).
 
 * **🏭 Zero-Broker Farm-to-Factory Direct Linkages (`direct_market_engine.py`)**:
@@ -94,23 +100,23 @@ RythuSetu adheres to a **deterministic rules-first, server-authoritative, audita
   * Verified tractor, agricultural spray drone, laser land leveler, and multi-crop thresher listings with instant booking tokens (`RS-MCH-XXXX`).
 
 * **🌱 Anti-Spurious Seed & Lot Verifier (`seed_verifier_engine.py`)**:
-  * Verifies seed batch lots against state certification standards and files persistent grievances (`SEED-GRV-XXXX`) directly to Mandal Agriculture Officers.
+  * Verifies seed batch lots against state certification standards and generates standardized grievance dossiers for submission to District Agriculture Directorates or National Consumer Helpline (`1915`).
 
 * **💰 Digital Agri Khata Ledger (`khata_engine.py`)**:
   * Cost-of-cultivation templates, breakeven price calculation, and distress-sale prevention warnings backed by persistent ledger tables.
 
 ---
 
-### 🏛️ 2. Agriculture Officer & Administrative Portal
+### 🏢 2. Operations & Data Verification Console
 
-* **📊 District Command Center (`AdminPortal.tsx`)**:
-  * Authenticated dashboard protected by server-enforced `admin`/`officer` JWT credentials.
-  * Aggregated smallholder count, pending physical inspections, and relief estimates.
-* **🛡️ PMFBY Claim Lifecycle Tracking & Audit**:
-  * Multi-stage review: `Intimation Registered` ➔ `Field Inspected` ➔ `DLMC Approved` ➔ `DBT Disbursed`.
+* **📊 Operations Dashboard (`AdminPortal.tsx`)**:
+  * Authenticated dashboard protected by server-enforced internal staff JWT credentials (`data_verifier`, `admin`).
+  * Aggregated smallholder count, pending dossier completeness reviews, and relief estimates.
+* **🛡️ Crop Loss Dossier Quality Review**:
+  * Multi-stage verification: `Intimation Registered` ➔ `Completeness Verified` ➔ `Preparation Ready` ➔ `Forwarded to Official Portal`.
   * Creates permanent, auditable `ClaimEvent` records for every state change.
 * **🚨 Emergency Weather & Pest Epidemic Broadcaster**:
-  * Dispatches emergency broadcasts across districts directly into cultivator dashboards.
+  * Dispatches verified departmental advisories across districts directly into cultivator dashboards.
 
 ---
 
@@ -120,8 +126,8 @@ RythuSetu adheres to a **deterministic rules-first, server-authoritative, audita
 | :--- | :--- |
 | **Password Storage** | Native `bcrypt` with 12 rounds of salt. Zero plaintext passwords. |
 | **Token Authentication** | Cryptographically signed JSON Web Tokens (`HS256`) with 24-hour expiration. |
-| **Access Control (RBAC)**| Server-side dependencies (`require_admin`, `require_officer`, `require_farmer`). |
-| **Privilege Escalation**| Public registration strictly enforces `role="farmer"`. Administrative roles require manual provisioning. |
+| **Access Control (RBAC)**| Server-side dependencies (`require_admin`, `require_verifier`, `require_internal`, `require_farmer`). |
+| **Privilege Escalation**| Public registration strictly enforces `role="farmer"`. Administrative and verifier roles require manual provisioning. |
 | **HTTP Security Headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block`. |
 | **CORS Protection** | Strict whitelist configured via `ALLOWED_ORIGINS` environment variable. |
 | **Audit Trails** | All logins, failures, claim updates, and status transitions recorded in `audit_logs` table. |

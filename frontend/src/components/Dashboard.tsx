@@ -48,6 +48,7 @@ export function Dashboard({
   onHarvestShield,
   onSeedVerify,
   onKhata,
+  onActionCenter,
 }: {
   farmer: Farmer;
   onEdit: () => void;
@@ -67,6 +68,7 @@ export function Dashboard({
   onHarvestShield?: () => void;
   onSeedVerify?: () => void;
   onKhata?: () => void;
+  onActionCenter?: () => void;
 }) {
   const [climate, setClimate] = useState<ClimateData | null>(null);
   const [alerts, setAlerts] = useState<BroadcastAlert[]>([]);
@@ -550,9 +552,9 @@ export function Dashboard({
             <div className="grid size-12 place-items-center rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700">
               <Landmark className="size-6" />
             </div>
-            <h3 className="mt-4 text-lg font-black text-slate-900">Government Schemes</h3>
+            <h3 className="mt-4 text-lg font-black text-slate-900">Scheme Navigator</h3>
             <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
-              Explore matched Central and State schemes for {farmer.form.state} including PM-KISAN, Rythu Bharosa, and PMFBY.
+              Match potential Central &amp; State schemes for {farmer.form.state}, check eligibility criteria, and apply via official portals.
             </p>
           </div>
           <div className="mt-6 pt-4 border-t border-slate-100">
@@ -560,7 +562,7 @@ export function Dashboard({
               onClick={onSchemes}
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 text-xs font-bold transition cursor-pointer"
             >
-              <span>Browse Matched Schemes</span>
+              <span>Explore Schemes</span>
               <ArrowRight className="size-3.5" />
             </button>
           </div>
@@ -588,15 +590,15 @@ export function Dashboard({
           </div>
         </div>
 
-        {/* Card 3: Crop Loss */}
+        {/* Card 3: Crop Loss Assistant */}
         <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
           <div>
             <div className="grid size-12 place-items-center rounded-2xl bg-rose-50 border border-rose-200 text-rose-700">
               <ShieldAlert className="size-6" />
             </div>
-            <h3 className="mt-4 text-lg font-black text-slate-900">Crop Loss Desk</h3>
+            <h3 className="mt-4 text-lg font-black text-slate-900">Crop Loss Assistant</h3>
             <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
-              Report weather or pest damage within the 72-hour PMFBY insurance intimation window and attach photos.
+              Prepare statutory 72-hour PMFBY intimation dossiers, check completeness, and route to official helplines (14447).
             </p>
           </div>
           <div className="mt-6 pt-4 border-t border-slate-100">
@@ -604,11 +606,35 @@ export function Dashboard({
               onClick={onLoss}
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white py-2.5 text-xs font-bold transition cursor-pointer"
             >
-              <span>Report Damage</span>
+              <span>Prepare Loss Pack</span>
               <ArrowRight className="size-3.5" />
             </button>
           </div>
         </div>
+
+        {/* Card: Official Action Center */}
+        {onActionCenter && (
+          <div className="rounded-3xl border border-indigo-200/90 bg-indigo-50/40 p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+            <div>
+              <div className="grid size-12 place-items-center rounded-2xl bg-indigo-100 border border-indigo-200 text-indigo-700">
+                <ShieldCheck className="size-6" />
+              </div>
+              <h3 className="mt-4 text-lg font-black text-slate-900">Official Action Center</h3>
+              <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                Track statutory deadlines, official portals (PMFBY, PM-KISAN), and manage self-recorded claim reference numbers.
+              </p>
+            </div>
+            <div className="mt-6 pt-4 border-t border-indigo-100">
+              <button
+                onClick={onActionCenter}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white py-2.5 text-xs font-bold transition cursor-pointer"
+              >
+                <span>Open Action Center</span>
+                <ArrowRight className="size-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
         {/* Card 4: AI Crop Doctor */}
         <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
           <div>

@@ -18,7 +18,9 @@ def hash_password(password: str) -> str:
     """Hashes a password with native bcrypt using 12 salt rounds."""
     if not password:
         raise ValueError("Password cannot be empty")
-    pw_bytes = password.encode("utf-8")[:72]
+    pw_bytes = password.encode("utf-8")
+    if len(pw_bytes) > 72:
+        raise ValueError("Password cannot exceed 72 bytes (bcrypt cryptographic limit).")
     salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
     hashed = bcrypt.hashpw(pw_bytes, salt)
     return hashed.decode("utf-8")
@@ -36,7 +38,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     if not hashed_password.startswith(("$2a$", "$2b$", "$2y$")):
         return False
 
-    pw_bytes = plain_password.encode("utf-8")[:72]
+    pw_bytes = plain_password.encode("utf-8")
+    if len(pw_bytes) > 72:
+        return False
     try:
         return bcrypt.checkpw(pw_bytes, hashed_password.encode("utf-8"))
     except Exception:

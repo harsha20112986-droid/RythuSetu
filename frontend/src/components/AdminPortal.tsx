@@ -77,7 +77,7 @@ export function AdminPortal({
 
   // User Accounts Filter state
   const [userSearch, setUserSearch] = useState("");
-  const [userRoleFilter, setUserRoleFilter] = useState<"all" | "farmer" | "admin">("all");
+  const [userRoleFilter, setUserRoleFilter] = useState<string>("all");
   const [userStatusFilter, setUserStatusFilter] = useState<"all" | "online" | "offline">("all");
 
   // Broadcast dispatch form state
@@ -192,7 +192,11 @@ export function AdminPortal({
       const res = await fetch(`${API_BASE}/admin/claims/${claimId}/update`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ action, officer_note: `Action executed by ${user.name}` }),
+        body: JSON.stringify({
+          action,
+          verifier_note: `Action executed by ${user.name}`,
+          officer_note: `Action executed by ${user.name}`,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -220,7 +224,7 @@ export function AdminPortal({
           severity: broadcastSeverity,
           target_crop: broadcastCrop,
           advisory: broadcastAdvisory.trim(),
-          issued_by: `${user.name} (${user.designation || "Mandal Officer"})`,
+          issued_by: `${user.name} (${user.designation || "Operations Desk Lead"})`,
         }),
       });
       if (res.ok) {
@@ -412,17 +416,17 @@ export function AdminPortal({
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-indigo-500/30 border border-indigo-400/40 px-3 py-1 text-xs font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
                 <ShieldCheck className="size-3.5" />
-                State Agriculture Command Desk
+                RythuSetu Operations &amp; Verification Desk
               </span>
               <span className="text-xs text-indigo-200">
-                Department of Agriculture & Farmers Welfare
+                Data Quality, Moderation &amp; Internal Platform Operations
               </span>
             </div>
             <h1 className="mt-2 text-2xl sm:text-3xl font-black">
               Welcome, {user.name}
             </h1>
             <p className="text-xs sm:text-sm text-indigo-200/90 mt-1">
-              {user.designation || "Mandal Agriculture Extension Officer"} • {user.district} District ({user.state})
+              {user.designation || "Operations &amp; Data Verification Lead"} • {user.district} District ({user.state})
             </p>
           </div>
 
@@ -473,40 +477,40 @@ export function AdminPortal({
 
           <div className="rounded-2xl bg-white p-5 border border-slate-200 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
-              <span>Pending Inspections</span>
+              <span>Pending Reviews</span>
               <AlertTriangle className="size-4 text-amber-500" />
             </div>
             <div className="text-2xl font-black text-amber-600 mt-2">
               {stats.pending_verification}
             </div>
             <p className="text-[11px] text-slate-500 font-medium mt-1">
-              Require field verification
+              Require completeness review
             </p>
           </div>
 
           <div className="rounded-2xl bg-white p-5 border border-slate-200 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
-              <span>Claims Approved</span>
+              <span>Dossiers Verified Complete</span>
               <FileCheck2 className="size-4 text-emerald-600" />
             </div>
             <div className="text-2xl font-black text-emerald-700 mt-2">
               {stats.approved_claims}
             </div>
             <p className="text-[11px] text-emerald-600 font-medium mt-1">
-              {stats.dbt_disbursed} DBT Payouts Issued
+              {stats.dbt_disbursed} Ready for Official Filing
             </p>
           </div>
 
           <div className="rounded-2xl bg-white p-5 border border-slate-200 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
-              <span>Total Relief Disbursed</span>
+              <span>Estimated Valuation Tracked</span>
               <IndianRupee className="size-4 text-teal-600" />
             </div>
             <div className="text-2xl font-black text-teal-800 mt-2">
               ₹{(stats.total_relief_amount / 100000).toFixed(2)} L
             </div>
             <p className="text-[11px] text-teal-600 font-bold mt-1">
-              Direct to Aadhaar bank accounts
+              Self-reported &amp; tracked claims
             </p>
           </div>
         </div>
@@ -523,7 +527,7 @@ export function AdminPortal({
           }`}
         >
           <FileCheck2 className="size-4" />
-          <span>PMFBY Claims Desk ({claims.length})</span>
+          <span>Crop Loss Review Desk ({claims.length})</span>
         </button>
 
         <button
@@ -604,7 +608,7 @@ export function AdminPortal({
         </button>
       </div>
 
-      {/* TAB 1: CLAIMS APPROVAL DESK */}
+      {/* TAB 1: CROP LOSS PREPARATION & VERIFICATION DESK */}
       {activeTab === "claims" && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200">
@@ -614,11 +618,11 @@ export function AdminPortal({
             </div>
             <div className="flex flex-wrap gap-2">
               {[
-                { id: "all", label: "All Claims" },
-                { id: "stage1", label: "Stage 1: Awaiting Inspection" },
-                { id: "stage2", label: "Stage 2: Approved for DBT" },
-                { id: "stage3", label: "Stage 3: Ready to Disburse" },
-                { id: "disbursed", label: "Stage 4: Disbursed" },
+                { id: "all", label: "All Intimations" },
+                { id: "stage1", label: "Stage 1: Awaiting Review" },
+                { id: "stage2", label: "Stage 2: Completeness Verified" },
+                { id: "stage3", label: "Stage 3: Preparation Ready" },
+                { id: "disbursed", label: "Stage 4: Forwarded to Official Portal" },
               ].map((f) => (
                 <button
                   key={f.id}
@@ -705,14 +709,14 @@ export function AdminPortal({
                       </div>
                     </div>
 
-                    {/* Official Decision Actions */}
+                    {/* Internal Review Actions */}
                     <div className="flex items-center gap-2 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100 shrink-0">
                       {claim.current_stage === 1 && (
                         <button
                           onClick={() => handleClaimAction(claim.claim_id, "verify")}
                           className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition cursor-pointer"
                         >
-                          Mark Field Inspected
+                          Verify Completeness
                         </button>
                       )}
 
@@ -721,7 +725,7 @@ export function AdminPortal({
                           onClick={() => handleClaimAction(claim.claim_id, "approve")}
                           className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
                         >
-                          Approve for DBT
+                          Confirm Pack Ready
                         </button>
                       )}
 
@@ -730,14 +734,14 @@ export function AdminPortal({
                           onClick={() => handleClaimAction(claim.claim_id, "disburse")}
                           className="px-3.5 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs shadow-xs transition cursor-pointer"
                         >
-                          Disburse Direct Benefit Transfer
+                          Mark Forwarded to Official Portal
                         </button>
                       )}
 
                       {claim.current_stage === 4 && (
                         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 text-teal-800 border border-teal-200 text-xs font-bold">
                           <CheckCircle2 className="size-4 text-teal-600" />
-                          <span>Disbursed to Bank</span>
+                          <span>Forwarded to Official Portal</span>
                         </div>
                       )}
 
@@ -745,9 +749,9 @@ export function AdminPortal({
                         <button
                           onClick={() => handleClaimAction(claim.claim_id, "reject")}
                           className="px-2.5 py-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 text-xs font-bold transition cursor-pointer"
-                          title="Reject or mark claim ineligible"
+                          title="Flag dossier as incomplete or inconsistent"
                         >
-                          Reject
+                          Flag Incomplete
                         </button>
                       )}
                     </div>
@@ -1009,14 +1013,14 @@ export function AdminPortal({
                       </div>
 
                       <div>
-                        <span className="text-slate-400 block font-medium">Sourcing Officer</span>
-                        <span className="font-bold text-slate-900 block mt-0.5">{p.procurement_officer || "Procurement Manager"}</span>
+                        <span className="text-slate-400 block font-medium">Sourcing Desk</span>
+                        <span className="font-bold text-slate-900 block mt-0.5">{p.procurement_manager || p.procurement_officer || "Procurement Manager"}</span>
                         <a
-                          href={`tel:${p.officer_phone}`}
+                          href={`tel:${p.officer_phone || p.contact_phone || "+918632294810"}`}
                           className="inline-flex items-center gap-1 text-sky-700 hover:text-sky-800 font-bold mt-1"
                         >
                           <Phone className="size-3" />
-                          <span>{p.officer_phone || "+91 863 229 4810"}</span>
+                          <span>{p.contact_phone || p.officer_phone || "+91 863 229 4810"}</span>
                         </a>
                       </div>
 
@@ -1086,12 +1090,14 @@ export function AdminPortal({
             <div className="flex items-center gap-2 flex-wrap">
               <select
                 value={userRoleFilter}
-                onChange={(e) => setUserRoleFilter(e.target.value as any)}
+                onChange={(e) => setUserRoleFilter(e.target.value)}
                 className="px-3 py-2 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white cursor-pointer"
               >
                 <option value="all">All Roles</option>
                 <option value="farmer">Cultivators Only</option>
-                <option value="admin">Officers Only</option>
+                <option value="data_verifier">Data Verifiers</option>
+                <option value="support_agent">Support Agents</option>
+                <option value="admin">Administrators</option>
               </select>
 
               <select
@@ -1110,7 +1116,7 @@ export function AdminPortal({
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-black text-slate-900">
-                  Registered Cultivators & Officer Accounts
+                  Registered Cultivators &amp; Operations Accounts
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Live database registry tracking authenticated sessions, mobile credentials, and farm linkages
@@ -1163,12 +1169,30 @@ export function AdminPortal({
 
                         <td className="py-3.5 px-4">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider ${
-                            u.role === "admin"
+                            u.role === "admin" || u.role === "super_admin"
                               ? "bg-indigo-100 text-indigo-900"
-                              : "bg-emerald-100 text-emerald-900"
+                              : u.role === "data_verifier"
+                                ? "bg-amber-100 text-amber-900"
+                                : u.role === "support_agent"
+                                  ? "bg-sky-100 text-sky-900"
+                                  : "bg-emerald-100 text-emerald-900"
                           }`}>
-                            {u.role === "admin" ? <Shield className="size-3" /> : <Sprout className="size-3" />}
-                            {u.role === "admin" ? "Officer (MAO)" : "Cultivator"}
+                            {u.role === "admin" || u.role === "super_admin" ? (
+                              <Shield className="size-3" />
+                            ) : u.role === "data_verifier" ? (
+                              <FileCheck2 className="size-3" />
+                            ) : (
+                              <Sprout className="size-3" />
+                            )}
+                            {u.role === "admin"
+                              ? "Admin"
+                              : u.role === "super_admin"
+                                ? "Super Admin"
+                                : u.role === "data_verifier"
+                                  ? "Data Verifier"
+                                  : u.role === "support_agent"
+                                    ? "Support Agent"
+                                    : "Cultivator"}
                           </span>
                         </td>
 
@@ -1198,7 +1222,7 @@ export function AdminPortal({
                               <div className="text-[10px] text-slate-400">{u.farmer_profile.village || u.farmer_profile.mandal}</div>
                             </div>
                           ) : (
-                            <span className="text-slate-400 text-[11px]">Command Desk Officer</span>
+                            <span className="text-slate-400 text-[11px]">Operations &amp; Support Staff</span>
                           )}
                         </td>
 
@@ -1440,7 +1464,7 @@ export function AdminPortal({
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div>
                 <span className="text-[11px] font-black uppercase text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                  Officer Verification Desk
+                  Data Quality &amp; Market Benchmarking Desk
                 </span>
                 <h3 className="text-xl font-black text-slate-900 mt-1">
                   APMC Mandi Benchmark Registry &amp; Spot Rates

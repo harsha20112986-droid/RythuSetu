@@ -4,10 +4,12 @@ from datetime import datetime
 
 ALLOWED_DAMAGE_TYPES = {
     "Flood / Heavy Rain",
+    "Inundation / Submergence",
     "Drought / Heat",
     "Pest Attack",
     "Crop Disease",
     "Hail / Storm",
+    "Landslide",
     "Other",
 }
 

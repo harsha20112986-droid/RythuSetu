@@ -626,9 +626,11 @@ def get_nearby_infrastructure(
 
     VERIFICATION_META = {
         "authority": "State Agricultural Marketing Board / WDRA Registry",
-        "method": "Official District Registrar Audit",
+        "method": "Official Directory Registrar Listing",
         "verification_status": "OFFICIALLY_VERIFIED",
+        "listing_type": "OFFICIALLY_LISTED_DIRECTORY",
         "last_audited": "2026-03-01",
+        "disclaimer": "Market operating hours, e-NAM integration, and arrival volumes are based on State Marketing Board gazette directories.",
     }
 
     # 1. Nearby Mandis

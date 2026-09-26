@@ -960,7 +960,6 @@ def get_mandi_prices_pipeline(
                 "arrival_date": highest_variety["effective_date"],
                 "last_verified_at": last_verified_top,
                 "verification_status": highest_variety.get("verification_status", "OFFICER_ENTERED"),
-                "confidence": 0.95,
                 "record_count": len(markets_data),
                 "trust_label": "Officer Recorded APMC Benchmark" if highest_variety.get("verification_status") == "OFFICER_ENTERED" else "Officially Recorded Database",
                 "data_source_status": "OFFICIAL_LATEST_AVAILABLE",
@@ -972,7 +971,6 @@ def get_mandi_prices_pipeline(
             "last_verified": last_verified_top,
             "last_verified_at": last_verified_top,
             "verification_status": highest_variety.get("verification_status", "OFFICER_ENTERED"),
-            "confidence": 0.95,
         }
 
     # Final fallback: Curated reference benchmarks
@@ -1052,9 +1050,9 @@ def get_mandi_prices_pipeline(
             "trust_label": "Curated Agricultural Reference Data",
             "data_source_status": "REFERENCE_ONLY",
             "freshness": "DELAYED",
-            "disclaimer": "These benchmark prices represent verified regional APMC trading ranges and statutory MSP floors. Exact spot bids depend on moisture testing and lot grading at your local yard.",
+            "disclaimer": "Reference prices are seasonal benchmarks based on regional APMC trading patterns and CACP MSP floors for planning purposes only. Live auction spot prices require active daily Agmarknet/OGD ingestion.",
             "verification_status": "CURATED_REFERENCE",
-            "confidence": 0.90,
+            "is_reference_only": True,
         },
         "source": "e-NAM APMC Benchmark Reference & CACP MSP 2025-26 (Curated)",
         "source_url": "https://enam.gov.in/web/dashboard/trade-data",
@@ -1062,7 +1060,7 @@ def get_mandi_prices_pipeline(
         "last_verified_at": "September 2026",
         "verification_status": "CURATED_REFERENCE",
         "trust_label": "Curated Agricultural Reference Data",
-        "confidence": 0.90,
+        "is_reference_only": True,
     }
 
 

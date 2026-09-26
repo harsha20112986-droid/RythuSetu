@@ -8,6 +8,10 @@ import {
   FileCheck2,
   ArrowLeft,
   X,
+  PhoneCall,
+  Info,
+  Building,
+  FileText,
 } from "lucide-react";
 import { type Farmer, type Scheme, API_BASE } from "../types";
 
@@ -71,7 +75,7 @@ export function SchemeFinder({
   const categories = ["All", "Income Support", "Farm Investment Support", "Crop Insurance"];
 
   return (
-    <section className="mx-auto max-w-6xl px-5 py-8 lg:px-8 lg:py-12">
+    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
       <button
         onClick={onBack}
         className="mb-6 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-700 hover:text-emerald-800 transition cursor-pointer"
@@ -81,10 +85,10 @@ export function SchemeFinder({
       </button>
 
       {/* Header Banner */}
-      <div className="rounded-3xl bg-gradient-to-r from-emerald-800 to-green-900 p-6 text-white shadow-xl sm:p-8">
+      <div className="rounded-3xl bg-gradient-to-r from-emerald-800 to-green-950 p-6 text-white shadow-xl sm:p-8">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-            Rule-Matched Assistance Database
+            Scheme Navigator &amp; Preparation Desk
           </span>
           <span className="size-1 rounded-full bg-emerald-400"></span>
           <span className="text-xs text-emerald-200">
@@ -92,13 +96,24 @@ export function SchemeFinder({
           </span>
         </div>
 
-        <h1 className="mt-2 text-3xl font-black">
-          Government Schemes & Support
+        <h1 className="mt-2 text-2xl sm:text-3xl font-black">
+          Government Welfare &amp; Subsidy Navigator
         </h1>
 
-        <p className="mt-2 text-sm text-emerald-100 max-w-xl">
-          Verified central and state schemes evaluated against your farm profile. Click any scheme to inspect eligibility details or open the official government portal.
+        <p className="mt-2 text-xs sm:text-sm text-emerald-100 max-w-2xl leading-relaxed">
+          Matches potential central and state welfare programs against your farm profile. Review required application documents, verify channels, and apply directly on official government portals.
         </p>
+
+        {/* Truthful Platform Guidance Banner */}
+        <div className="mt-5 rounded-2xl bg-emerald-950/70 border border-emerald-500/40 p-4 text-xs text-emerald-100 flex items-start gap-3">
+          <Info className="size-5 text-emerald-300 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-white">Official Eligibility Disclaimer:</p>
+            <p className="text-emerald-200/90 leading-relaxed mt-0.5">
+              RythuSetu provides informational matching and preparatory checklists. RythuSetu is not a government portal and does not sanction schemes or disburse subsidies. Final eligibility and beneficiary selection are determined solely by the respective government department.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Search & Filter Bar */}
@@ -182,9 +197,26 @@ export function SchemeFinder({
                   </div>
 
                   <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-800 shrink-0">
-                    {scheme.match_label}
+                    {scheme.match_label || "Potentially relevant"}
                   </span>
                 </div>
+
+                {/* Government Department & Application Channel */}
+                {(scheme.government_department || scheme.application_channel) && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                    {scheme.government_department && (
+                      <span className="flex items-center gap-1 font-medium">
+                        <Building className="size-3 text-slate-400" />
+                        {scheme.government_department}
+                      </span>
+                    )}
+                    {scheme.application_channel && (
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 font-bold text-slate-700">
+                        Channel: {scheme.application_channel}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <p className="mt-3 text-xs text-slate-600 leading-relaxed">
                   {scheme.summary}
@@ -201,17 +233,36 @@ export function SchemeFinder({
                 </div>
 
                 {/* Eligibility Note */}
-                <div className="mt-3 text-xs text-slate-500">
-                  <span className="font-bold text-slate-700">Eligibility Criteria: </span>
+                <div className="mt-3 text-xs text-slate-600">
+                  <span className="font-bold text-slate-800">Eligibility Criteria: </span>
                   {scheme.eligibility_note}
                 </div>
+
+                {/* Required Documents Checklist */}
+                {scheme.required_documents && scheme.required_documents.length > 0 && (
+                  <div className="mt-4 rounded-2xl bg-slate-50 border border-slate-200/80 p-3.5">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 mb-2 flex items-center gap-1.5">
+                      <FileText className="size-3.5 text-emerald-700" />
+                      Required Application Documents:
+                    </p>
+                    <ul className="grid sm:grid-cols-2 gap-1.5 text-xs text-slate-700">
+                      {scheme.required_documents.map((doc, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5">
+                          <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{doc}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Match Reasons Checklist */}
                 {scheme.reasons && scheme.reasons.length > 0 && (
                   <div className="mt-3 space-y-1 text-xs text-slate-600">
+                    <p className="text-[11px] font-bold text-slate-700">Profile Match Factors:</p>
                     {scheme.reasons.map((reason, idx) => (
-                      <div key={idx} className="flex items-center gap-1.5">
-                        <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                      <div key={idx} className="flex items-center gap-1.5 text-[11px]">
+                        <CheckCircle2 className="size-3 text-emerald-600 shrink-0" />
                         <span>{reason}</span>
                       </div>
                     ))}
@@ -219,21 +270,33 @@ export function SchemeFinder({
                 )}
               </div>
 
-              {/* Card Footer */}
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+              {/* Card Footer with Official Portal & Helpline */}
+              <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                 <span className="text-[10px] text-slate-400 font-medium">
                   Verified: {scheme.last_verified}
                 </span>
 
-                <a
-                  href={scheme.official_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition cursor-pointer"
-                >
-                  <span>Official Portal</span>
-                  <ExternalLink className="size-3" />
-                </a>
+                <div className="flex items-center gap-2">
+                  {scheme.helpline && (
+                    <a
+                      href={`tel:${scheme.helpline.replace(/[^0-9+]/g, "")}`}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-slate-900 border border-slate-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                    >
+                      <PhoneCall className="size-3 text-emerald-600" />
+                      <span>{scheme.helpline}</span>
+                    </a>
+                  )}
+
+                  <a
+                    href={scheme.official_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-xl transition cursor-pointer shadow-2xs"
+                  >
+                    <span>Official Portal</span>
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
               </div>
             </article>
           ))}

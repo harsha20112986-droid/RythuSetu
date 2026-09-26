@@ -58,11 +58,22 @@ def log_audit(
 
 def initialize_database():
     """Initializes tables and master registries idempotently."""
-    # Ensure all tables exist across all environments (PostgreSQL and SQLite)
-    Base.metadata.create_all(bind=engine)
+    # Migration-first architecture: In production, Alembic preDeployCommand handles 'alembic upgrade head'.
+    # In local/test environments or on first-time bootstrap fallback, ensure schema tables exist.
+    if not settings.is_production:
+        Base.metadata.create_all(bind=engine)
+    else:
+        try:
+            from sqlalchemy import inspect
+            inspector = inspect(engine)
+            if not inspector.has_table("user_accounts"):
+                Base.metadata.create_all(bind=engine)
+        except Exception:
+            pass
     if engine.dialect.name == "sqlite":
         with engine.connect() as conn:
             try:
+                # 1. Notifications schema additions
                 res = conn.execute(text("PRAGMA table_info(notifications)"))
                 existing_cols = {row[1] for row in res.fetchall()}
                 if existing_cols:
@@ -81,7 +92,44 @@ def initialize_database():
                     if "delivery_status" not in existing_cols:
                         conn.execute(text("ALTER TABLE notifications ADD COLUMN delivery_status VARCHAR(30) DEFAULT 'DELIVERED'"))
                     conn.commit()
-            except Exception:
+
+                # 2. Crop Loss Reports schema additions
+                res_claims = conn.execute(text("PRAGMA table_info(crop_loss_reports)"))
+                existing_claim_cols = {row[1] for row in res_claims.fetchall()}
+                if existing_claim_cols:
+                    for col_name, col_type, default_val in [
+                        ("survey_number", "VARCHAR(80)", None),
+                        ("mandal", "VARCHAR(80)", None),
+                        ("village", "VARCHAR(120)", None),
+                        ("official_reference_number", "VARCHAR(100)", None),
+                        ("farmer_self_status", "VARCHAR(60)", "'PREPARATION_READY'"),
+                        ("farmer_notes", "TEXT", None),
+                        ("submission_date", "VARCHAR(40)", None),
+                        ("follow_up_date", "VARCHAR(40)", None),
+                        ("verifier_notes", "TEXT", None),
+                        ("officer_notes", "TEXT", None),
+                    ]:
+                        if col_name not in existing_claim_cols:
+                            if default_val:
+                                conn.execute(text(f"ALTER TABLE crop_loss_reports ADD COLUMN {col_name} {col_type} DEFAULT {default_val}"))
+                            else:
+                                conn.execute(text(f"ALTER TABLE crop_loss_reports ADD COLUMN {col_name} {col_type}"))
+                    conn.commit()
+
+                # 3. User Accounts role migration
+                res_users = conn.execute(text("PRAGMA table_info(user_accounts)"))
+                if res_users.fetchall():
+                    conn.execute(text("UPDATE user_accounts SET role = 'admin' WHERE role = 'officer' AND (username LIKE '%admin%' OR designation LIKE '%Admin%')"))
+                    conn.execute(text("UPDATE user_accounts SET role = 'data_verifier' WHERE role = 'officer'"))
+                    conn.commit()
+
+                # 4. Claim Events role migration
+                res_events = conn.execute(text("PRAGMA table_info(claim_events)"))
+                if res_events.fetchall():
+                    conn.execute(text("UPDATE claim_events SET actor_role = 'data_verifier' WHERE actor_role = 'officer'"))
+                    conn.commit()
+            except Exception as e:
+                print(f"[SQLITE SCHEMA UPDATE WARNING] {e}")
                 pass
 
     db = SessionLocal()
@@ -92,10 +140,10 @@ def initialize_database():
             admin_user = UserAccount(
                 username=settings.admin_initial_username,
                 hashed_password=hash_password(settings.admin_initial_password),
-                name="Agriculture Extension Officer",
+                name="Platform Administrator",
                 role="admin",
                 phone="+91 98480 12345",
-                designation="Mandal Agriculture Officer (MAO)",
+                designation="Platform Operations Lead",
                 district="Warangal",
                 state="Telangana",
                 is_active=True,
@@ -110,6 +158,28 @@ def initialize_database():
                     admin.hashed_password = hash_password(settings.admin_initial_password)
                     db.commit()
                     print("[INIT] Synced administrator password with configured credentials.")
+            if admin.designation in ("Mandal Agriculture Officer (MAO)", "Agriculture Extension Officer"):
+                admin.name = "Platform Administrator"
+                admin.designation = "Platform Operations Lead"
+                db.commit()
+
+        # 1b. Ensure initial data verifier exists
+        verifier = db.query(UserAccount).filter(UserAccount.username == "verifier").first()
+        if not verifier:
+            verifier_user = UserAccount(
+                username="verifier",
+                hashed_password=hash_password("Verifier2026!Secure"),
+                name="Operations Data Verifier",
+                role="data_verifier",
+                phone="+91 98480 54321",
+                designation="Quality & Operations Data Verifier",
+                district="Warangal",
+                state="Telangana",
+                is_active=True,
+            )
+            db.add(verifier_user)
+            db.commit()
+            print("[INIT] Created initial data verifier account: verifier")
 
         # 2. Seed Storage Facilities if empty
         if db.query(StorageFacility).count() == 0:
@@ -183,7 +253,7 @@ def initialize_database():
                     severity="high",
                     target_crop="Cotton",
                     advisory="Persistent humidity (>85%) and intermittent showers favor bacterial blight. Spray Copper Oxychloride 3g/L + Streptocycline 1g/10L immediately. Avoid excess nitrogenous fertilizer.",
-                    issued_by="Mandal Agriculture Office",
+                    issued_by="State Agriculture Department Advisory / IMD",
                 ),
                 BroadcastAlert(
                     alert_code="ALERT-TS-WGL-002",
@@ -192,8 +262,8 @@ def initialize_database():
                     state="Telangana",
                     severity="critical",
                     target_crop="All Crops",
-                    advisory="All farmers suffering localized storm or flood damage must upload timestamped loss evidence within 72 hours via RythuSetu or call Toll-Free 1800-180-1551 to guarantee survey eligibility.",
-                    issued_by="District Agriculture Officer (DAO)",
+                    advisory="All farmers suffering localized storm or flood damage must report within 72 hours via the official PMFBY portal (pmfby.gov.in) or call Toll-Free 14447 / 1800-180-1551. Use RythuSetu Crop Loss Assistant to generate your official preparation pack.",
+                    issued_by="State PMFBY Grievance Redressal Cell / IMD",
                 ),
             ]
             db.add_all(alerts_seed)
@@ -378,7 +448,7 @@ def initialize_database():
                     effective_date=row["effective_date"],
                     price_per_quintal=row["price_per_quintal"],
                     source_url=row["source_url"],
-                    last_verified_at=now_dt,
+                    last_verified_at=datetime(2025, 10, 1, tzinfo=timezone.utc),  # Actual gazette publication audit date
                     is_active=True,
                 )
                 db.add(bench)

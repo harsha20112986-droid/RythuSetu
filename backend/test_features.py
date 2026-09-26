@@ -288,7 +288,7 @@ def test_pmfby_claim_preparation_and_db_persistence(client):
     assert "reference_number" in claim
     assert claim["reference_number"].startswith("RYTHU-CLAIM-2026-")
     assert claim["is_within_window"] is True
-    assert claim["status"] == "Submitted"
+    assert claim["status"] in ("Submitted", "PREPARATION_READY")
     assert claim["farmer_id"] == farmer_id
 
     # Track claim status
@@ -297,7 +297,7 @@ def test_pmfby_claim_preparation_and_db_persistence(client):
     assert status_res.status_code == 200
     status_data = status_res.json()
     assert status_data["reference_number"] == ref
-    assert status_data["current_status"] == "Submitted"
+    assert status_data["current_status"] in ("Submitted", "PREPARATION_READY")
     assert len(status_data["stages"]) == 4
     assert len(status_data["audit_events"]) >= 1
 
@@ -1020,6 +1020,203 @@ def test_schemes_expanded_to_ten_schemes(client):
         for required_key in ("id", "name", "category", "scope", "icon", "summary", "benefit", "eligibility_note", "official_url", "last_verified", "match"):
             assert required_key in s, f"Scheme {s.get('id')} missing key '{required_key}'"
         assert s["official_url"].startswith("https://")
+
+
+def test_role_architecture_and_data_verifier_access(client):
+    """Verifies that internal data verifier has appropriate operational access without being a government officer."""
+    # 1. Login as data_verifier (verifier user seeded in db_init)
+    res = client.post("/api/v1/auth/login", json={
+        "username": "verifier",
+        "password": "Verifier2026!Secure",
+    })
+    assert res.status_code == 200
+    token = res.json()["access_token"]
+    user = res.json()["user"]
+    assert user["role"] == "data_verifier"
+    assert "Officer" not in user["designation"]
+    assert "Verifier" in user["designation"]
+
+    # 2. Verifier can access all-claims and dashboard-stats
+    headers = {"Authorization": f"Bearer {token}"}
+    stats_res = client.get("/api/v1/admin/dashboard-stats", headers=headers)
+    assert stats_res.status_code == 200
+
+    claims_res = client.get("/api/v1/admin/all-claims", headers=headers)
+    assert claims_res.status_code == 200
+
+
+def test_crop_loss_completeness_validation(client):
+    """Verifies that crop loss completeness validation detects missing information and scores readiness."""
+    # Incomplete request (missing mandatory land area, damage cause)
+    bad_payload = {
+        "crop": "Cotton",
+        "damage_type": "",
+        "loss_date": "2026-09-20",
+        "affected_area_acres": 0,
+        "description": "Too short",
+        "district": "Warangal",
+    }
+    res_bad = client.post("/api/v1/claims/validate-completeness", json=bad_payload)
+    assert res_bad.status_code == 200
+    data_bad = res_bad.json()
+    assert data_bad["is_complete"] is False
+    assert len(data_bad["missing_mandatory"]) > 0
+
+    # Complete request
+    good_payload = {
+        "crop": "Cotton",
+        "damage_type": "Flood / Heavy Rain",
+        "loss_date": "2026-09-20",
+        "affected_area_acres": 2.5,
+        "description": "Heavy localized inundation for 48 hours submerged lower canopy.",
+        "district": "Warangal",
+        "mandal": "Hanamkonda",
+        "village": "Madikonda",
+        "survey_number": "142/B",
+        "has_evidence": True,
+    }
+    res_good = client.post("/api/v1/claims/validate-completeness", json=good_payload)
+    assert res_good.status_code == 200
+    data_good = res_good.json()
+    assert data_good["is_complete"] is True
+    assert data_good["completeness_score"] >= 90
+    assert len(data_good["missing_mandatory"]) == 0
+
+
+def test_crop_loss_action_pack_and_self_status(client):
+    """Verifies that a farmer can generate a Crop Loss Preparation Pack and record their self-entered official reference number."""
+    import time
+    ts = int(time.time() * 1000)
+
+    # 1. Register a farmer
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Action Pack Cultivator",
+        "username": f"farmer_pack_{ts}",
+        "password": "Password123!",
+        "state": "Telangana",
+        "district": "Warangal",
+        "crop": "Paddy / Rice",
+        "land_area_acres": 4.0,
+    })
+    assert reg.status_code == 200
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 2. File preparation dossier
+    claim_res = client.post(
+        "/api/v1/crop-loss",
+        data={
+            "crop": "Paddy / Rice",
+            "damage_type": "Inundation / Submergence",
+            "loss_date": "2026-09-22",
+            "affected_area_acres": 2.0,
+            "damage_percent": 70.0,
+            "description": "Flash flooding submerged the paddy field under 3 feet of standing water.",
+            "survey_number": "88/A-1",
+            "mandal": "Wardhannapet",
+            "village": "Katrapalle",
+        },
+        headers=headers,
+    )
+    assert claim_res.status_code == 201
+    claim_data = claim_res.json()
+    claim_id = claim_data["id"]
+    ref_num = claim_data["reference_number"]
+    assert "preparation_pack" in claim_data
+    pack = claim_data["preparation_pack"]
+    assert "pmfby.gov.in" in pack["official_action_links"]["portal_url"]
+    assert "14447" in pack["official_action_links"]["helpline"]
+
+    # 3. Farmer enters self-obtained official PMFBY claim intimation number
+    self_status_res = client.post(
+        f"/api/v1/claims/{claim_id}/self-status",
+        json={
+            "official_reference_number": "PMFBY-TS-2026-987654321",
+            "farmer_self_status": "FILED_BY_FARMER",
+            "submission_date": "2026-09-23",
+            "notes": "Called 14447 and completed official phone intimation. Docket number received.",
+        },
+        headers=headers,
+    )
+    assert self_status_res.status_code == 200
+    self_data = self_status_res.json()
+    assert self_data["official_reference_number"] == "PMFBY-TS-2026-987654321"
+
+    # 4. Check lifecycle tracking endpoint: ensures transparent truthful disclaimers
+    lifecycle_res = client.get(f"/api/v1/claims/status/{ref_num}")
+    assert lifecycle_res.status_code == 200
+    life_data = lifecycle_res.json()
+    assert life_data["official_reference_number"] == "PMFBY-TS-2026-987654321"
+    assert "Official Status Unavailable" in life_data["stages"][3]["status"]
+    assert "pmfby.gov.in" in life_data["stages"][3]["detail"]
+
+
+def test_official_action_center_endpoints(client):
+    """Verifies that Official Action Center items aggregate preparation packs and support reference saving."""
+    import time
+    ts = int(time.time() * 1000)
+
+    # 1. Register farmer
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Action Center Tester",
+        "username": f"farmer_act_{ts}",
+        "password": "Password123!",
+        "state": "Telangana",
+        "district": "Warangal",
+        "crop": "Cotton",
+        "land_area_acres": 3.0,
+    })
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 2. Get action center items
+    res_items = client.get("/api/v1/action-center/items", headers=headers)
+    assert res_items.status_code == 200
+    actions = res_items.json()["actions"]
+    assert len(actions) >= 2
+    action_titles = [a["title"] for a in actions]
+    assert any("PM-KISAN" in t for t in action_titles)
+
+    # 3. Save a reference number for PM-KISAN
+    res_save = client.post(
+        "/api/v1/action-center/save-reference",
+        json={
+            "action_key": "scheme_pm_kisan",
+            "official_reference_number": "PMK-TS-WGL-2026-112233",
+            "farmer_self_status": "SUBMITTED_BY_FARMER",
+            "submission_date": "2026-09-24",
+            "notes": "Submitted biometric e-KYC at local CSC.",
+        },
+        headers=headers,
+    )
+    assert res_save.status_code == 200
+    assert res_save.json()["official_reference_number"] == "PMK-TS-WGL-2026-112233"
+
+    # 4. Verify updated action center items reflects the saved reference
+    res_items_updated = client.get("/api/v1/action-center/items", headers=headers)
+    assert res_items_updated.status_code == 200
+    pmk_item = next(a for a in res_items_updated.json()["actions"] if a["action_id"] == "scheme_pm_kisan")
+    assert pmk_item["application_reference_number"] == "PMK-TS-WGL-2026-112233"
+
+
+def test_scheme_navigator_criteria_and_disclaimer(client):
+    """Verifies that Scheme Navigator matches schemes with required criteria and clear disclaimers."""
+    res = client.get("/api/v1/schemes?state=Telangana&crop=Cotton&season=Kharif")
+    assert res.status_code == 200
+    data = res.json()
+    assert "disclaimer" in data
+    assert "not a government body" in data["disclaimer"] or "guidance only" in data["disclaimer"]
+    schemes = data["schemes"]
+    assert len(schemes) >= 3
+
+    top = schemes[0]
+    assert top["match_label"] == "Potentially relevant"
+    assert "government_department" in top
+    assert "application_channel" in top
+    assert "required_documents" in top
+    assert len(top["required_documents"]) > 0
+    assert "official_url" in top
+
 
 
 

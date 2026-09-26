@@ -63,7 +63,7 @@ Validation errors return Pydantic field details:
 ## 2. Authentication Endpoints
 
 ### 2.1 Register New User
-Creates a cultivator, officer, or administrative account.
+Creates a cultivator, data verifier, support agent, or administrative account. Valid roles: `farmer`, `data_verifier`, `support_agent`, `admin`, `super_admin`.
 
 - **URL:** `POST /auth/register`
 - **Rate Limit:** 5/min
@@ -411,7 +411,7 @@ Uploads leaf photo for lesion analysis.
   "severity": "Moderate",
   "symptoms_observed": "Water-soaked angular leaf lesions with yellow halos.",
   "clinical_guidance": "Recommended immediate spray: Copper Oxychloride 50% WP (30g) + Streptocycline (1g) in 10L water. Avoid flood irrigation to limit pathogen spread.",
-  "consult_officer_required": false
+  "consult_expert_required": false
 }
 ```
 
@@ -436,7 +436,7 @@ Uploads leaf photo for lesion analysis.
 
 ---
 
-## 8. PMFBY Crop Loss Claims & Intimation
+## 8. Crop Loss Assistant & Claims Preparation
 
 ### 8.1 File Crop Loss Intimation (72-Hour Statutory Window)
 - **URL:** `POST /crop-loss`
@@ -449,20 +449,54 @@ Uploads leaf photo for lesion analysis.
   - `loss_date` (`2026-09-25`)
   - `affected_area_acres` (`2.5`)
   - `damage_percent` (`65.0`)
+  - `survey_number` (`142/2A`, optional)
+  - `village` (`Duggondi`, optional)
+  - `mandal` (`Narsampet`, optional)
   - `description` (`Severe localized inundation submerged field for 36 hours.`)
   - `evidence` (optional photographic evidence)
 - **Response (HTTP 201):**
 ```json
 {
   "reference_number": "RYTHU-CLAIM-2026-1044",
-  "status": "Submitted",
+  "status": "PREPARATION_READY",
   "is_within_window": true,
   "submission_timestamp": "2026-09-26T08:30:00Z",
-  "message": "Claim intimation registered successfully within the 72-hour statutory PMFBY window."
+  "message": "Crop loss intimation dossier prepared successfully. Proceed to pmfby.gov.in or call 14447 to complete filing."
 }
 ```
 
-### 8.2 Track Claim Status Lifecycle
+### 8.2 Validate Dossier Completeness
+- **URL:** `POST /claims/validate-completeness`
+- **Request Body:**
+```json
+{
+  "farmer_id": 105,
+  "crop": "Cotton",
+  "damage_type": "Inundation / Submergence",
+  "loss_date": "2026-09-25",
+  "affected_area_acres": 2.5,
+  "damage_percent": 65.0,
+  "survey_number": "142/2A",
+  "village": "Duggondi",
+  "has_photo_evidence": true
+}
+```
+- **Response (HTTP 200):** Returns completeness score, missing fields, recommendations, and statutory window status.
+
+### 8.3 Record Farmer Self-Entered Official Status
+- **URL:** `POST /claims/{claim_id}/self-status`
+- **Request Body:**
+```json
+{
+  "farmer_id": 105,
+  "official_reference_number": "PMFBY/2026/TG/984210",
+  "farmer_self_status": "SUBMITTED_OFFICIAL",
+  "farmer_notes": "Filed at Warangal MeeSeva Center counter 3"
+}
+```
+- **Response (HTTP 200):** Acknowledges saved self-managed reference ID.
+
+### 8.4 Track Claim Status Lifecycle
 - **URL:** `GET /claims/status/{reference_number}`
 - **Response (HTTP 200):**
 ```json
@@ -470,11 +504,11 @@ Uploads leaf photo for lesion analysis.
   "reference_number": "RYTHU-CLAIM-2026-1044",
   "farmer_name": "Venkat Reddy",
   "crop": "Cotton",
-  "status": "Survey Scheduled",
+  "status": "Preparation Ready",
   "damage_percent": 65.0,
   "history": [
     {"event": "Submitted", "timestamp": "2026-09-26T08:30:00Z", "actor": "Farmer"},
-    {"event": "Survey Scheduled", "timestamp": "2026-09-26T14:15:00Z", "actor": "Agriculture Officer", "notes": "Joint survey with insurance surveyor scheduled for Monday 10:00 AM."}
+    {"event": "Completeness Verified", "timestamp": "2026-09-26T14:15:00Z", "actor": "Data Verifier", "notes": "Completeness verified. Pack prepared for farmer submission at pmfby.gov.in."}
   ]
 }
 ```
@@ -578,31 +612,55 @@ Uploads leaf photo for lesion analysis.
 ### 12.2 Support Inquiries
 - **Submit Ticket:** `POST /support/tickets`
   - Body: `{"subject": "Discrepancy in PMFBY intimation receipt", "category": "claims", "message": "My intimation timestamp was within 48h but shows 73h in status."}`
-- **Response (HTTP 201):** Returns ticket tracking ID and assigned officer acknowledgment.
+- **Response (HTTP 201):** Returns ticket tracking ID and assigned support agent acknowledgment.
 
 ---
 
-## 13. Administrative & Officer Endpoints
+## 13. Operations & Data Verification Endpoints
 
-*(Requires Bearer token with role `officer`, `admin`, or `super_admin`)*
+*(Requires Bearer token with role `data_verifier`, `support_agent`, `admin`, or `super_admin`)*
 
 | Endpoint | Method | Role Required | Description |
 |---|---|---|---|
-| `/admin/dashboard-stats` | `GET` | Officer+ | Overall farmer counts, open claims, today's arrivals, active alerts. |
-| `/admin/farmers` | `GET` | Officer+ | Registered cultivators listing with acreage and district filters. |
+| `/admin/dashboard-stats` | `GET` | Verifier+ | Overall farmer counts, open claims, today's arrivals, active alerts. |
+| `/admin/farmers` | `GET` | Verifier+ | Registered cultivators listing with acreage and district filters. |
 | `/admin/users` | `GET` | Admin | System user accounts and role assignments. |
-| `/admin/all-claims` | `GET` | Officer+ | Complete PMFBY claims roster with review actions. |
-| `/admin/claims/{id}/update` | `POST` | Officer+ | Mutate claim status (`Under Review`, `Survey Scheduled`, `Settled`). |
-| `/admin/broadcast-alert` | `POST` | Officer+ | Post emergency advisory for a specific district and crop. |
-| `/admin/broadcast-alerts` | `GET` | Officer+ | Retrieve active broadcast advisories. |
-| `/admin/mandi/prices` | `GET` / `POST` | Officer+ | Review or manually enter spot APMC market rates. |
-| `/admin/mandi/prices/{id}` | `PUT` / `DELETE` | Officer+ | Modify or deactivate a specific APMC spot record. |
+| `/admin/all-claims` | `GET` | Verifier+ | Complete PMFBY claims roster with review actions. |
+| `/admin/claims/{id}/update` | `POST` | Verifier+ | Review claim dossier status (`VERIFIED`, `PREPARATION_READY`, `FLAGGED_INCOMPLETE`). |
+| `/admin/broadcast-alert` | `POST` | Verifier+ | Post official emergency advisory for a specific district and crop. |
+| `/admin/broadcast-alerts` | `GET` | Verifier+ | Retrieve active broadcast advisories. |
+| `/admin/mandi/prices` | `GET` / `POST` | Verifier+ | Review or manually enter spot APMC market rates. |
+| `/admin/mandi/prices/{id}` | `PUT` / `DELETE` | Verifier+ | Modify or deactivate a specific APMC spot record. |
 | `/admin/mandi/sync` | `POST` | Admin | Trigger manual upstream mandi sync from `data.gov.in`. |
-| `/admin/mandi/ingestion-status` | `GET` | Officer+ | Ingestion run telemetry, record counts, and error diagnostics. |
+| `/admin/mandi/ingestion-status` | `GET` | Verifier+ | Ingestion run telemetry, record counts, and error diagnostics. |
 
 ---
 
-## 14. System Probes & Health Endpoints
+## 14. Official Action Center Endpoints
+
+### 14.1 List Statutory Action Items & Checklists
+- **URL:** `GET /action-center/items?farmer_id=105`
+- **Response (HTTP 200):** Returns array of action items with preparation checklists, deadlines, and official portal URLs.
+
+### 14.2 Save Farmer's Self-Tracked Official Reference
+- **URL:** `POST /action-center/save-reference`
+- **Request Body:**
+```json
+{
+  "farmer_id": 105,
+  "action_key": "pmfby_loss_intimation",
+  "category": "crop_loss",
+  "title": "PMFBY Crop Loss Intimation",
+  "official_reference_number": "PMFBY/2026/TG/984210",
+  "farmer_self_status": "SUBMITTED_OFFICIAL",
+  "notes": "Filed at Warangal MeeSeva center counter 3"
+}
+```
+- **Response (HTTP 200):** Confirms saved reference record.
+
+---
+
+## 15. System Probes & Health Endpoints
 
 ### 14.1 Shallow Liveness Probe
 - **URL:** `GET /health`

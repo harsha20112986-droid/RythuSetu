@@ -124,7 +124,8 @@ def enforce_rate_limit(max_requests: int, window_seconds: int = 60, key_prefix: 
     FastAPI dependency factory enforcing rate limits.
     """
     async def dependency(request: Request):
-        if request.headers.get("X-Bypass-Rate-Limit") == "test-suite":
+        # Strict security: Bypass header is ONLY respected in local/CI test suite environments
+        if settings.app_env == "test" and request.headers.get("X-Bypass-Rate-Limit") == "test-suite":
             return True
         ip = get_client_ip(request)
         route_path = request.url.path if request and hasattr(request, "url") else "route"

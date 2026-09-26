@@ -201,10 +201,23 @@ def get_factory_contracts(
         if norm_crop and "all" not in norm_crop:
             if norm_crop not in fac["crop"].lower() and fac["crop"].lower() not in norm_crop:
                 continue
-        results.append(fac)
+        # Ensure honest provenance fields
+        fac_copy = dict(fac)
+        fac_copy["verification_status"] = "LISTED_BUYER"
+        fac_copy["offer_status"] = "INDICATIVE_PROCUREMENT_TARGET"
+        fac_copy["last_verified"] = "September 2026"
+        fac_copy["disclaimer"] = "Direct offer rates are indicative industrial procurement target benchmarks. Final settlement is subject to physical lot inspection, moisture testing, and mill gate weighment."
+        results.append(fac_copy)
 
     if not results:
-        results = [fac for fac in VERIFIED_FACTORIES_DATA if not norm_st or norm_st in fac["state"].lower()] or VERIFIED_FACTORIES_DATA
+        base_list = [fac for fac in VERIFIED_FACTORIES_DATA if not norm_st or norm_st in fac["state"].lower()] or VERIFIED_FACTORIES_DATA
+        for fac in base_list:
+            fac_copy = dict(fac)
+            fac_copy["verification_status"] = "LISTED_BUYER"
+            fac_copy["offer_status"] = "INDICATIVE_PROCUREMENT_TARGET"
+            fac_copy["last_verified"] = "September 2026"
+            fac_copy["disclaimer"] = "Direct offer rates are indicative industrial procurement target benchmarks. Final settlement is subject to physical lot inspection, moisture testing, and mill gate weighment."
+            results.append(fac_copy)
 
     return results
 
@@ -241,7 +254,10 @@ def create_factory_delivery_pass(
         "factory_location": factory["location"],
         "factory_district": factory["district"],
         "factory_state": factory["state"],
-        "procurement_officer": factory["procurement_officer"],
+        "procurement_manager": factory.get("procurement_manager", factory.get("procurement_officer", "Sourcing Manager")),
+        "procurement_contact": factory.get("procurement_manager", factory.get("procurement_officer", "Sourcing Manager")),
+        "procurement_officer": factory.get("procurement_manager", factory.get("procurement_officer", "Sourcing Manager")),
+        "contact_phone": factory["phone"],
         "officer_phone": factory["phone"],
         "farmer_name": farmer_name,
         "phone": phone,
@@ -257,7 +273,7 @@ def create_factory_delivery_pass(
         "factory_owner_notified": True,
         "entry_allowed": False,
         "generated_at": now.strftime("%d %b %Y, %I:%M %p"),
-        "instructions": f"Delivery pass request submitted to procurement officer {factory['procurement_officer']}. Gate pass and weighbridge entry clearance will be issued upon factory schedule confirmation.",
+        "instructions": f"Delivery pass request submitted to factory sourcing desk ({factory.get('procurement_officer', 'Sourcing Desk')}). Gate pass and weighbridge entry clearance will be issued upon factory schedule confirmation.",
     }
 
     if db is not None:

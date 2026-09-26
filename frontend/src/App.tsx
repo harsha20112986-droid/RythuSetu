@@ -36,6 +36,7 @@ const AgriKhata = lazy(() => import("./components/AgriKhata").then((m) => ({ def
 const KrishiAssistant = lazy(() => import("./components/KrishiAssistant").then((m) => ({ default: m.KrishiAssistant })));
 const AdminPortal = lazy(() => import("./components/AdminPortal").then((m) => ({ default: m.AdminPortal })));
 const LegalPages = lazy(() => import("./components/LegalPages").then((m) => ({ default: m.LegalPages })));
+const OfficialActionCenter = lazy(() => import("./components/OfficialActionCenter").then((m) => ({ default: m.OfficialActionCenter })));
 
 export function App() {
   const [page, setPage] = useState<Page>("home");
@@ -103,7 +104,12 @@ export function App() {
       try {
         const u = JSON.parse(savedUserRaw) as AuthUser;
         setCurrentUser(u);
-        if (u.role === "admin") {
+        if (
+          u.role === "admin" ||
+          u.role === "data_verifier" ||
+          u.role === "support_agent" ||
+          u.role === "super_admin"
+        ) {
           setPage("admin");
         }
 
@@ -198,7 +204,12 @@ export function App() {
       return;
     }
 
-    if (currentUser.role === "admin") {
+    if (
+      currentUser.role === "admin" ||
+      currentUser.role === "data_verifier" ||
+      currentUser.role === "support_agent" ||
+      currentUser.role === "super_admin"
+    ) {
       setPage("admin");
       return;
     }
@@ -226,7 +237,12 @@ export function App() {
       }));
     }
 
-    if (user.role === "admin") {
+    if (
+      user.role === "admin" ||
+      user.role === "data_verifier" ||
+      user.role === "support_agent" ||
+      user.role === "super_admin"
+    ) {
       setPage("admin");
     } else if (farmerProfile) {
       if (pendingTargetPage && pendingTargetPage !== "onboarding") {
@@ -419,8 +435,12 @@ export function App() {
             </div>
           }
         >
-        {/* Officer Administration Portal */}
-        {currentUser?.role === "admin" && page === "admin" && (
+        {/* Operations & Administration Portal */}
+        {(currentUser?.role === "admin" ||
+          currentUser?.role === "data_verifier" ||
+          currentUser?.role === "support_agent" ||
+          currentUser?.role === "super_admin") &&
+          page === "admin" && (
           <AdminPortal
             user={currentUser}
             onSwitchToFarmerView={() => setPage("home")}
@@ -478,6 +498,21 @@ export function App() {
             onHarvestShield={() => setPage("harvest-shield")}
             onSeedVerify={() => setPage("seed-verify")}
             onKhata={() => setPage("khata")}
+            onActionCenter={() => setPage("action-center")}
+          />
+        )}
+
+        {page === "action-center" && (
+          <OfficialActionCenter
+            farmer={
+              farmer || {
+                id: 1,
+                form: form,
+              }
+            }
+            onBack={() => setPage(farmer ? "dashboard" : "home")}
+            onNavigateToLoss={() => setPage("loss")}
+            onNavigateToSchemes={() => setPage("schemes")}
           />
         )}
 

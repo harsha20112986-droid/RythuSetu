@@ -12,7 +12,7 @@ FALLBACK_DISEASE_DB: dict[str, dict[str, Any]] = {
     "Cotton": {
         "disease_name": "Bacterial Leaf Blight (Xanthomonas malvacearum)",
         "detection_basis": "Symptom pattern matching (no image model active)",
-        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a local agricultural officer for definitive diagnosis.",
+        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a qualified local agronomist or your local Krishi Vigyan Kendra (KVK) for definitive diagnosis.",
         "severity": "Moderate (32% leaf area)",
         "symptoms": [
             "Angular water-soaked lesions bounded by leaf veinlets",
@@ -35,7 +35,7 @@ FALLBACK_DISEASE_DB: dict[str, dict[str, Any]] = {
     "Rice": {
         "disease_name": "Rice Leaf Blast (Magnaporthe oryzae)",
         "detection_basis": "Symptom pattern matching (no image model active)",
-        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a local agricultural officer for definitive diagnosis.",
+        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a qualified local agronomist or your local Krishi Vigyan Kendra (KVK) for definitive diagnosis.",
         "severity": "Moderate (28% leaf area)",
         "symptoms": [
             "Spindle-shaped elliptical lesions with grey or whitish centers",
@@ -58,7 +58,7 @@ FALLBACK_DISEASE_DB: dict[str, dict[str, Any]] = {
     "Chilli": {
         "disease_name": "Chilli Anthracnose & Black Thrips Curl Complex",
         "detection_basis": "Symptom pattern matching (no image model active)",
-        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a local agricultural officer for definitive diagnosis.",
+        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a qualified local agronomist or your local Krishi Vigyan Kendra (KVK) for definitive diagnosis.",
         "severity": "High (Severe Leaf Curl & Fruit Rot)",
         "symptoms": [
             "Upward cupping of leaves with blackening of growing tips",
@@ -81,7 +81,7 @@ FALLBACK_DISEASE_DB: dict[str, dict[str, Any]] = {
     "Groundnut": {
         "disease_name": "Tikka Leaf Spot (Cercospora personata)",
         "detection_basis": "Symptom pattern matching (no image model active)",
-        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a local agricultural officer for definitive diagnosis.",
+        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a qualified local agronomist or your local Krishi Vigyan Kendra (KVK) for definitive diagnosis.",
         "severity": "Moderate (35% surface)",
         "symptoms": [
             "Dark brown to black circular necrotic spots on upper leaf surface",
@@ -104,7 +104,7 @@ FALLBACK_DISEASE_DB: dict[str, dict[str, Any]] = {
     "Maize": {
         "disease_name": "Fall Armyworm (Spodoptera frugiperda)",
         "detection_basis": "Symptom pattern matching (no image model active)",
-        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a local agricultural officer for definitive diagnosis.",
+        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a qualified local agronomist or your local Krishi Vigyan Kendra (KVK) for definitive diagnosis.",
         "severity": "Moderate to Severe",
         "symptoms": [
             "Window pane pinholes on leaves and ragged shot-hole feeding",
@@ -127,7 +127,7 @@ FALLBACK_DISEASE_DB: dict[str, dict[str, Any]] = {
     "Turmeric": {
         "disease_name": "Rhizome Rot (Pythium aphanidermatum)",
         "detection_basis": "Symptom pattern matching (no image model active)",
-        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a local agricultural officer for definitive diagnosis.",
+        "advisory_note": "Possible issue detected based on common symptoms for this crop. Consult a qualified local agronomist or your local Krishi Vigyan Kendra (KVK) for definitive diagnosis.",
         "severity": "High",
         "symptoms": [
             "Yellowing and drying of leaf margins from lower to upper leaves",
@@ -171,7 +171,7 @@ def analyze_crop_leaf(
             "crop": crop_normalized,
             "disease_name": fallback["disease_name"],
             "detection_basis": fallback.get("detection_basis", "Symptom pattern matching (no image model active)"),
-            "advisory_note": fallback.get("advisory_note", "Possible issue detected based on common symptoms for this crop. Consult a local agricultural officer for definitive diagnosis."),
+            "advisory_note": fallback.get("advisory_note", "Possible issue detected based on common symptoms for this crop. Consult a qualified local agronomist or your local Krishi Vigyan Kendra (KVK) for definitive diagnosis."),
             "is_ai_diagnosis": False,
             "diagnosis_method": "fallback_pattern_match",
             "severity": fallback["severity"],
@@ -252,7 +252,7 @@ Return ONLY raw valid JSON, no markdown backticks."""
             "crop": crop_normalized,
             "disease_name": fallback["disease_name"],
             "detection_basis": fallback.get("detection_basis", "Symptom pattern matching (no image model active)"),
-            "advisory_note": fallback.get("advisory_note", "Possible issue detected based on common symptoms for this crop. Consult a local agricultural officer for definitive diagnosis."),
+            "advisory_note": fallback.get("advisory_note", "Possible issue detected based on common symptoms for this crop. Consult a qualified local agronomist or your local Krishi Vigyan Kendra (KVK) for definitive diagnosis."),
             "is_ai_diagnosis": False,
             "diagnosis_method": "fallback_pattern_match",
             "severity": fallback["severity"],
@@ -347,7 +347,7 @@ Return ONLY raw valid JSON, no markdown."""
         "crop": crop_normalized,
         "disease_name": fallback["disease_name"],
         "detection_basis": fallback.get("detection_basis", "Symptom pattern matching (no image model active)"),
-        "advisory_note": fallback.get("advisory_note", "Possible issue detected based on common symptoms for this crop. Consult a local agricultural officer for definitive diagnosis."),
+        "advisory_note": fallback.get("advisory_note", "Possible issue detected based on common symptoms for this crop. Consult a qualified local agronomist or your local Krishi Vigyan Kendra (KVK) for definitive diagnosis."),
         "is_ai_diagnosis": False,
         "diagnosis_method": "fallback_pattern_match",
         "severity": fallback["severity"],

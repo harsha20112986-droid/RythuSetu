@@ -52,7 +52,12 @@ export function Header({
   onRequestFarmProfile?: () => void;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const isAdmin = currentUser?.role === "admin";
+  const isStaff =
+    currentUser?.role === "admin" ||
+    currentUser?.role === "data_verifier" ||
+    currentUser?.role === "support_agent" ||
+    currentUser?.role === "super_admin";
+  const isAdmin = isStaff;
   const t = getTranslation(language);
 
   const navigateTo = (targetPage: Page) => {
@@ -116,10 +121,19 @@ export function Header({
       badge: "Hyperlocal",
     },
     {
+      id: "action-center" as Page,
+      title: "Official Action Center",
+      teluguTitle: "అధికారిక సేవల కేంద్రం",
+      subtitle: "Track statutory deadlines, official portals (PMFBY, PM-KISAN) & personal reference IDs",
+      icon: ShieldCheck,
+      color: "blue",
+      badge: "Official Portals",
+    },
+    {
       id: "schemes" as Page,
       title: t.schemes,
       teluguTitle: "ప్రభుత్వ సంక్షేమ పథకాలు",
-      subtitle: "PM-KISAN, Rythu Bharosa, subsidized seeds & solar pumps",
+      subtitle: "Match potential government schemes, review required documents & apply on official portals",
       icon: Landmark,
       color: "indigo",
       badge: "Govt Subsidies",
@@ -128,10 +142,10 @@ export function Header({
       id: "loss" as Page,
       title: t.pmfby,
       teluguTitle: "PMFBY పంట నష్ట పరిహారం",
-      subtitle: "72-hour geo-tagged crop loss reporting & DBT payout tracking",
+      subtitle: "Prepare 72-hour PMFBY intimation dossiers & route to official helplines (14447)",
       icon: FileCheck2,
       color: "red",
-      badge: "72hr DBT",
+      badge: "72hr Filing",
     },
     {
       id: "fertilizer" as Page,
@@ -436,7 +450,7 @@ export function Header({
                       <User className="size-5" />
                     </div>
                     <h4 className="text-xs font-black text-slate-900">
-                      Welcome Cultivator / Officer
+                      Welcome Cultivator / Operations Desk
                     </h4>
                     <p className="text-[11px] text-slate-500 mt-0.5 mb-3">
                       Sign in to save farm profile, track PMFBY claims & access warehouse bays.

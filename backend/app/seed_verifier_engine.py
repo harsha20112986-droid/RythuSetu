@@ -155,9 +155,11 @@ def file_seed_grievance(
         "lot_number": lot_number,
         "germination_failed_percent": germination_failed_percent,
         "notes": notes,
-        "status": "Submitted to Mandal Seed Inspector / MAO",
+        "status": "Official Grievance Pack Prepared",
+        "official_channel": "District Agriculture Joint Director / National Consumer Helpline 1915",
         "submitted_at": now.strftime("%d %b %Y, %I:%M %p"),
-        "resolution_timeline": "Seed Inspector field sample testing within 48 hours under Seeds Act, 1966.",
+        "resolution_timeline": "Official testing and inspection conducted under Seeds Act, 1966.",
+        "official_disclaimer": "RythuSetu generates formal grievance documentation to assist the farmer. Official enforcement is executed by government seed inspectors.",
     }
 
     if db is not None:
@@ -174,7 +176,7 @@ def file_seed_grievance(
                 lot_number=lot_number,
                 germination_failed_percent=float(germination_failed_percent),
                 notes=notes,
-                status="Submitted to Mandal Seed Inspector / MAO",
+                status="Official Grievance Pack Prepared",
                 created_at=now,
             )
             db.add(grv)

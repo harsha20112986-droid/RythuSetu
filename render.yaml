@@ -1,16 +1,17 @@
 databases:
-  # Render-managed PostgreSQL — free tier (256 MB), auto-provisioned
+  # Render Managed PostgreSQL — Production Starter Plan (Persistent, Automated Backups, PITR)
   - name: rythusetu-db
     databaseName: rythusetu
     user: rythusetu
-    plan: free
+    plan: starter
 
 services:
   # ── Backend FastAPI Web Service ─────────────────────────────────────────────
   - type: web
     name: rythusetu-backend
     runtime: python
-    plan: free
+    plan: starter
+    preDeployCommand: "alembic upgrade head"
     buildCommand: "pip install -r requirements.txt"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     rootDir: backend
@@ -20,7 +21,7 @@ services:
       - key: APP_ENV
         value: production
 
-      # PostgreSQL connection — auto-wired from the database above
+      # PostgreSQL connection — auto-wired from the managed database
       - key: DATABASE_URL
         fromDatabase:
           name: rythusetu-db
@@ -32,8 +33,7 @@ services:
       - key: JWT_REFRESH_SECRET_KEY
         generateValue: true
 
-      # Admin bootstrap password — set manually in Render Dashboard after first deploy
-      # Dashboard → rythusetu-backend → Environment → ADMIN_INITIAL_PASSWORD
+      # Admin bootstrap password — auto-generated on Render, overridable in dashboard
       - key: ADMIN_INITIAL_PASSWORD
         generateValue: true
 
@@ -43,7 +43,7 @@ services:
 
       # ── Mandi Ingestion Pipeline ──────────────────────────────────────────
       # Register at https://data.gov.in → My Account → API Keys
-      # Then set this in Render Dashboard → rythusetu-backend → Environment
+      # Set this in Render Dashboard → rythusetu-backend → Environment
       - key: DATA_GOV_API_KEY
         sync: false   # Must be set manually in the Render Dashboard (secret)
 
@@ -52,7 +52,7 @@ services:
   - type: cron
     name: rythusetu-mandi-sync
     runtime: python
-    plan: free
+    plan: starter
     schedule: "30 19 * * *"        # 01:00 IST daily (market data settled by midnight)
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python cron_sync.py"
@@ -107,7 +107,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: rythusetu-backend
-          property: host
+        value: "https://rythusetu-backend.onrender.com"

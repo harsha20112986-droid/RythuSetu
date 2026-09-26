@@ -486,57 +486,120 @@ class MandiIngestionService:
         self,
         db: Session,
         state: str | None = None,
-        limit: int = 500,
+        limit: int = 1000,
+        max_pages: int = 50,
     ) -> dict[str, Any]:
         """
-        Executes full sync pipeline: fetches from upstream and updates database.
-        Returns detailed telemetry report.
+        Executes full paginated sync pipeline: fetches and ingests all records
+        across multiple upstream pages using offset pagination until complete.
+        Returns comprehensive cumulative telemetry report.
         """
         now = datetime.now(timezone.utc)
-        fetch_res = self.fetch_upstream_records(state=state, limit=limit)
+        offset = 0
+        page_size = min(limit, 1000)
+        total_received = 0
+        total_inserted = 0
+        total_updated = 0
+        total_rejected = 0
+        page_count = 0
+        run_status = "SUCCESS"
+        last_error = None
+        first_payload = None
 
-        if not fetch_res["success"]:
-            # Record failed or offline run
-            run = MandiIngestionRun(
-                source="Data.gov.in (OGD)",
-                started_at=now,
-                completed_at=now,
-                status=fetch_res["status"],
-                records_received=0,
-                records_inserted=0,
-                records_updated=0,
-                records_rejected=0,
-                error_message=fetch_res.get("error"),
-                request_parameters=json.dumps({"state": state, "limit": limit}),
-            )
-            db.add(run)
-            db.commit()
-            return {
-                "success": False,
-                "status": fetch_res["status"],
-                "message": fetch_res.get("error"),
-                "records_processed": 0,
-                "inserted": 0,
-                "updated": 0,
-                "rejected": 0,
-            }
-
-        records = fetch_res["records"]
-        run = self.process_and_persist_records(
-            db=db,
-            records=records,
-            source_name="Data.gov.in (OGD)",
-            raw_payload_str=fetch_res.get("raw_payload"),
-            request_params={"state": state, "limit": limit},
+        # Create master tracking run
+        master_run = MandiIngestionRun(
+            source="Data.gov.in (OGD)",
+            started_at=now,
+            status="RUNNING",
+            records_received=0,
+            records_inserted=0,
+            records_updated=0,
+            records_rejected=0,
+            request_parameters=json.dumps({"state": state, "limit": limit, "paginated": True}),
         )
+        db.add(master_run)
+        db.commit()
+        db.refresh(master_run)
 
-        return {
-            "success": True,
-            "status": run.status,
-            "run_id": run.id,
-            "records_received": run.records_received,
-            "inserted": run.records_inserted,
-            "updated": run.records_updated,
-            "rejected": run.records_rejected,
-            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-        }
+        try:
+            while page_count < max_pages:
+                fetch_res = self.fetch_upstream_records(state=state, limit=page_size, offset=offset)
+
+                if not fetch_res["success"]:
+                    if page_count == 0:
+                        master_run.status = fetch_res["status"]
+                        master_run.error_message = fetch_res.get("error")
+                        master_run.completed_at = datetime.now(timezone.utc)
+                        db.commit()
+                        return {
+                            "success": False,
+                            "status": fetch_res["status"],
+                            "message": fetch_res.get("error"),
+                            "records_processed": 0,
+                            "inserted": 0,
+                            "updated": 0,
+                            "rejected": 0,
+                        }
+                    else:
+                        last_error = fetch_res.get("error")
+                        run_status = "PARTIAL"
+                        break
+
+                records = fetch_res.get("records", [])
+                if not records:
+                    break
+
+                if first_payload is None:
+                    first_payload = fetch_res.get("raw_payload")
+
+                total_upstream = fetch_res.get("total", len(records))
+                total_received += len(records)
+
+                # Persist page records
+                page_run = self.process_and_persist_records(
+                    db=db,
+                    records=records,
+                    source_name="Data.gov.in (OGD)",
+                    raw_payload_str=fetch_res.get("raw_payload"),
+                    request_params={"state": state, "limit": page_size, "offset": offset},
+                )
+                total_inserted += page_run.records_inserted
+                total_updated += page_run.records_updated
+                total_rejected += page_run.records_rejected
+
+                offset += len(records)
+                page_count += 1
+
+                # Check if all records retrieved or end of dataset reached
+                if offset >= total_upstream or len(records) < page_size:
+                    break
+
+                # Gentle pacing between successive upstream API calls
+                time.sleep(0.3)
+
+            master_run.status = run_status if total_rejected == 0 else "PARTIAL"
+            master_run.records_received = total_received
+            master_run.records_inserted = total_inserted
+            master_run.records_updated = total_updated
+            master_run.records_rejected = total_rejected
+            master_run.error_message = last_error
+            master_run.completed_at = datetime.now(timezone.utc)
+            db.commit()
+
+            return {
+                "success": True,
+                "status": master_run.status,
+                "run_id": master_run.id,
+                "pages_fetched": page_count,
+                "records_received": total_received,
+                "inserted": total_inserted,
+                "updated": total_updated,
+                "rejected": total_rejected,
+                "completed_at": master_run.completed_at.isoformat() if master_run.completed_at else None,
+            }
+        except Exception as exc:
+            master_run.status = "FAILED"
+            master_run.error_message = str(exc)
+            master_run.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            raise

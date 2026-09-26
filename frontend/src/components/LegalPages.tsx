@@ -42,10 +42,7 @@ export function LegalPages({ page, onBack }: LegalPagesProps) {
       <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-xs text-amber-900 flex items-start gap-3">
         <AlertCircle className="size-4 text-amber-700 shrink-0 mt-0.5" />
         <p className="leading-relaxed">
-          <strong>Notice:</strong> This document is provided for farmer transparency and informational purposes. It is subject to periodic updates and official legal review. For any privacy or terms inquiries, reach us at{" "}
-          <a href="mailto:support@rythusetu.in" className="underline font-bold text-amber-950">
-            support@rythusetu.in
-          </a>.
+          <strong>Notice:</strong> This document is provided for farmer transparency and informational purposes. It is subject to periodic updates and official legal review. For any inquiries, reach us through the in-app Support Help Desk or via our GitHub repository issues page.
         </p>
       </div>
 
@@ -89,7 +86,7 @@ export function LegalPages({ page, onBack }: LegalPagesProps) {
             </h2>
             <ul className="list-disc pl-5 space-y-1.5 text-slate-600">
               <li><strong>Farm Records:</strong> Maintained for the active duration of your account so you don't need to re-enter farm details.</li>
-              <li><strong>AI Assistant Conversations:</strong> Processed in real time for immediate answers and not stored for long-term profiling.</li>
+              <li><strong>AI Assistant Conversations:</strong> Maintained in session memory and database conversation tables to provide continuity for follow-up questions during active sessions. They are not sold to commercial ad networks.</li>
               <li><strong>Crop Loss &amp; Damage Photos:</strong> Retained during the crop loss reporting lifecycle so you can present them to insurance survey officials.</li>
             </ul>
           </section>
@@ -110,10 +107,7 @@ export function LegalPages({ page, onBack }: LegalPagesProps) {
               5. Your Rights &amp; Control
             </h2>
             <p>
-              You maintain ownership of your information. You may request deletion or correction of your farm profile and stored data at any time by contacting our support team at{" "}
-              <a href="mailto:support@rythusetu.in" className="text-emerald-700 underline font-semibold">
-                support@rythusetu.in
-              </a>.
+              You maintain ownership of your information. You may request deletion or correction of your farm profile and stored data at any time by filing a request through the platform's Support Ticket desk or via our GitHub repository issues page.
             </p>
           </section>
 

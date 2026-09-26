@@ -382,7 +382,7 @@ export function KrishiAssistant({
               </div>
 
               <p className="mt-2 text-[10px] text-slate-400 text-center">
-                Advice is informational. Verify official declarations with local agricultural officers.
+                Advice is informational. Verify recommendations with local Krishi Vigyan Kendra (KVK) agronomists or product labels.
               </p>
             </div>
           </div>

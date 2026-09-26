@@ -199,26 +199,16 @@ def get_cold_storages(
         except Exception:
             pass
 
-    if not facilities:
-        norm_st = state.strip().lower()
-        norm_dist = district.strip().lower()
-        norm_comm = commodity.strip().lower()
+    # Enrich with truthful availability status and disclaimers
+    enriched = []
+    for f in facilities:
+        f_copy = dict(f)
+        f_copy["availability_status"] = "LAST_REPORTED_ESTIMATE"
+        f_copy["trust_label"] = "Listed Facility (Directory Entry)"
+        f_copy["disclaimer"] = "Available capacity and monthly tariff are based on directory disclosures and require physical confirmation with warehouse manager."
+        enriched.append(f_copy)
 
-        for cs in VERIFIED_COLD_STORAGES:
-            if norm_st and norm_st not in cs["state"].lower():
-                continue
-            if norm_dist and norm_dist not in cs["district"].lower():
-                continue
-            if norm_comm and "all" not in norm_comm:
-                comm_match = any(norm_comm in c.lower() or c.lower() in norm_comm for c in cs["commodities"])
-                if not comm_match:
-                    continue
-            facilities.append(cs)
-
-        if not facilities:
-            facilities = [cs for cs in VERIFIED_COLD_STORAGES if not norm_st or norm_st in cs["state"].lower()] or VERIFIED_COLD_STORAGES
-
-    return facilities
+    return enriched
 
 def create_storage_booking(
     facility_id: str,

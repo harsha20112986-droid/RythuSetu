@@ -141,7 +141,7 @@ def get_farmer_or_404(
         )
 
     if current_user:
-        if current_user.role not in ("admin", "super_admin", "officer"):
+        if current_user.role not in ("admin", "super_admin", "support_agent", "data_verifier", "officer"):
             user_owns = (
                 current_user.farmer_profile_id == farmer.id or
                 farmer.user_id == current_user.id
@@ -157,7 +157,9 @@ def get_farmer_or_404(
 def require_role(*allowed_roles: str):
     """Factory dependency enforcing that the current user possesses one of the allowed roles."""
     def role_checker(current_user: UserAccount = Depends(get_current_user)) -> UserAccount:
-        if current_user.role not in allowed_roles:
+        # Legacy compatibility: if user has role "officer", map dynamically to data_verifier permissions
+        effective_role = "data_verifier" if current_user.role == "officer" else current_user.role
+        if current_user.role not in allowed_roles and effective_role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Access denied. Requires one of roles: {', '.join(allowed_roles)}. Your role: {current_user.role}",
@@ -168,10 +170,13 @@ def require_role(*allowed_roles: str):
 
 # Reusable Role Dependencies
 require_authenticated_user = get_current_user
-require_farmer = require_role("farmer", "officer", "admin", "super_admin")
-require_officer = require_role("officer", "admin", "super_admin")
+require_farmer = require_role("farmer", "data_verifier", "support_agent", "admin", "super_admin", "officer")
+require_internal = require_role("data_verifier", "support_agent", "admin", "super_admin", "officer")
+require_verifier = require_role("data_verifier", "admin", "super_admin", "officer")
+require_support = require_role("support_agent", "admin", "super_admin")
 require_admin = require_role("admin", "super_admin")
 require_super_admin = require_role("super_admin")
+require_officer = require_internal  # Backward compatible alias for existing endpoints
 
 
 def verify_object_ownership(current_user: UserAccount, resource_user_id: int | None, resource_name: str = "resource") -> None:
@@ -179,7 +184,7 @@ def verify_object_ownership(current_user: UserAccount, resource_user_id: int | N
     Prevents Broken Object Level Authorization (BOLA/IDOR).
     Allows access only if current user owns the resource or has administrative authority.
     """
-    if current_user.role in ("admin", "super_admin", "officer"):
+    if current_user.role in ("admin", "super_admin", "support_agent", "data_verifier", "officer"):
         return
 
     if resource_user_id is None or current_user.id != resource_user_id:

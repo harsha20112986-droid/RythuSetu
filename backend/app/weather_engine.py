@@ -187,7 +187,7 @@ def _score_risk(
     rain_probability: float,
     wind_gust: float,
     precipitation: float,
-    humidity: float,
+    humidity: float | None,
     crop: str,
 ) -> tuple[str, int, list[str], str]:
     score = 0
@@ -221,7 +221,7 @@ def _score_risk(
         factors.append("Breezy to Gusty Conditions")
 
     # Humidity
-    if humidity >= 88:
+    if humidity is not None and humidity >= 88:
         score += 1
         factors.append("High Relative Humidity (Fungal Spore Risk)")
 
@@ -270,14 +270,21 @@ def get_climate_risk(*, state: str, district: str, crop: str, season: str) -> di
     daily = weather.get("daily", {})
     hourly = weather.get("hourly", {})
 
-    temp = float(current.get("temperature_2m", 28.0))
+    raw_temp = current.get("temperature_2m")
+    if raw_temp is None:
+        raise ValueError(f"Upstream radar returned incomplete meteorological observations for {district}, {state}. Missing temperature reading.")
+    temp = float(raw_temp)
     apparent_temp = float(current.get("apparent_temperature", temp))
-    humidity = float(current.get("relative_humidity_2m", 65.0))
-    precip = float(current.get("precipitation", 0.0))
-    wind_speed = float(current.get("wind_speed_10m", 8.0))
-    wind_gust = float(current.get("wind_gusts_10m", 12.0))
-    weather_code = int(current.get("weather_code", 0))
-    cloud_cover = int(current.get("cloud_cover", 20))
+
+    raw_humidity = current.get("relative_humidity_2m")
+    humidity = float(raw_humidity) if raw_humidity is not None else None
+
+    precip = float(current.get("precipitation") if current.get("precipitation") is not None else 0.0)
+    raw_wind_speed = current.get("wind_speed_10m")
+    wind_speed = float(raw_wind_speed) if raw_wind_speed is not None else None
+    wind_gust = float(current.get("wind_gusts_10m") if current.get("wind_gusts_10m") is not None else (wind_speed or 0.0))
+    weather_code = int(current.get("weather_code") if current.get("weather_code") is not None else 0)
+    cloud_cover = int(current.get("cloud_cover") if current.get("cloud_cover") is not None else 0)
 
     cond_text, cond_icon = decode_wmo_code(weather_code)
 
@@ -368,12 +375,12 @@ def get_climate_risk(*, state: str, district: str, crop: str, season: str) -> di
         },
         "current": {
             "time": current.get("time"),
-            "temperature_c": round(temp, 1),
-            "apparent_temperature_c": round(apparent_temp, 1),
-            "humidity_percent": int(humidity),
+            "temperature_c": round(temp, 1) if temp is not None else None,
+            "apparent_temperature_c": round(apparent_temp, 1) if apparent_temp is not None else None,
+            "humidity_percent": int(humidity) if humidity is not None else None,
             "precipitation_mm": round(precip, 1),
-            "wind_speed_kmh": round(wind_speed, 1),
-            "wind_gust_kmh": round(wind_gust, 1),
+            "wind_speed_kmh": round(wind_speed, 1) if wind_speed is not None else None,
+            "wind_gust_kmh": round(wind_gust, 1) if wind_gust is not None else None,
             "weather_code": weather_code,
             "condition_text": cond_text,
             "icon": cond_icon,

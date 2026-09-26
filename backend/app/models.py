@@ -23,14 +23,14 @@ from app.db import Base
 
 
 class UserAccount(Base):
-    """Core user account supporting RBAC (farmer, officer, admin, super_admin)."""
+    """Core user account supporting RBAC (farmer, data_verifier, support_agent, admin, super_admin)."""
     __tablename__ = "user_accounts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(120), index=True)
-    role: Mapped[str] = mapped_column(String(40), default="farmer", index=True)  # farmer, officer, admin, super_admin
+    role: Mapped[str] = mapped_column(String(40), default="farmer", index=True)  # farmer, data_verifier, support_agent, admin, super_admin
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     designation: Mapped[str | None] = mapped_column(String(120), nullable=True)
     district: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
@@ -68,8 +68,9 @@ class FarmerProfile(Base):
 
 class CropLossReport(Base):
     """
-    PMFBY crop damage claim intimation record.
-    Tracks 72-hour reporting compliance and immutable status lifecycle.
+    PMFBY crop damage claim intimation and preparation pack record.
+    Helps farmers prepare accurate dossiers for official PMFBY reporting
+    and track self-entered official claim reference numbers.
     """
     __tablename__ = "crop_loss_reports"
 
@@ -83,8 +84,20 @@ class CropLossReport(Base):
     damage_percent: Mapped[float] = mapped_column(Float)
     description: Mapped[str] = mapped_column(Text)
     evidence_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    status: Mapped[str] = mapped_column(String(40), default="Submitted", index=True)
+    status: Mapped[str] = mapped_column(String(40), default="PREPARATION_READY", index=True)
+    
+    # Official Action Center Tracking
+    survey_number: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    mandal: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    village: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    official_reference_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    farmer_self_status: Mapped[str] = mapped_column(String(60), default="PREPARATION_READY")
+    farmer_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    submission_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    follow_up_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    verifier_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     officer_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     reporting_window_hours: Mapped[int] = mapped_column(Integer, default=72)
     is_within_window: Mapped[bool] = mapped_column(Boolean, default=True)
     submitted_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -95,13 +108,13 @@ class CropLossReport(Base):
 
 
 class ClaimEvent(Base):
-    """Immutable audit trail for every PMFBY claim transition."""
+    """Immutable audit trail for every crop loss preparation and status transition."""
     __tablename__ = "claim_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     claim_id: Mapped[int] = mapped_column(Integer, ForeignKey("crop_loss_reports.id"), index=True)
     actor_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    actor_role: Mapped[str] = mapped_column(String(40), default="officer")
+    actor_role: Mapped[str] = mapped_column(String(40), default="data_verifier")
     actor_name: Mapped[str] = mapped_column(String(120), default="System")
     old_status: Mapped[str] = mapped_column(String(40))
     new_status: Mapped[str] = mapped_column(String(40))
@@ -299,7 +312,7 @@ class BroadcastAlert(Base):
     severity: Mapped[str] = mapped_column(String(40), default="high")  # moderate, high, critical
     target_crop: Mapped[str] = mapped_column(String(80), default="All Crops")
     advisory: Mapped[str] = mapped_column(Text)
-    issued_by: Mapped[str] = mapped_column(String(120), default="Mandal Agriculture Officer")
+    issued_by: Mapped[str] = mapped_column(String(120), default="State Agriculture Department Advisory / IMD")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -348,7 +361,7 @@ class MandiPriceRecord(Base):
     effective_date: Mapped[str] = mapped_column(String(50), default=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d"))
     retrieved_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_verified_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    verification_status: Mapped[str] = mapped_column(String(50), default="OFFICER_ENTERED", index=True)  # OFFICER_ENTERED, OFFICIALLY_VERIFIED, PROVISIONAL, EXPIRED
+    verification_status: Mapped[str] = mapped_column(String(50), default="VERIFIER_ENTERED", index=True)  # VERIFIER_ENTERED, OFFICIALLY_VERIFIED, PROVISIONAL, EXPIRED
     confidence: Mapped[float] = mapped_column(Float, default=0.98)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_by_user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("user_accounts.id"), nullable=True)
@@ -513,6 +526,33 @@ class SupportTicket(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    user = relationship("UserAccount", foreign_keys=[user_id])
+
+
+class OfficialActionRecord(Base):
+    """
+    Tracks farmer next-steps, preparation packets, and self-entered official
+    reference numbers across official portals (PMFBY, PM-KISAN, Grievance cells).
+    """
+    __tablename__ = "official_action_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("user_accounts.id"), index=True)
+    action_key: Mapped[str] = mapped_column(String(80), index=True)  # e.g. "claim_12", "scheme_pm_kisan", "seed_grv_1"
+    category: Mapped[str] = mapped_column(String(60), default="CROP_INSURANCE")  # CROP_INSURANCE, SCHEME, GRIEVANCE, DIRECT_MARKET
+    title: Mapped[str] = mapped_column(String(200))
+    official_organization: Mapped[str] = mapped_column(String(200))
+    official_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    helpline: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    deadline: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    official_reference_number: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    farmer_self_status: Mapped[str] = mapped_column(String(60), default="PREPARATION_READY")  # PREPARATION_READY, SUBMITTED_BY_FARMER, REFERENCE_SAVED, UNDER_OFFICIAL_REVIEW
+    submission_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    follow_up_date: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     user = relationship("UserAccount", foreign_keys=[user_id])
 

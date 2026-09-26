@@ -371,7 +371,7 @@ export function DirectFactoryMarket({
                 {/* Footer Action */}
                 <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-4">
                   <div className="text-xs">
-                    <span className="text-[10px] text-slate-500 font-bold block">Sourcing Officer</span>
+                    <span className="text-[10px] text-slate-500 font-bold block">Procurement Desk</span>
                     <span className="font-bold text-slate-800">{fac.procurement_officer}</span>
                     <a href={`tel:${fac.phone}`} className="text-emerald-700 hover:underline font-semibold block text-[11px]">
                       {fac.phone}
@@ -569,7 +569,7 @@ export function DirectFactoryMarket({
                   </span>
                 </div>
 
-                {/* Sourcing Officer Contact */}
+                {/* Sourcing Desk Contact */}
                 <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3.5 flex items-center justify-between gap-3">
                   <div>
                     <span className="text-[10px] font-black uppercase text-amber-900 block">Factory Sourcing Manager</span>
@@ -580,7 +580,7 @@ export function DirectFactoryMarket({
                     href={`tel:${passConfirmation.officer_phone}`}
                     className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
                   >
-                    <span>📞 Call Officer</span>
+                    <span>📞 Call Sourcing Desk</span>
                   </a>
                 </div>
 

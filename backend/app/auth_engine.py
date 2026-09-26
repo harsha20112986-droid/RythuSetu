@@ -32,7 +32,7 @@ def authenticate_user(
     raw_user = username.strip()
     norm_user = raw_user.lower()
     clean_digits = "".join(filter(str.isdigit, raw_user))
-    entered_pw = password.strip()
+    entered_pw = password  # Do not silently alter entered password whitespace
     
     # 1. Query database for user by Username (case-insensitive)
     user = db.query(UserAccount).filter(UserAccount.username.ilike(norm_user)).first()
@@ -97,7 +97,12 @@ def authenticate_user(
                 "name": user.name,
                 "role": user.role,
                 "phone": user.phone or "",
-                "designation": user.designation or ("Cultivator" if user.role == "farmer" else "Agriculture Officer"),
+                "designation": user.designation or (
+                    "Cultivator" if user.role == "farmer"
+                    else ("Internal Data Verifier" if user.role == "data_verifier"
+                    else ("Support Specialist" if user.role == "support_agent"
+                    else "Platform Operations Lead"))
+                ),
                 "district": user.district or "Warangal",
                 "state": user.state or "Telangana",
                 "farmer_profile_id": user.farmer_profile_id,
@@ -143,10 +148,12 @@ def register_user(
     """
     norm_user = username.strip().lower() if username.strip() else name.strip().lower().replace(" ", "_")
     clean_phone = phone.strip() if phone else ""
-    entered_pw = password.strip()
+    entered_pw = password
     
     if len(entered_pw) < 6:
         raise ValueError("Password must be at least 6 characters in length.")
+    if len(entered_pw.encode("utf-8")) > 72:
+        raise ValueError("Password cannot exceed 72 bytes (bcrypt maximum limit).")
         
     # Check if username already exists
     existing = db.query(UserAccount).filter(UserAccount.username.ilike(norm_user)).first()
@@ -401,7 +408,7 @@ def update_claim_status_by_officer(
     current_officer: UserAccount | None = None,
 ) -> dict[str, Any] | None:
     """
-    Officer approves, advances, or rejects farmer PMFBY claim.
+    Internal Data Verifier / Administrator reviews farmer PMFBY preparation packet.
     Records transition in persistent ClaimEvent audit trail.
     """
     raw_id = str(claim_id)
@@ -425,28 +432,29 @@ def update_claim_status_by_officer(
     old_status = claim.status
 
     if action.lower() == "verify":
-        target_status = "Field Inspected"
+        target_status = "Dossier Verified Complete"
     elif action.lower() == "approve":
-        target_status = "Approved for DBT"
+        target_status = "Dossier Verified Complete"
     elif action.lower() == "disburse":
-        target_status = "DBT Disbursed"
+        target_status = "Claim Settled via Official DBT"
     elif action.lower() == "reject":
-        target_status = "Rejected"
+        target_status = "Incomplete Documentation"
     elif new_status:
         target_status = new_status
     else:
-        target_status = "Field Inspected"
+        target_status = "Dossier Verified Complete"
 
     claim.status = target_status
-    claim.officer_notes = officer_notes or f"Updated by MAO to {target_status}"
+    claim.verifier_notes = officer_notes or f"Data quality verified by internal team: {target_status}"
+    claim.officer_notes = claim.verifier_notes
     claim.updated_at = datetime.now(timezone.utc)
 
     # Record Claim Event audit transition
     event = ClaimEvent(
         claim_id=claim.id,
         actor_id=current_officer.id if current_officer else None,
-        actor_role=current_officer.role if current_officer else "officer",
-        actor_name=current_officer.name if current_officer else "Mandal Agriculture Officer",
+        actor_role=current_officer.role if current_officer else "data_verifier",
+        actor_name=current_officer.name if current_officer else "Internal Data Verifier",
         old_status=old_status,
         new_status=target_status,
         notes=officer_notes,
@@ -458,7 +466,7 @@ def update_claim_status_by_officer(
 
     log_audit(
         db=db,
-        action="UPDATE_CLAIM_STATUS",
+        action="VERIFY_CLAIM_DOSSIER",
         resource_type="claim",
         user=current_officer,
         resource_id=str(claim.id),
@@ -474,7 +482,8 @@ def update_claim_status_by_officer(
             "current_stage": new_stage,
             "stage_name": stage_name,
         },
-        "message": f"Claim {claim.reference_number} successfully updated to: {stage_name}",
+        "message": f"Dossier {claim.reference_number} updated to: {stage_name}",
+        "verifier_notes": claim.verifier_notes,
         "officer_notes": claim.officer_notes,
         "updated_at": claim.updated_at.isoformat(),
     }
@@ -487,7 +496,7 @@ def add_broadcast_alert(
     severity: str,
     target_crop: str = "All Crops",
     advisory: str = "",
-    issued_by: str = "Mandal Agriculture Officer",
+    issued_by: str = "State Agriculture Department Advisory / IMD",
     current_officer: UserAccount | None = None,
 ) -> dict[str, Any]:
     """Dispatches emergency advisory across district and persists in database."""
@@ -593,7 +602,12 @@ def get_all_admin_users(db: Session) -> list[dict[str, Any]]:
             "name": u.name,
             "role": u.role,
             "phone": u.phone or "Not registered",
-            "designation": u.designation or ("Cultivator" if u.role == "farmer" else "Agriculture Officer"),
+            "designation": u.designation or (
+                "Cultivator" if u.role == "farmer"
+                else ("Internal Data Verifier" if u.role == "data_verifier"
+                else ("Support Specialist" if u.role == "support_agent"
+                else "Platform Operations Lead"))
+            ),
             "district": u.district or "Warangal",
             "state": u.state or "Telangana",
             "farmer_profile_id": u.farmer_profile_id,

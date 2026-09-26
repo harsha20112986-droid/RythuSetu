@@ -22,6 +22,12 @@ from app.claims_engine import (
     generate_claim_pack,
     save_claim_intimation,
     get_claim_lifecycle_status,
+    validate_crop_loss_completeness,
+    update_farmer_self_status,
+)
+from app.action_center_engine import (
+    get_farmer_action_items,
+    save_farmer_action_reference,
 )
 from app.telephony_engine import process_ivr_step, generate_twiml_response
 from app.core.config import settings
@@ -32,6 +38,9 @@ from app.core.auth import (
     get_farmer_or_404,
     require_role,
     require_farmer,
+    require_internal,
+    require_verifier,
+    require_support,
     require_officer,
     require_admin,
     verify_object_ownership,
@@ -319,6 +328,9 @@ async def create_crop_loss_report(
     affected_area_acres: float = Form(..., gt=0),
     damage_percent: float = Form(..., ge=0, le=100),
     description: str = Form(..., min_length=5, max_length=2000),
+    survey_number: str | None = Form(default=None),
+    mandal: str | None = Form(default=None),
+    village: str | None = Form(default=None),
     farmer_id: int | None = Form(default=None),
     evidence: UploadFile | None = File(default=None),
     current_user: UserAccount = Depends(require_authenticated_user),
@@ -344,12 +356,12 @@ async def create_crop_loss_report(
                 detail="Forbidden: You cannot file a claim for another cultivator."
             )
     else:
-        # Officer/Admin may specify farmer_id
+        # Internal staff / Admin may specify farmer_id
         actual_farmer_id = farmer_id or current_user.farmer_profile_id
         if not actual_farmer_id:
             raise HTTPException(
                 status_code=400,
-                detail="farmer_id is required when filing as an officer or administrator."
+                detail="farmer_id is required when filing on behalf of a cultivator."
             )
 
     farmer = get_farmer_or_404(db, actual_farmer_id, current_user=current_user)
@@ -376,6 +388,23 @@ async def create_crop_loss_report(
         damage_percent=damage_percent,
         description=description,
         evidence_filename=saved_filename,
+        survey_number=survey_number,
+        mandal=mandal or getattr(farmer, "mandal", None),
+        village=village or getattr(farmer, "village", None),
+    )
+
+    pack = generate_claim_pack(
+        farmer=farmer,
+        crop=crop,
+        damage_type=damage_type,
+        loss_date=loss_date,
+        affected_area_acres=affected_area_acres,
+        damage_percent=damage_percent,
+        description=description,
+        reference_number=report.reference_number,
+        survey_number=survey_number,
+        mandal=mandal or getattr(farmer, "mandal", None),
+        village=village or getattr(farmer, "village", None),
     )
 
     return {
@@ -388,13 +417,21 @@ async def create_crop_loss_report(
         "affected_area_acres": report.affected_area_acres,
         "damage_percent": report.damage_percent,
         "description": report.description,
+        "survey_number": report.survey_number,
+        "mandal": report.mandal,
+        "village": report.village,
         "evidence_filename": report.evidence_filename,
         "status": report.status,
+        "farmer_self_status": report.farmer_self_status,
+        "official_reference_number": report.official_reference_number,
         "is_within_window": report.is_within_window,
         "reporting_window_hours": report.reporting_window_hours,
         "submitted_at": report.submitted_at,
-        "next_step": build_next_step(report.status),
-        "disclaimer": "PMFBY Claim Intimation prepared and recorded. Official loss assessment conducted by Agriculture Department.",
+        "preparation_pack": pack,
+        "official_portal_url": "https://pmfby.gov.in",
+        "official_helpline": "14447",
+        "next_step": "Submit your preparation pack details directly on the official PMFBY portal (pmfby.gov.in) or call 14447, then record your official reference number.",
+        "disclaimer": "RythuSetu Crop Loss Preparation Pack generated. This is not a government claim submission. Please file officially via pmfby.gov.in or Kisan Call Centre 14447.",
     }
 
 
@@ -511,6 +548,150 @@ def get_claim_lifecycle_status_endpoint(reference_number: str, db: Session = Dep
             detail=f"PMFBY Claim Intimation '{reference_number}' not found in registry."
         )
     return status_data
+
+
+class ClaimValidationRequest(BaseModel):
+    crop: str
+    damage_type: str
+    loss_date: str
+    affected_area_acres: float
+    description: str
+    district: str
+    mandal: str | None = None
+    village: str | None = None
+    survey_number: str | None = None
+    has_evidence: bool = False
+
+
+@router.post("/claims/validate-completeness")
+def validate_completeness_endpoint(payload: ClaimValidationRequest):
+    """Validates whether farmer loss information is complete prior to generating preparation pack."""
+    return validate_crop_loss_completeness(
+        crop=payload.crop,
+        damage_type=payload.damage_type,
+        loss_date=payload.loss_date,
+        affected_area_acres=payload.affected_area_acres,
+        description=payload.description,
+        district=payload.district,
+        mandal=payload.mandal,
+        village=payload.village,
+        survey_number=payload.survey_number,
+        evidence_filename="photo.jpg" if payload.has_evidence else None,
+    )
+
+
+class ClaimSelfStatusRequest(BaseModel):
+    official_reference_number: str
+    farmer_self_status: str = "SUBMITTED_BY_FARMER"
+    submission_date: str | None = None
+    follow_up_date: str | None = None
+    notes: str | None = None
+
+
+@router.post("/claims/{claim_id}/self-status")
+def save_claim_self_status_endpoint(
+    claim_id: int,
+    payload: ClaimSelfStatusRequest,
+    current_user: UserAccount = Depends(require_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    """Allows the farmer to record their self-entered official PMFBY claim reference number."""
+    try:
+        return update_farmer_self_status(
+            db=db,
+            claim_id=claim_id,
+            user=current_user,
+            official_reference_number=payload.official_reference_number,
+            farmer_self_status=payload.farmer_self_status,
+            submission_date=payload.submission_date,
+            follow_up_date=payload.follow_up_date,
+            notes=payload.notes,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/claims/{claim_id}/preparation-pack")
+def get_claim_preparation_pack_endpoint(
+    claim_id: int,
+    current_user: UserAccount = Depends(require_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    """Returns the printable official preparation pack with checklists and instructions for a specific claim."""
+    claim = db.get(CropLossReport, claim_id)
+    if not claim:
+        raise HTTPException(status_code=404, detail=f"Crop loss claim #{claim_id} not found.")
+
+    farmer = get_farmer_or_404(db, claim.farmer_id, current_user=current_user)
+    return generate_claim_pack(
+        farmer=farmer,
+        crop=claim.crop,
+        damage_type=claim.damage_type,
+        loss_date=claim.loss_date,
+        affected_area_acres=claim.affected_area_acres,
+        damage_percent=claim.damage_percent,
+        description=claim.description,
+        reference_number=claim.reference_number,
+        survey_number=claim.survey_number,
+        mandal=claim.mandal,
+        village=claim.village,
+    )
+
+
+# -------------------------------------------------------------
+# Official Action Center Endpoints
+# -------------------------------------------------------------
+
+@router.get("/action-center/items")
+def get_action_center_items_endpoint(
+    current_user: UserAccount = Depends(require_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    """Returns prioritized official actions, preparation dossiers, and self-tracked reference items."""
+    return {
+        "status": "success",
+        "actions": get_farmer_action_items(db, current_user),
+        "disclaimer": (
+            "RythuSetu is an independent preparation and advisory platform, NOT a government authority. "
+            "Final determination, application processing, and benefits are managed solely by the official competent authority."
+        ),
+    }
+
+
+class SaveActionReferenceRequest(BaseModel):
+    action_key: str
+    official_reference_number: str
+    farmer_self_status: str = "SUBMITTED_BY_FARMER"
+    submission_date: str | None = None
+    follow_up_date: str | None = None
+    notes: str | None = None
+    title: str | None = None
+    official_organization: str | None = None
+    official_url: str | None = None
+    helpline: str | None = None
+
+
+@router.post("/action-center/save-reference")
+def save_action_reference_endpoint(
+    payload: SaveActionReferenceRequest,
+    current_user: UserAccount = Depends(require_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    """Saves or updates a farmer's self-entered official application or reference number."""
+    return save_farmer_action_reference(
+        db=db,
+        user=current_user,
+        action_key=payload.action_key,
+        official_reference_number=payload.official_reference_number,
+        farmer_self_status=payload.farmer_self_status,
+        submission_date=payload.submission_date,
+        follow_up_date=payload.follow_up_date,
+        notes=payload.notes,
+        title=payload.title,
+        official_organization=payload.official_organization,
+        official_url=payload.official_url,
+        helpline=payload.helpline,
+    )
 
 
 class IvrStepRequest(BaseModel):
@@ -631,7 +812,12 @@ def get_me(current_user: UserAccount = Depends(get_current_user)):
         "name": current_user.name,
         "role": current_user.role,
         "phone": current_user.phone or "",
-        "designation": current_user.designation or ("Cultivator" if current_user.role == "farmer" else "Agriculture Officer"),
+        "designation": current_user.designation or (
+            "Cultivator" if current_user.role == "farmer"
+            else ("Internal Data Verifier" if current_user.role == "data_verifier"
+            else ("Support Specialist" if current_user.role == "support_agent"
+            else "Platform Operations Lead"))
+        ),
         "district": current_user.district or "Warangal",
         "state": current_user.state or "Telangana",
         "farmer_profile_id": current_user.farmer_profile_id,
@@ -910,26 +1096,26 @@ def admin_update_support_ticket(
 
 
 @router.get("/admin/dashboard-stats")
-def admin_stats(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_admin)):
-    """Aggregated district agricultural statistics for Officer Command Center."""
+def admin_stats(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_internal)):
+    """Aggregated district agricultural statistics for Operations & Verification Console."""
     return get_admin_dashboard_stats(db)
 
 
 @router.get("/admin/farmers")
-def admin_farmers(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_admin)):
+def admin_farmers(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_internal)):
     """Returns actual registered smallholders from database."""
     return {"farmers": get_all_registered_farmers(db)}
 
 
 @router.get("/admin/users")
 def admin_users(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_admin)):
-    """Returns all registered Cultivators and Agriculture Officers with active login status."""
+    """Returns all registered Cultivators and Internal Staff with active login status."""
     return {"users": get_all_admin_users(db)}
 
 
 @router.get("/admin/all-claims")
-def admin_all_claims(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_admin)):
-    """Master registry of all farmer crop damage claims for audit and approval."""
+def admin_all_claims(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_internal)):
+    """Master registry of all farmer crop damage dossiers for data quality verification."""
     return {"claims": get_all_admin_claims(db)}
 
 
@@ -945,9 +1131,9 @@ def admin_update_claim(
     claim_id: str,
     payload: ClaimStatusUpdate,
     db: Session = Depends(get_db),
-    current_user: UserAccount = Depends(require_officer),
+    current_user: UserAccount = Depends(require_verifier),
 ):
-    """Officer approves, advances, or rejects farmer PMFBY claim."""
+    """Internal Data Verifier / Administrator checks completeness of farmer PMFBY preparation dossier."""
     action = payload.action or ""
     notes = payload.officer_notes or payload.officer_note or ""
     updated = update_claim_status_by_officer(
@@ -971,7 +1157,7 @@ class BroadcastAlertRequest(BaseModel):
     crop: str = "All Crops"
     advisory: str = ""
     message: str = ""
-    issued_by: str = "Mandal Agriculture Officer"
+    issued_by: str = "State Agriculture Department Advisory / IMD"
 
 
 @router.post("/admin/broadcast-alert")

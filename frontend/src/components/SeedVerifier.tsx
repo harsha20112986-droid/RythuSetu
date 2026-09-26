@@ -133,7 +133,7 @@ export function SeedVerifier({
           <div className="flex items-center gap-2 text-emerald-900 font-bold text-lg">
             <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0" />
             <span>
-              {isTelugu ? "ఫిర్యాదు వ్యవసాయ అధికారి (MAO) వద్ద నమోదైంది!" : "Grievance Lodged with Mandal Agriculture Officer (MAO)"}
+              {isTelugu ? "నకిలీ విత్తనాల అధికారిక ఫిర్యాదు ప్యాక్ సిద్ధమైంది!" : "Official Grievance Dossier Prepared for Consumer Forum / Agriculture Directorate"}
             </span>
           </div>
           <div className="bg-white p-3 rounded-xl border border-emerald-200 text-sm grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -383,7 +383,7 @@ export function SeedVerifier({
                   {isTelugu ? "నకిలీ విత్తనాల అధికారిక ఫిర్యాదు" : "File Spurious Seed Complaint (Seeds Act)"}
                 </h3>
                 <p className="text-xs text-gray-500 font-medium">
-                  Submitted to Mandal Agriculture Officer (MAO) for sample testing.
+                  Prepared for submission to District Agriculture Directorate or National Consumer Helpline (1915).
                 </p>
               </div>
               <button

@@ -10,9 +10,16 @@ import {
   Clock,
   ArrowLeft,
   Upload,
+  FileCheck2,
+  Copy,
+  Check,
+  Printer,
+  X,
+  ShieldCheck,
+  ExternalLink,
+  Save,
 } from "lucide-react";
 import { type Farmer, type LossReport, type ClaimPacket, damageTypes, API_BASE } from "../types";
-import { FileCheck2, Copy, Check, Printer, X, ShieldCheck } from "lucide-react";
 
 export function CropLossReporter({
   farmer,
@@ -25,11 +32,16 @@ export function CropLossReporter({
   const [lossDate, setLossDate] = useState(new Date().toISOString().slice(0, 10));
   const [area, setArea] = useState(farmer.form.land_area_acres || "1.0");
   const [percent, setPercent] = useState("50");
+  const [surveyNumber, setSurveyNumber] = useState(farmer.form.khata_survey_no || "");
+  const [mandal, setMandal] = useState(farmer.form.mandal || "");
+  const [village, setVillage] = useState(farmer.form.village || "");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -38,6 +50,44 @@ export function CropLossReporter({
   const [generatingPack, setGeneratingPack] = useState(false);
   const [copiedRef, setCopiedRef] = useState(false);
   const [printModalOpen, setPrintModalOpen] = useState(false);
+
+  // Self-status state for recording official references
+  const [activeReportForRef, setActiveReportForRef] = useState<number | null>(null);
+  const [selfRefInput, setSelfRefInput] = useState("");
+  const [selfStatusInput, setSelfStatusInput] = useState("SUBMITTED_OFFICIAL");
+  const [selfNotesInput, setSelfNotesInput] = useState("");
+  const [savingSelfStatus, setSavingSelfStatus] = useState(false);
+
+  const handleValidateCompleteness = async () => {
+    setValidating(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/claims/validate-completeness`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          farmer_id: farmer.id,
+          crop: farmer.form.crop,
+          damage_type: damageType,
+          loss_date: lossDate,
+          affected_area_acres: parseFloat(area) || 1.0,
+          damage_percent: parseFloat(percent) || 50.0,
+          survey_number: surveyNumber,
+          village: village,
+          has_photo_evidence: Boolean(file),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.detail || "Validation failed");
+      }
+      setValidationResult(data);
+    } catch (err: any) {
+      setError(err.message || "Could not validate dossier completeness");
+    } finally {
+      setValidating(false);
+    }
+  };
 
   const handleGeneratePack = async () => {
     setGeneratingPack(true);
@@ -63,7 +113,6 @@ export function CropLossReporter({
       setGeneratingPack(false);
     }
   };
-
 
   const handleFileChange = (newFile: File | null) => {
     setFile(newFile);
@@ -108,6 +157,9 @@ export function CropLossReporter({
       body.append("affected_area_acres", area);
       body.append("damage_percent", percent);
       body.append("description", description);
+      if (surveyNumber) body.append("survey_number", surveyNumber);
+      if (mandal) body.append("mandal", mandal);
+      if (village) body.append("village", village);
 
       if (file) {
         body.append("evidence", file);
@@ -124,7 +176,12 @@ export function CropLossReporter({
         throw new Error(result?.detail || "Unable to submit loss report");
       }
 
-      setMessage("Crop loss incident successfully recorded! Follow the next steps below.");
+      setMessage(
+        "Crop loss intimation dossier prepared successfully! Proceed to the official PMFBY portal (pmfby.gov.in) or call 14447 to complete your statutory filing."
+      );
+      if (result?.preparation_pack) {
+        setClaimPack(result.preparation_pack);
+      }
       setDescription("");
       handleFileChange(null);
       loadReports();
@@ -135,16 +192,48 @@ export function CropLossReporter({
     }
   };
 
+  const handleSaveSelfStatus = async (reportId: number) => {
+    if (!selfRefInput.trim()) return;
+    setSavingSelfStatus(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/claims/${reportId}/self-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          farmer_id: farmer.id,
+          official_reference_number: selfRefInput.trim(),
+          farmer_self_status: selfStatusInput,
+          farmer_notes: selfNotesInput.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.detail || "Failed to save official reference number");
+      }
+      setMessage("Official reference number and status updated in your records!");
+      setActiveReportForRef(null);
+      setSelfRefInput("");
+      setSelfNotesInput("");
+      loadReports();
+      setTimeout(() => setMessage(""), 5000);
+    } catch (err: any) {
+      setError(err.message || "Failed to update self-status");
+    } finally {
+      setSavingSelfStatus(false);
+    }
+  };
+
   const percentNum = parseInt(percent) || 0;
   const severityBadge =
     percentNum >= 60
       ? { label: "Severe Damage", color: "bg-red-50 text-red-800 border-red-200" }
       : percentNum >= 33
-        ? { label: "Moderate Damage", color: "bg-amber-50 text-amber-900 border-amber-200" }
+        ? { label: "Substantial Damage (PMFBY Threshold)", color: "bg-amber-50 text-amber-900 border-amber-200" }
         : { label: "Localized Minor Damage", color: "bg-emerald-50 text-emerald-800 border-emerald-200" };
 
   return (
-    <section className="mx-auto max-w-4xl px-5 py-8 lg:px-8 lg:py-12">
+    <section className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
       <button
         onClick={onBack}
         className="mb-6 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-700 hover:text-emerald-800 transition cursor-pointer"
@@ -161,35 +250,50 @@ export function CropLossReporter({
           </div>
           <div>
             <span className="rounded-full bg-rose-200/80 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-900">
-              Critical PMFBY Rule
+              Statutory 72-Hour PMFBY Requirement
             </span>
             <h2 className="mt-1 text-xl font-black text-rose-950">
-              72-Hour Crop Loss Intimation Deadline
+              PMFBY Crop Loss Intimation Assistant
             </h2>
             <p className="mt-1.5 text-xs sm:text-sm text-rose-800 leading-relaxed">
-              Under Pradhan Mantri Fasal Bima Yojana (PMFBY), post-harvest or localized calamity loss (hail, landslide, inundation) must be reported within <strong>72 hours</strong> of occurrence to your insurance provider, toll-free helpline, or agriculture officer.
+              Under Pradhan Mantri Fasal Bima Yojana (PMFBY), post-harvest or localized calamity loss (hail, landslide, inundation) must be reported within <strong>72 hours</strong> directly to your insurance company or official government channels.
             </p>
 
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-bold text-rose-950">
-              <span className="flex items-center gap-1">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <a
+                href="https://pmfby.gov.in"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-700 hover:bg-rose-800 text-white px-3.5 py-2 text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                <span>Open PMFBY Portal (pmfby.gov.in)</span>
+                <ExternalLink className="size-3.5" />
+              </a>
+
+              <a
+                href="tel:14447"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-rose-300 hover:bg-rose-100/50 text-rose-950 px-3.5 py-2 text-xs font-bold transition cursor-pointer"
+              >
                 <PhoneCall className="size-3.5 text-rose-700" />
-                PMFBY Helpline: 14447
-              </span>
-              <span>•</span>
-              <span>Kisan Call Centre: 1800-180-1551</span>
+                <span>Call Kisan Insurance Helpline: 14447</span>
+              </a>
+            </div>
+
+            <div className="mt-3 text-[11px] text-rose-700/90 font-medium">
+              RythuSetu prepares your validated intimation pack for submission to the official channels above.
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Form */}
+      {/* Main Preparation Form */}
       <div className="rounded-3xl border border-slate-200/90 bg-white p-6 sm:p-9 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="grid size-12 place-items-center rounded-2xl bg-emerald-100 text-emerald-800 font-bold">
             <Sprout className="size-6 text-emerald-700" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-900">Record Crop Damage Incident</h1>
+            <h1 className="text-2xl font-black text-slate-900">Crop Loss Preparation Dossier</h1>
             <p className="text-xs text-slate-500 mt-0.5">
               Assisting {farmer.form.name} • {farmer.form.crop} in {farmer.form.district}, {farmer.form.state}
             </p>
@@ -211,9 +315,9 @@ export function CropLossReporter({
         )}
 
         <form onSubmit={submit} className="mt-8 space-y-6">
-          {/* Damage Type */}
+          {/* Cause of Damage */}
           <div>
-            <label className="mb-2 block text-xs font-bold text-slate-700">Cause of Damage</label>
+            <label className="mb-2 block text-xs font-bold text-slate-700">Peril / Cause of Damage</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {damageTypes.map((type) => (
                 <button
@@ -235,7 +339,7 @@ export function CropLossReporter({
           {/* Date & Area */}
           <div className="grid gap-5 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-2 block text-xs font-bold text-slate-700">Date of Incident</span>
+              <span className="mb-2 block text-xs font-bold text-slate-700">Date of Incident *</span>
               <input
                 type="date"
                 value={lossDate}
@@ -246,7 +350,7 @@ export function CropLossReporter({
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-xs font-bold text-slate-700">Affected Area (Acres)</span>
+              <span className="mb-2 block text-xs font-bold text-slate-700">Affected Area (Acres) *</span>
               <input
                 type="number"
                 step="0.1"
@@ -256,6 +360,42 @@ export function CropLossReporter({
                 onChange={(e) => setArea(e.target.value)}
                 required
                 className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition"
+              />
+            </label>
+          </div>
+
+          {/* Survey, Village, Mandal details for PMFBY accuracy */}
+          <div className="grid gap-5 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold text-slate-700">Survey / Khata No.</span>
+              <input
+                type="text"
+                placeholder="e.g., 142/2A"
+                value={surveyNumber}
+                onChange={(e) => setSurveyNumber(e.target.value)}
+                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold text-slate-700">Village</span>
+              <input
+                type="text"
+                placeholder="e.g., Duggondi"
+                value={village}
+                onChange={(e) => setVillage(e.target.value)}
+                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold text-slate-700">Mandal / Tehsil</span>
+              <input
+                type="text"
+                placeholder="e.g., Narsampet"
+                value={mandal}
+                onChange={(e) => setMandal(e.target.value)}
+                className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium outline-none focus:border-emerald-600"
               />
             </label>
           </div>
@@ -295,7 +435,7 @@ export function CropLossReporter({
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe standing water, pest symptoms, wind damage, or field status..."
+              placeholder="Describe standing water, hail damage, lodging, or pest symptoms..."
               className="w-full rounded-2xl border border-slate-300 bg-white p-4 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition"
             />
           </label>
@@ -304,7 +444,7 @@ export function CropLossReporter({
           <div>
             <span className="mb-2 block text-xs font-bold text-slate-700 flex items-center gap-1.5">
               <Camera className="size-4 text-emerald-700" />
-              Upload Field Photo Evidence (Optional)
+              Upload Field Photo Evidence (Recommended for Insurance Survey)
             </span>
 
             {previewUrl ? (
@@ -331,7 +471,7 @@ export function CropLossReporter({
             ) : (
               <label className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/50 p-6 hover:bg-slate-50 transition cursor-pointer">
                 <Upload className="size-8 text-slate-400 mb-2" />
-                <span className="text-xs font-bold text-slate-700">Click to upload photo evidence</span>
+                <span className="text-xs font-bold text-slate-700">Click to attach photo evidence</span>
                 <span className="text-[11px] text-slate-400 mt-0.5">JPEG, PNG up to 10MB</span>
                 <input
                   type="file"
@@ -343,31 +483,87 @@ export function CropLossReporter({
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-2xl bg-rose-600 hover:bg-rose-700 py-3.5 px-6 text-sm font-bold text-white shadow-md transition disabled:opacity-50 cursor-pointer"
-          >
-            {submitting ? "Submitting Damage Report..." : "Submit Loss Incident Record"}
-          </button>
+          {/* Completeness Pre-Validation & Submit Buttons */}
+          <div className="space-y-4 pt-2">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={handleValidateCompleteness}
+                disabled={validating}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-900 font-bold py-3 px-4 text-xs transition cursor-pointer"
+              >
+                <FileCheck2 className="size-4 text-indigo-700" />
+                <span>{validating ? "Checking Completeness..." : "Check Dossier Completeness"}</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-600 hover:bg-rose-700 py-3.5 px-6 text-sm font-bold text-white shadow-md transition disabled:opacity-50 cursor-pointer"
+              >
+                <span>{submitting ? "Preparing Dossier..." : "Prepare Crop Loss Intimation Pack"}</span>
+              </button>
+            </div>
+
+            {/* Completeness Feedback Card */}
+            {validationResult && (
+              <div
+                className={`rounded-2xl p-4 border text-xs space-y-2 ${
+                  validationResult.is_complete
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-950"
+                    : "bg-amber-50 border-amber-200 text-amber-950"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-black">
+                    {validationResult.is_complete ? (
+                      <CheckCircle2 className="size-4 text-emerald-600" />
+                    ) : (
+                      <AlertTriangle className="size-4 text-amber-600" />
+                    )}
+                    <span>
+                      Dossier Completeness Score: {validationResult.completeness_score}% (
+                      {validationResult.is_complete ? "Ready for Official Filing" : "Information Missing"}
+                      )
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase">
+                    Window Status: {validationResult.statutory_window_status}
+                  </span>
+                </div>
+
+                {validationResult.missing_fields?.length > 0 && (
+                  <p className="text-[11px] text-amber-800">
+                    <strong>Recommended to add before filing:</strong> {validationResult.missing_fields.join(", ")}
+                  </p>
+                )}
+
+                {validationResult.recommendations?.length > 0 && (
+                  <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-slate-700">
+                    {validationResult.recommendations.map((rec: string, i: number) => (
+                      <li key={i}>{rec}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
         </form>
       </div>
 
-      {/* Previous Submissions History */}
-      
-      {/* Official Govt Claim Packet & Reference Slip Generator */}
+      {/* Official Government Claim Packet & Reference Slip Generator */}
       <div className="mt-8 rounded-3xl border border-emerald-200/90 bg-white p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
             <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-0.5 text-xs font-bold text-emerald-800">
               <FileCheck2 className="size-3.5 text-emerald-700" />
-              <span>Official Government Integration Simulator</span>
+              <span>Standardized Dossier Formatter</span>
             </div>
             <h2 className="mt-1 text-xl font-black text-slate-900">
-              Generate Standardized PMFBY Claim Packet
+              Generate PMFBY Intimation Preparation Pack
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              Creates a pre-validated claim slip with an authentic Reference ID, required documents checklist, and 4-stage lifecycle tracker.
+              Generates a standardized farmer dossier with Scale of Finance calculation, required documents checklist, and official portal filing links.
             </p>
           </div>
 
@@ -378,18 +574,18 @@ export function CropLossReporter({
             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-5 py-2.5 text-xs shadow-sm transition disabled:opacity-50 cursor-pointer shrink-0"
           >
             <FileCheck2 className="size-4" />
-            <span>{generatingPack ? "Generating Packet..." : "Generate Official Claim Slip"}</span>
+            <span>{generatingPack ? "Generating Dossier..." : "Generate Preparation Pack"}</span>
           </button>
         </div>
 
         {claimPack && (
           <div className="mt-6 space-y-6">
-            {/* Official Slip Banner */}
+            {/* Dossier Summary Banner */}
             <div className="rounded-2xl border-2 border-emerald-600/30 bg-emerald-50/50 p-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-200">
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">
-                    {claimPack.scheme} • Standardized Claim Intimation Slip
+                    RythuSetu Preparation Dossier • Internal Reference
                   </span>
                   <div className="mt-1 flex items-center gap-2">
                     <span className="text-xl font-black text-slate-900 tracking-tight font-mono">
@@ -411,7 +607,7 @@ export function CropLossReporter({
 
                 <div className="sm:text-right flex flex-col items-start sm:items-end gap-2">
                   <div>
-                    <span className="text-xs text-slate-500 font-bold block">Estimated Eligible Payout:</span>
+                    <span className="text-xs text-slate-500 font-bold block">Estimated Eligible Calculation:</span>
                     <span className="text-2xl font-black text-emerald-800">
                       {"\u20B9"}{claimPack.financial_valuation.estimated_eligible_payout.toLocaleString("en-IN")}
                     </span>
@@ -421,7 +617,7 @@ export function CropLossReporter({
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-xs cursor-pointer"
                   >
                     <Printer className="size-3.5" />
-                    <span>Print Official Dossier</span>
+                    <span>Print Dossier for Filing</span>
                   </button>
                 </div>
               </div>
@@ -437,8 +633,8 @@ export function CropLossReporter({
                   <span className="font-bold text-slate-800">{claimPack.farmer.khata_survey_no}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-medium">Aadhaar eKYC</span>
-                  <span className="font-bold text-emerald-700">{claimPack.farmer.aadhaar_ekyc_status}</span>
+                  <span className="text-slate-400 block font-medium">Location</span>
+                  <span className="font-bold text-slate-800">{claimPack.farmer.village}, {claimPack.farmer.mandal}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Damage Assessed</span>
@@ -447,55 +643,42 @@ export function CropLossReporter({
               </div>
             </div>
 
-            {/* 4-Stage Lifecycle Tracker */}
-            <div>
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3">
-                Live Claim Lifecycle Tracker
-              </h3>
-              <div className="grid gap-3 sm:grid-cols-4">
-                {claimPack.lifecycle_stages.map((stage) => {
-                  const isCompleted = stage.status === "Completed";
-                  const isInProgress = stage.status === "In Progress";
-                  return (
-                    <div
-                      key={stage.step}
-                      className={`p-3.5 rounded-2xl border text-xs flex flex-col justify-between ${
-                        isCompleted
-                          ? "bg-emerald-50/70 border-emerald-300 text-emerald-950"
-                          : isInProgress
-                            ? "bg-amber-50/70 border-amber-300 text-amber-950"
-                            : "bg-slate-50 border-slate-200 text-slate-400"
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-black text-[11px]">Step {stage.step}</span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                              isCompleted
-                                ? "bg-emerald-200 text-emerald-900"
-                                : isInProgress
-                                  ? "bg-amber-200 text-amber-900"
-                                  : "bg-slate-200 text-slate-600"
-                            }`}
-                          >
-                            {stage.status}
-                          </span>
-                        </div>
-                        <p className="mt-2 font-black text-slate-900 leading-snug">{stage.title}</p>
-                        <p className="mt-1 text-[11px] text-slate-600 leading-tight">{stage.detail}</p>
-                      </div>
-                      <span className="mt-3 text-[10px] text-slate-400 font-medium">{stage.date}</span>
-                    </div>
-                  );
-                })}
+            {/* Official Action Center Card directly below preparation pack */}
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-5 text-indigo-700" />
+                <h3 className="text-sm font-black text-indigo-950">
+                  Next Official Steps: Submit to Authorized Portals
+                </h3>
+              </div>
+              <p className="text-xs text-indigo-900/90 leading-relaxed">
+                Take the details above and file your official intimation through any of these official channels:
+              </p>
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <a
+                  href="https://pmfby.gov.in"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 text-xs transition cursor-pointer"
+                >
+                  <span>Submit on PMFBY Portal (pmfby.gov.in)</span>
+                  <ExternalLink className="size-3.5" />
+                </a>
+
+                <a
+                  href="tel:14447"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-indigo-300 text-indigo-950 font-bold px-4 py-2 text-xs transition cursor-pointer"
+                >
+                  <PhoneCall className="size-3.5 text-indigo-700" />
+                  <span>Call Helpline: 14447</span>
+                </a>
               </div>
             </div>
 
             {/* Checklist */}
             <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200">
               <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 block mb-2">
-                Attached Claim Documentation Checklist:
+                Mandatory Physical Submission Documents Checklist:
               </span>
               <div className="grid sm:grid-cols-2 gap-2 text-xs text-slate-700">
                 {claimPack.required_documents_checklist.map((doc, idx) => (
@@ -510,8 +693,9 @@ export function CropLossReporter({
         )}
       </div>
 
+      {/* Recorded Loss Reports History & Self-Tracking */}
       <div className="mt-10">
-        <h2 className="text-xl font-black text-slate-900 mb-4">Recorded Loss Reports</h2>
+        <h2 className="text-xl font-black text-slate-900 mb-4">Your Recorded Intimation Dossiers</h2>
 
         {loading && (
           <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-slate-500">
@@ -522,40 +706,152 @@ export function CropLossReporter({
 
         {!loading && reports.length === 0 && (
           <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-slate-500 text-xs">
-            No crop loss incidents submitted for this profile yet.
+            No crop loss incidents recorded for this profile yet.
           </div>
         )}
 
         {!loading && reports.length > 0 && (
-          <div className="space-y-3">
-            {reports.map((rep) => (
-              <div
-                key={rep.id}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-900 text-sm">{rep.crop} - {rep.damage_type}</span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                      {rep.affected_area_acres} Acres ({rep.damage_percent}%)
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Occurred on {rep.loss_date} • Submitted {rep.submitted_at.slice(0, 10)}
-                  </p>
-                  {rep.description && (
-                    <p className="text-xs text-slate-700 mt-1 italic">"{rep.description}"</p>
-                  )}
-                </div>
+          <div className="space-y-4">
+            {reports.map((rep) => {
+              const isEditingRef = activeReportForRef === rep.id;
+              return (
+                <div
+                  key={rep.id}
+                  className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col gap-4"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 text-sm">{rep.crop} - {rep.damage_type}</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                          {rep.affected_area_acres} Acres ({rep.damage_percent}%)
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Occurred on {rep.loss_date} • Recorded {rep.submitted_at.slice(0, 10)}
+                        {rep.survey_number && ` • Survey #${rep.survey_number}`}
+                        {rep.village && ` • ${rep.village}, ${rep.mandal}`}
+                      </p>
+                      {rep.description && (
+                        <p className="text-xs text-slate-700 mt-1.5 italic">"{rep.description}"</p>
+                      )}
+                    </div>
 
-                <div className="sm:text-right shrink-0">
-                  <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-800">
-                    {rep.status}
-                  </span>
-                  <p className="text-[11px] text-slate-500 mt-1 font-medium">{rep.next_step}</p>
+                    <div className="sm:text-right shrink-0">
+                      <span className="rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs font-bold text-indigo-800">
+                        {rep.status}
+                      </span>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">{rep.next_step}</p>
+                    </div>
+                  </div>
+
+                  {/* Self-Tracking & Official Reference Section */}
+                  <div className="border-t border-slate-100 pt-3 bg-slate-50/60 -mx-5 -mb-5 sm:-mx-6 sm:-mb-6 p-4 sm:p-5 rounded-b-3xl">
+                    {rep.official_reference_number && !isEditingRef ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                              Your Official Claim Ref:
+                            </span>
+                            <span className="font-mono text-xs font-bold bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-900">
+                              {rep.official_reference_number}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 mt-1">
+                            Self-tracked status: <strong>{rep.farmer_self_status || "SUBMITTED_OFFICIAL"}</strong>
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Official Status Unavailable — Check official portal for live government claim determination.
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setActiveReportForRef(rep.id);
+                            setSelfRefInput(rep.official_reference_number || "");
+                            setSelfStatusInput(rep.farmer_self_status || "SUBMITTED_OFFICIAL");
+                            setSelfNotesInput(rep.farmer_notes || "");
+                          }}
+                          className="self-start sm:self-auto px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 cursor-pointer transition"
+                        >
+                          Update Status
+                        </button>
+                      </div>
+                    ) : isEditingRef ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black uppercase text-slate-700">
+                            Save Official Claim Reference ID
+                          </span>
+                          <button
+                            onClick={() => setActiveReportForRef(null)}
+                            className="text-xs font-bold text-slate-500 hover:text-slate-800"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <input
+                            type="text"
+                            placeholder="Official Reference Number (from PMFBY / CSC)"
+                            value={selfRefInput}
+                            onChange={(e) => setSelfRefInput(e.target.value)}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium outline-none focus:border-indigo-600 font-mono"
+                          />
+                          <select
+                            value={selfStatusInput}
+                            onChange={(e) => setSelfStatusInput(e.target.value)}
+                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium outline-none focus:border-indigo-600"
+                          >
+                            <option value="SUBMITTED_OFFICIAL">Submitted to Official Portal</option>
+                            <option value="UNDER_SURVEY">Under Official Joint Survey</option>
+                            <option value="SETTLED">Settled / Benefit Credited</option>
+                            <option value="REJECTED">Rejected / Needs Rectification</option>
+                          </select>
+                        </div>
+
+                        <input
+                          type="text"
+                          placeholder="Personal notes (e.g. MeeSeva receipt number, surveyor phone)"
+                          value={selfNotesInput}
+                          onChange={(e) => setSelfNotesInput(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium outline-none focus:border-indigo-600"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => handleSaveSelfStatus(rep.id)}
+                          disabled={savingSelfStatus || !selfRefInput.trim()}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold px-4 py-2 text-xs transition cursor-pointer disabled:opacity-50"
+                        >
+                          <Save className="size-3.5" />
+                          <span>{savingSelfStatus ? "Saving..." : "Save Reference Number"}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <span className="text-xs text-slate-500">
+                          Filed on the PMFBY portal or at MeeSeva? Save your reference number to track it here.
+                        </span>
+                        <button
+                          onClick={() => {
+                            setActiveReportForRef(rep.id);
+                            setSelfRefInput("");
+                            setSelfStatusInput("SUBMITTED_OFFICIAL");
+                            setSelfNotesInput("");
+                          }}
+                          className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:border-indigo-300 text-xs font-bold text-slate-700 cursor-pointer"
+                        >
+                          + Record Official Reference
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -568,7 +864,7 @@ export function CropLossReporter({
             <div className="bg-slate-900 text-white p-4 flex items-center justify-between print:hidden">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="size-5 text-emerald-400" />
-                <span className="text-xs font-bold uppercase tracking-wider">Official PMFBY Physical Claim Dossier</span>
+                <span className="text-xs font-bold uppercase tracking-wider">RythuSetu Crop Loss Preparation Pack</span>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -589,19 +885,19 @@ export function CropLossReporter({
 
             {/* Printable Document Sheet */}
             <div className="p-8 text-slate-900 space-y-6 bg-white font-serif">
-              {/* Official Header */}
+              {/* Header */}
               <div className="text-center border-b-2 border-slate-900 pb-4">
                 <div className="text-[11px] font-sans font-bold uppercase tracking-widest text-slate-500">
-                  Government of India • Ministry of Agriculture & Farmers' Welfare
+                  RythuSetu Agricultural Preparatory Intelligence
                 </div>
                 <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-slate-950 mt-1">
-                  Pradhan Mantri Fasal Bima Yojana (PMFBY)
+                  Crop Loss Intimation Preparation Dossier
                 </h1>
                 <p className="text-xs font-sans font-semibold text-slate-700 mt-0.5">
-                  Localized Calamity & Crop Loss Intimation Acknowledgment Slip
+                  Standardized Dossier for Farmer Filing at PMFBY Portal (pmfby.gov.in) or MeeSeva / CSC Kiosk
                 </p>
                 <div className="mt-2 inline-block font-mono text-xs font-black bg-slate-100 border border-slate-300 px-3 py-1 rounded">
-                  Ref No: {claimPack.reference_number} • Date: {claimPack.generated_at}
+                  Internal Pack Ref: {claimPack.reference_number} • Date: {claimPack.generated_at}
                 </div>
               </div>
 
@@ -609,22 +905,22 @@ export function CropLossReporter({
               <div className="grid grid-cols-2 gap-4 text-xs font-sans border-b border-slate-200 pb-4">
                 <div>
                   <h3 className="font-bold text-slate-900 uppercase text-[10px] text-slate-500 mb-1">
-                    1. Cultivator Identification
+                    1. Cultivator Particulars
                   </h3>
                   <p><strong>Name of Farmer:</strong> {claimPack.farmer.name}</p>
                   <p><strong>Village / Mandal:</strong> {claimPack.farmer.village}, {claimPack.farmer.mandal}</p>
                   <p><strong>District / State:</strong> {claimPack.farmer.district}, {claimPack.farmer.state}</p>
-                  <p><strong>Aadhaar e-KYC:</strong> <span className="text-emerald-700 font-bold">{claimPack.farmer.aadhaar_ekyc_status}</span></p>
+                  <p><strong>Self-Reported e-KYC:</strong> <span className="text-emerald-700 font-bold">{claimPack.farmer.aadhaar_ekyc_status}</span></p>
                 </div>
 
                 <div>
                   <h3 className="font-bold text-slate-900 uppercase text-[10px] text-slate-500 mb-1">
-                    2. Land & Survey Verification
+                    2. Land & Crop Details
                   </h3>
                   <p><strong>Khata / Survey Number:</strong> {claimPack.farmer.khata_survey_no}</p>
                   <p><strong>Insured Crop:</strong> {claimPack.crop_details.crop} ({claimPack.crop_details.season})</p>
-                  <p><strong>Total Insured Area:</strong> {claimPack.crop_details.total_land_acres} Acres</p>
-                  <p><strong>Bank Account Validation:</strong> Validated via PFMS / DBT</p>
+                  <p><strong>Total Land Area:</strong> {claimPack.crop_details.total_land_acres} Acres</p>
+                  <p><strong>Preparation Pack Generator:</strong> RythuSetu Intelligence Engine</p>
                 </div>
               </div>
 
@@ -635,28 +931,28 @@ export function CropLossReporter({
                     3. Damage Intimation Particulars
                   </h3>
                   <p><strong>Incident Date:</strong> {claimPack.crop_details.incident_date}</p>
-                  <p><strong>Peril / Cause of Damage:</strong> {claimPack.crop_details.damage_type}</p>
+                  <p><strong>Cause of Damage:</strong> {claimPack.crop_details.damage_type}</p>
                   <p><strong>Affected Area:</strong> {claimPack.crop_details.affected_acres} Acres</p>
-                  <p><strong>Assessed Damage Percentage:</strong> <strong className="text-red-600">{claimPack.crop_details.damage_percent}%</strong></p>
+                  <p><strong>Estimated Damage:</strong> <strong className="text-red-600">{claimPack.crop_details.damage_percent}%</strong></p>
                 </div>
 
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <h3 className="font-bold text-slate-900 uppercase text-[10px] text-slate-500 mb-1">
-                    4. Financial Loss Computation
+                    4. Scale of Finance Reference Computation
                   </h3>
                   <p><strong>Scale of Finance:</strong> ₹{claimPack.financial_valuation.scale_of_finance_per_acre.toLocaleString()} / Acre</p>
-                  <p><strong>Estimated Eligible Payout:</strong></p>
+                  <p><strong>Estimated Reference Loss:</strong></p>
                   <p className="text-lg font-black text-emerald-800 mt-1">
                     ₹{claimPack.financial_valuation.estimated_eligible_payout.toLocaleString("en-IN")}
                   </p>
-                  <p className="text-[10px] text-slate-500">Authorized as per Government Scale of Finance</p>
+                  <p className="text-[10px] text-slate-500">Subject to official joint surveyor inspection and PMFBY rules.</p>
                 </div>
               </div>
 
               {/* Documents Checklist & Evidence Container */}
               <div className="text-xs font-sans space-y-2 border-b border-slate-200 pb-4">
                 <h3 className="font-bold text-slate-900 uppercase text-[10px] text-slate-500">
-                  5. Mandatory Submission Checklist
+                  5. Physical Submission Checklist for CSC / MeeSeva
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                   {claimPack.required_documents_checklist.map((c, i) => (
@@ -668,29 +964,16 @@ export function CropLossReporter({
                 </div>
               </div>
 
-              {/* Official Stamp & Signatures Box */}
-              <div className="grid grid-cols-2 gap-8 pt-4 font-sans text-xs">
-                <div className="border border-dashed border-slate-300 rounded-xl p-4 text-center">
-                  <div className="h-16 flex items-center justify-center text-slate-300">
-                    [ Physical Farmer Signature / Thumbprint ]
-                  </div>
-                  <p className="border-t border-slate-200 pt-1 font-bold text-slate-700">
-                    Signature / Thumb Impression of Insured Cultivator
-                  </p>
-                </div>
-
-                <div className="border border-dashed border-slate-300 rounded-xl p-4 text-center">
-                  <div className="h-16 flex items-center justify-center text-slate-300">
-                    [ MAO Seal & Verification Stamp ]
-                  </div>
-                  <p className="border-t border-slate-200 pt-1 font-bold text-slate-700">
-                    Mandal Agriculture Officer (MAO) / Inspection Surveyor
-                  </p>
-                </div>
+              {/* Clear Independent Platform Disclaimer */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs font-sans space-y-1">
+                <p className="font-bold text-slate-800">Important Disclaimer:</p>
+                <p className="text-slate-600 leading-relaxed text-[11px]">
+                  This document is an independent preparatory reference pack generated by RythuSetu to assist the cultivator in organizing data for filing under PMFBY. RythuSetu is not a government agency, insurer, or claim adjudicator. Final eligibility and settlement are determined exclusively by the authorized insurance company and the Department of Agriculture.
+                </p>
               </div>
 
               <div className="text-[10px] text-slate-400 text-center font-sans">
-                Computer-generated legal submission dossier verified under PMFBY Guidelines. Retain this acknowledgment slip for MeeSeva / CSC kiosk reference.
+                For official claim status, visit pmfby.gov.in or contact the Kisan Call Centre at 14447.
               </div>
             </div>
           </div>
@@ -699,4 +982,3 @@ export function CropLossReporter({
     </section>
   );
 }
-
