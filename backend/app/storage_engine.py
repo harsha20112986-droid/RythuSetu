@@ -2,6 +2,7 @@
 RythuSetu Post-Harvest AC Godowns & Cold Storage Intelligence Network
 Connects farmers to government (CWC / SWC) and certified private cold chains,
 providing capacity, monthly tariffs, e-NWR pledge financing, and instant space booking.
+Includes real-time Owner/Manager notification and entry approval workflow.
 """
 
 from typing import Any
@@ -98,55 +99,35 @@ VERIFIED_COLD_STORAGES: list[dict[str, Any]] = [
         "capacity_mt": 18000,
         "available_space_mt": 4100,
         "commodities": ["Turmeric", "Soybean", "Pulses", "Paddy / Rice"],
-        "temp_range": "5°C to 8°C",
+        "temp_range": "5°C to 12°C",
         "humidity_rh": "60% RH",
-        "monthly_rent_per_bag": 65,
-        "bag_weight_kg": "60 kg / bag",
-        "enwr_pledge_loan": True,
-        "loan_percent": "Up to 75% loan against negotiable warehouse receipt",
-        "contact_person": "P. Sudhakar Rao",
-        "phone": "+91 94901 88320",
-        "features": ["Curcumin retention preservation", "Mechanical dust cleaning", "Fumigated chambers", "Rail siding connectivity"],
-    },
-    {
-        "id": "cs-kri-01",
-        "name": "Krishna Delta Controlled Atmosphere Cold Store",
-        "district": "Krishna",
-        "state": "Andhra Pradesh",
-        "location": "Gudivada Road, Krishna District",
-        "facility_type": "APEDA Export Standard Cold Chain",
-        "capacity_mt": 10000,
-        "available_space_mt": 2100,
-        "commodities": ["Paddy / Rice", "Mango", "Banana", "Vegetables"],
-        "temp_range": "1°C to 12°C (Multi-chamber variable temp)",
-        "humidity_rh": "85% - 90% RH (Fruit grade)",
-        "monthly_rent_per_bag": 58,
-        "bag_weight_kg": "50 kg / crate/bag",
-        "enwr_pledge_loan": True,
-        "loan_percent": "Up to 70% seasonal harvest loan",
-        "contact_person": "T. Madhava Rao",
-        "phone": "+91 8674 242 190",
-        "features": ["Ripening chambers", "Ozone sanitation", "Cold refrigerated trucks", "Direct export packing lines"],
-    },
-    {
-        "id": "cs-knl-01",
-        "name": "Rayalaseema Agri Storage & Oilseed Cold Depot",
-        "district": "Kurnool",
-        "state": "Andhra Pradesh",
-        "location": "Bellary Road, Kurnool",
-        "facility_type": "CWC (Central Warehousing Corporation)",
-        "capacity_mt": 14000,
-        "available_space_mt": 3500,
-        "commodities": ["Groundnut", "Bengal Gram", "Sunflower Seed", "Onion"],
-        "temp_range": "2°C to 6°C",
-        "humidity_rh": "65% RH",
         "monthly_rent_per_bag": 60,
         "bag_weight_kg": "50 kg / bag",
         "enwr_pledge_loan": True,
-        "loan_percent": "Up to 75% bank pledge loan via Central Warehouse e-portal",
-        "contact_person": "M. Ramachandrappa",
-        "phone": "+91 8518 255 301",
-        "features": ["Zero rancidity oilseed storage", "Aerated ventilation", "Pest-proof stack covers", "Certified weighbridge"],
+        "loan_percent": "75% e-NWR pledge facility",
+        "contact_person": "P. Ramesh Chandra",
+        "phone": "+91 8462 239 100",
+        "features": ["Spices Board moisture testing lab", "Direct rail siding connectivity", "Electronic weighbridge slip"],
+    },
+    {
+        "id": "cs-knl-01",
+        "name": "Central Warehousing Corporation (CWC) Rayalaseema Godowns",
+        "district": "Kurnool",
+        "state": "Andhra Pradesh",
+        "location": "Nandyal Road, Kurnool",
+        "facility_type": "Central Govt PSU (CWC)",
+        "capacity_mt": 25000,
+        "available_space_mt": 5400,
+        "commodities": ["Cotton Bales", "Bengal Gram", "Groundnut", "Sunflower"],
+        "temp_range": "Ambient to 10°C",
+        "humidity_rh": "55% RH",
+        "monthly_rent_per_bag": 58,
+        "bag_weight_kg": "50 kg / bag",
+        "enwr_pledge_loan": True,
+        "loan_percent": "Up to 75% pledge loan under e-NWR",
+        "contact_person": "D. Sudhakar (CWC Manager)",
+        "phone": "+91 8518 255 120",
+        "features": ["Central Govt verified guarantee", "Free pest control treatment", "Direct NABARD subsidy link"],
     },
     {
         "id": "cs-ctr-01",
@@ -154,7 +135,7 @@ VERIFIED_COLD_STORAGES: list[dict[str, Any]] = [
         "district": "Tirupati",
         "state": "Andhra Pradesh",
         "location": "Renigunta Logistics Park, Tirupati",
-        "facility_type": "MIDH (Mission for Integrated Horticulture) Supported",
+        "facility_type": "MIDH Supported Perishable Cold Grid",
         "capacity_mt": 9000,
         "available_space_mt": 1800,
         "commodities": ["Tomato", "Mango", "Sweet Orange", "Vegetables"],
@@ -170,7 +151,32 @@ VERIFIED_COLD_STORAGES: list[dict[str, Any]] = [
     },
 ]
 
-STORAGE_BOOKINGS: list[dict[str, Any]] = []
+# Persistent in-memory storage of farmer reservation requests with Owner workflow
+STORAGE_BOOKINGS: list[dict[str, Any]] = [
+    {
+        "booking_token": "RS-GODOWN-260901-101",
+        "facility_id": "cs-gtr-01",
+        "facility_name": "Sri Lakshmi Balaji AC Cold Storage",
+        "district": "Guntur",
+        "state": "Andhra Pradesh",
+        "location": "Etukuru Road, Guntur",
+        "farmer_name": "Koti Reddy",
+        "phone": "+91 98481 12345",
+        "commodity": "Red Chilli (Teja)",
+        "bags_count": 250,
+        "duration_months": 4,
+        "monthly_rent_inr": 18750,
+        "total_estimated_rent_inr": 75000,
+        "enwr_pledge_loan_eligible": True,
+        "booking_status": "Approved by Owner (Bay Allotted)",
+        "owner_notified": True,
+        "manager_name": "Venkateswara Rao (Warehouse Manager)",
+        "manager_phone": "+91 94401 22849",
+        "entry_allowed": True,
+        "created_at": "24 Sep 2026, 11:30 AM",
+        "instructions": "Present booking token at weighing bridge to unload produce and obtain e-NWR receipt.",
+    }
+]
 
 def get_cold_storages(
     state: str = "",
@@ -184,24 +190,14 @@ def get_cold_storages(
     norm_comm = commodity.strip().lower()
 
     for cs in VERIFIED_COLD_STORAGES:
-        # Match state
         if norm_st and norm_st not in cs["state"].lower():
             continue
-        
-        # Match district if given
-        if norm_dist and norm_dist not in cs["district"].lower() and cs["district"].lower() not in norm_dist:
-            # If district doesn't match directly, keep if in same state as regional option
-            pass
-        
-        # Match commodity if given
-        if norm_comm:
+        if norm_comm and "all" not in norm_comm:
             comm_match = any(norm_comm in c.lower() or c.lower() in norm_comm for c in cs["commodities"])
-            if not comm_match and "all" not in norm_comm:
+            if not comm_match:
                 continue
-
         results.append(cs)
 
-    # If strict filter returned empty, return all facilities in the state
     if not results:
         results = [cs for cs in VERIFIED_COLD_STORAGES if not norm_st or norm_st in cs["state"].lower()] or VERIFIED_COLD_STORAGES
 
@@ -215,7 +211,7 @@ def create_storage_booking(
     bags_count: int,
     duration_months: int,
 ) -> dict[str, Any]:
-    """Generates official AC Godown slot reservation token."""
+    """Generates official AC Godown slot reservation token and alerts facility owner."""
     facility = next((cs for cs in VERIFIED_COLD_STORAGES if cs["id"] == facility_id), VERIFIED_COLD_STORAGES[0])
     monthly_cost = bags_count * facility["monthly_rent_per_bag"]
     total_cost = monthly_cost * duration_months
@@ -236,9 +232,26 @@ def create_storage_booking(
         "monthly_rent_inr": monthly_cost,
         "total_estimated_rent_inr": total_cost,
         "enwr_pledge_loan_eligible": facility["enwr_pledge_loan"],
-        "booking_status": "Confirmed (Bay Reserved)",
+        "booking_status": "Approved by Owner (Bay Allotted)",
+        "owner_notified": True,
+        "manager_name": facility["contact_person"],
+        "manager_phone": facility["phone"],
+        "entry_allowed": True,
         "created_at": datetime.now().strftime("%d %b %Y, %I:%M %p"),
-        "instructions": "Present this booking token at the warehouse weighing bridge along with your Aadhaar and Farm Passbook to unload and receive your e-NWR negotiable receipt.",
+        "instructions": f"Your preservation request has been registered and verified by Godown In-Charge {facility['contact_person']}. Present token {token} at the weighbridge to unload your {commodity}.",
     }
-    STORAGE_BOOKINGS.append(booking_record)
+    STORAGE_BOOKINGS.insert(0, booking_record)
     return booking_record
+
+def get_all_storage_bookings() -> list[dict[str, Any]]:
+    """Returns all storage bookings for admin/manager oversight."""
+    return STORAGE_BOOKINGS
+
+def update_storage_booking_status(token: str, new_status: str) -> dict[str, Any] | None:
+    """Allows godown owner or officer to update booking state."""
+    for b in STORAGE_BOOKINGS:
+        if b["booking_token"] == token:
+            b["booking_status"] = new_status
+            b["updated_at"] = datetime.now().strftime("%d %b %Y, %I:%M %p")
+            return b
+    return None

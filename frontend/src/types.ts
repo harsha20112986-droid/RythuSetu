@@ -343,6 +343,10 @@ export type StorageBookingRecord = {
   total_estimated_rent_inr: number;
   enwr_pledge_loan_eligible: boolean;
   booking_status: string;
+  owner_notified?: boolean;
+  manager_name?: string;
+  manager_phone?: string;
+  entry_allowed?: boolean;
   created_at: string;
   instructions: string;
 };
@@ -393,6 +397,8 @@ export type DeliveryPassRecord = {
   broker_commission_saved_inr: number;
   delivery_date: string;
   status: string;
+  factory_owner_notified?: boolean;
+  entry_allowed?: boolean;
   generated_at: string;
   instructions: string;
 };
@@ -517,16 +523,36 @@ export type BroadcastAlert = {
 };
 
 
+export type CropVarietyItem = {
+  variety: string;
+  telugu_name: string;
+  grade_tag: string;
+  market_hub: string;
+  min_price: number;
+  max_price: number;
+  modal_price: number;
+  key_trait: string;
+  msp_benchmark: number;
+  extra_over_msp: number;
+  recommendation: string;
+  action: string;
+};
+
 export type MandiMarketItem = {
   mandi_name: string;
   district: string;
   state: string;
   crop: string;
   variety: string;
+  telugu_name?: string;
+  grade_tag?: string;
+  key_trait?: string;
+  action?: string;
   min_price: number;
   max_price: number;
   modal_price: number;
   msp_benchmark: number;
+  extra_profit_vs_msp?: number;
   arrival_quintals: number;
   price_trend: "bullish" | "bearish" | "stable";
   trend_percent: number;
@@ -536,10 +562,16 @@ export type MandiMarketItem = {
 
 export type MandiData = {
   crop: string;
+  input_crop?: string;
   govt_msp_inr: number;
+  highest_price?: number;
+  highest_variety?: string;
+  lowest_price?: number;
+  lowest_variety?: string;
   average_modal_price: number;
   msp_difference_inr: number;
   msp_status: string;
+  varieties?: CropVarietyItem[];
   markets: MandiMarketItem[];
   source: string;
   timestamp: string;

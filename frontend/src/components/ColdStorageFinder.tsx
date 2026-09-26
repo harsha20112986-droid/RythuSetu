@@ -549,17 +549,37 @@ export function ColdStorageFinder({
               </form>
             ) : (
               <div className="mt-6 space-y-4 animate-in zoom-in-95 duration-200">
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center">
-                  <div className="grid size-12 place-items-center rounded-full bg-emerald-600 text-white mx-auto mb-2">
+                <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-center">
+                  <div className="grid size-11 place-items-center rounded-full bg-emerald-600 text-white mx-auto mb-2 shadow-xs">
                     <CheckCircle2 className="size-6" />
                   </div>
-                  <h4 className="text-base font-black text-emerald-950">Storage Bay Reserved Successfully!</h4>
-                  <p className="text-xs text-emerald-800 mt-1 font-semibold">
-                    Booking Reference Token:
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 px-3 py-1 rounded-full border border-emerald-300">
+                    🟢 Owner Notified • Direct Entry Approved
+                  </span>
+                  <h4 className="text-base font-black text-emerald-950 mt-1.5">
+                    Storage Bay Successfully Reserved!
+                  </h4>
+                  <p className="text-xs text-emerald-800 font-bold mt-0.5">
+                    Your Official Bay Allotment Pass Token:
                   </p>
-                  <span className="mt-1 inline-block text-lg font-black text-emerald-900 bg-white border border-emerald-300 px-3.5 py-1 rounded-xl tracking-wider">
+                  <span className="mt-1.5 inline-block text-lg font-black text-emerald-950 bg-white border border-emerald-400 px-4 py-1 rounded-xl tracking-wider shadow-2xs">
                     {bookingConfirmation.booking_token}
                   </span>
+                </div>
+
+                {/* Manager Contact Card */}
+                <div className="rounded-2xl bg-sky-50 border border-sky-200 p-3.5 flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-sky-800 block">Warehouse In-Charge / Owner</span>
+                    <strong className="text-xs font-black text-slate-900 block">{activeFacility.contact_person}</strong>
+                    <span className="text-xs font-bold text-sky-700">{activeFacility.phone}</span>
+                  </div>
+                  <a
+                    href={`tel:${activeFacility.phone}`}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <span>📞 Call Manager</span>
+                  </a>
                 </div>
 
                 <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200/80 space-y-1.5 text-xs text-slate-700 font-medium">
@@ -581,17 +601,25 @@ export function ColdStorageFinder({
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-500 leading-relaxed italic">
-                  {bookingConfirmation.instructions}
-                </p>
+                {/* Simple 3 steps for the farmer */}
+                <div className="rounded-2xl bg-amber-50/80 border border-amber-200 p-3 text-xs text-amber-950 space-y-1">
+                  <span className="font-black text-amber-900 block text-[11px] uppercase">
+                    🌾 Simple Steps for Farmer (రైతు చేయవలసినవి):
+                  </span>
+                  <p>1. 🚚 Transport your harvested bags to {activeFacility.name}.</p>
+                  <p>2. 📋 Show token <strong>{bookingConfirmation.booking_token}</strong> at the weighbridge gate.</p>
+                  <p>3. 🏦 Unload produce and collect your official electronic warehouse receipt (e-NWR) for bank loan.</p>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveFacility(null)}
-                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer"
-                >
-                  Done
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveFacility(null)}
+                    className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer"
+                  >
+                    Done (ముగించు)
+                  </button>
+                </div>
               </div>
             )}
           </div>

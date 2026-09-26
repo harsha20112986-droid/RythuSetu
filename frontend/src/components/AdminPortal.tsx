@@ -16,6 +16,8 @@ import {
   Clock,
   Sprout,
   ShieldCheck,
+  Warehouse,
+  Truck,
 } from "lucide-react";
 import {
   type AuthUser,
@@ -33,9 +35,11 @@ export function AdminPortal({
   user: AuthUser;
   onSwitchToFarmerView: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"claims" | "users" | "directory" | "broadcasts">("claims");
+  const [activeTab, setActiveTab] = useState<"claims" | "storage" | "factory" | "users" | "directory" | "broadcasts">("claims");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [claims, setClaims] = useState<AdminClaimItem[]>([]);
+  const [storageBookings, setStorageBookings] = useState<any[]>([]);
+  const [factoryPasses, setFactoryPasses] = useState<any[]>([]);
   const [registeredFarmers, setRegisteredFarmers] = useState<any[]>([]);
   const [userAccounts, setUserAccounts] = useState<AdminUserItem[]>([]);
   const [alerts, setAlerts] = useState<BroadcastAlert[]>([]);
@@ -60,12 +64,14 @@ export function AdminPortal({
   const fetchAdminData = async () => {
     try {
       setRefreshing(true);
-      const [statsRes, claimsRes, alertsRes, farmersRes, usersRes] = await Promise.all([
+      const [statsRes, claimsRes, alertsRes, farmersRes, usersRes, storageRes, factoryRes] = await Promise.all([
         fetch(`${API_BASE}/admin/dashboard-stats`),
         fetch(`${API_BASE}/admin/all-claims`),
         fetch(`${API_BASE}/admin/broadcast-alerts`),
         fetch(`${API_BASE}/admin/farmers`),
         fetch(`${API_BASE}/admin/users`).catch(() => null),
+        fetch(`${API_BASE}/storage/bookings`).catch(() => null),
+        fetch(`${API_BASE}/direct-market/passes`).catch(() => null),
       ]);
 
       if (statsRes.ok) {
@@ -83,6 +89,14 @@ export function AdminPortal({
       if (farmersRes && farmersRes.ok) {
         const farmersData = await farmersRes.json();
         setRegisteredFarmers(farmersData.farmers || []);
+      }
+      if (storageRes && storageRes.ok) {
+        const sData = await storageRes.json();
+        setStorageBookings(sData.bookings || []);
+      }
+      if (factoryRes && factoryRes.ok) {
+        const fData = await factoryRes.json();
+        setFactoryPasses(fData.passes || []);
       }
 
       // Process User Accounts (combining backend + local storage for instant sync)
@@ -206,6 +220,40 @@ export function AdminPortal({
       console.error("Failed to dispatch alert", e);
     } finally {
       setDispatching(false);
+    }
+  };
+
+  const handleUpdateStorageStatus = async (token: string, newStatus: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/storage/bookings/${token}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        setActionMessage(`Storage Token ${token} status updated to: ${newStatus}`);
+        fetchAdminData();
+        setTimeout(() => setActionMessage(""), 4500);
+      }
+    } catch (e) {
+      console.error("Failed to update storage booking status", e);
+    }
+  };
+
+  const handleUpdatePassStatus = async (passNumber: string, newStatus: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/direct-market/passes/${passNumber}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        setActionMessage(`Delivery Pass ${passNumber} status updated to: ${newStatus}`);
+        fetchAdminData();
+        setTimeout(() => setActionMessage(""), 4500);
+      }
+    } catch (e) {
+      console.error("Failed to update delivery pass status", e);
     }
   };
 
@@ -367,6 +415,30 @@ export function AdminPortal({
         >
           <FileCheck2 className="size-4" />
           <span>PMFBY Claims Desk ({claims.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("storage")}
+          className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs border-b-2 transition cursor-pointer shrink-0 ${
+            activeTab === "storage"
+              ? "border-sky-600 text-sky-950 font-black"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Warehouse className="size-4 text-sky-600" />
+          <span>AC Godown Bookings ({storageBookings.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("factory")}
+          className={`flex items-center gap-2 pb-3 px-4 font-bold text-xs border-b-2 transition cursor-pointer shrink-0 ${
+            activeTab === "factory"
+              ? "border-emerald-600 text-emerald-950 font-black"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Truck className="size-4 text-emerald-600" />
+          <span>Factory Passes ({factoryPasses.length})</span>
         </button>
 
         <button
@@ -563,6 +635,313 @@ export function AdminPortal({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB: AC GODOWN & STORAGE BOOKING DESK */}
+      {activeTab === "storage" && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-lg bg-sky-100 text-sky-800 font-black text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <Warehouse className="size-3.5" />
+                    Storage & Godown Oversight
+                  </span>
+                  <span className="text-xs text-slate-500">WDRA Verified AC Warehouses</span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 mt-2">
+                  Farmer Produce Reservation Bookings
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Direct inward intake requests from farmers reserving space to prevent distress selling.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 px-3 py-1.5 rounded-xl">
+                  {storageBookings.length} Active Reservations
+                </span>
+              </div>
+            </div>
+
+            {storageBookings.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <Warehouse className="size-10 mx-auto text-slate-300 mb-2" />
+                <p className="font-bold text-slate-600">No warehouse bookings registered yet</p>
+                <p className="text-xs text-slate-400 mt-1">Bookings submitted by farmers will appear here for manager clearance.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {storageBookings.map((b: any) => (
+                  <div
+                    key={b.booking_token}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 hover:border-sky-300 transition shadow-xs"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-black bg-slate-900 text-white px-2.5 py-1 rounded-lg">
+                            {b.booking_token}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                            <span className="size-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                            {b.booking_status || "Approved by Owner"}
+                          </span>
+                          {b.enwr_pledge_loan_eligible && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800">
+                              e-NWR 75% Pledge Eligible
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-base font-black text-slate-900 mt-2">
+                          {b.facility_name}
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          {b.location || b.district}, {b.district}, {b.state}
+                        </p>
+                      </div>
+
+                      <div className="text-left md:text-right">
+                        <div className="text-xs text-slate-400">Monthly Rent Est.</div>
+                        <div className="text-lg font-black text-slate-900">
+                          ₹{b.monthly_rent_inr?.toLocaleString("en-IN") || "--"}
+                        </div>
+                        <div className="text-[11px] font-semibold text-emerald-700">
+                          Duration: {b.duration_months} Months (Total ₹{b.total_estimated_rent_inr?.toLocaleString("en-IN") || "--"})
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 py-4 text-xs">
+                      <div>
+                        <span className="text-slate-400 block font-medium">Farmer Contact</span>
+                        <span className="font-bold text-slate-900 block mt-0.5">{b.farmer_name}</span>
+                        <a
+                          href={`tel:${b.phone}`}
+                          className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold mt-1"
+                        >
+                          <Phone className="size-3" />
+                          <span>{b.phone}</span>
+                        </a>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-medium">Produce Deposited</span>
+                        <span className="font-bold text-slate-900 block mt-0.5">{b.commodity}</span>
+                        <span className="text-slate-600 block mt-0.5 font-semibold">
+                          {b.bags_count} Bags (approx. {(b.bags_count * 0.5).toFixed(1)} Qtl)
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-medium">Facility Manager In-Charge</span>
+                        <span className="font-bold text-slate-900 block mt-0.5">{b.manager_name || "Warehouse Manager"}</span>
+                        <a
+                          href={`tel:${b.manager_phone}`}
+                          className="inline-flex items-center gap-1 text-sky-700 hover:text-sky-800 font-bold mt-1"
+                        >
+                          <Phone className="size-3" />
+                          <span>{b.manager_phone || "+91 94401 22849"}</span>
+                        </a>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-medium">Gate Inward Status</span>
+                        <span className="font-bold text-emerald-800 block mt-0.5">
+                          🟢 Entry Authorized
+                        </span>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">
+                          Bay #04 (Section C)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                        <Clock className="size-3.5 text-slate-400" />
+                        <span>Registered: {b.created_at || "Recent"}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleUpdateStorageStatus(b.booking_token, "Bay Allotted & Entry Approved")}
+                          className="px-3 py-1.5 rounded-xl bg-sky-50 text-sky-700 border border-sky-300 hover:bg-sky-100 text-xs font-bold transition cursor-pointer"
+                        >
+                          Allot Bay
+                        </button>
+                        <button
+                          onClick={() => handleUpdateStorageStatus(b.booking_token, "Goods Deposited (Weighbridge In)")}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition cursor-pointer shadow-xs"
+                        >
+                          Clear Weighbridge & Deposit
+                        </button>
+                        <button
+                          onClick={() => handleUpdateStorageStatus(b.booking_token, "Discharged / Gate Pass Closed")}
+                          className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-bold transition cursor-pointer"
+                        >
+                          Release / Gate Out
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: FACTORY DIRECT GATE PASSES DESK */}
+      {activeTab === "factory" && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-black text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <Truck className="size-3.5" />
+                    Zero-Broker Factory Gate Desk
+                  </span>
+                  <span className="text-xs text-slate-500">Corporate Processing Plants & Mills</span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 mt-2">
+                  Direct Factory Delivery Passes
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verified delivery authorizations bypassing middlemen with direct weighbridge and instant bank settlement.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                  {factoryPasses.length} Active Gate Passes
+                </span>
+              </div>
+            </div>
+
+            {factoryPasses.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <Truck className="size-10 mx-auto text-slate-300 mb-2" />
+                <p className="font-bold text-slate-600">No factory delivery passes generated yet</p>
+                <p className="text-xs text-slate-400 mt-1">Delivery passes issued to farmers will be displayed here for gate verification.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {factoryPasses.map((p: any) => (
+                  <div
+                    key={p.pass_number}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 hover:border-emerald-300 transition shadow-xs"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-black bg-emerald-950 text-white px-2.5 py-1 rounded-lg">
+                            {p.pass_number}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                            <span className="size-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                            {p.status || "Gate Entry Approved"}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800">
+                            Saved ₹{p.broker_commission_saved_inr?.toLocaleString("en-IN")} Commission
+                          </span>
+                        </div>
+                        <h4 className="text-base font-black text-slate-900 mt-2">
+                          {p.factory_name}
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          {p.factory_location || p.factory_district}, {p.factory_district}
+                        </p>
+                      </div>
+
+                      <div className="text-left md:text-right">
+                        <div className="text-xs text-slate-400">Agreed Factory Purchase Rate</div>
+                        <div className="text-xl font-black text-emerald-700">
+                          ₹{p.agreed_rate_per_qtl?.toLocaleString("en-IN")}/qtl
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-600">
+                          Total Value: ₹{p.total_estimated_payout_inr?.toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 py-4 text-xs">
+                      <div>
+                        <span className="text-slate-400 block font-medium">Farmer & Origin</span>
+                        <span className="font-bold text-slate-900 block mt-0.5">{p.farmer_name}</span>
+                        <span className="text-slate-600 block">{p.origin_village || "Village"}, {p.origin_district}</span>
+                        <a
+                          href={`tel:${p.phone}`}
+                          className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold mt-1"
+                        >
+                          <Phone className="size-3" />
+                          <span>{p.phone}</span>
+                        </a>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-medium">Crop & Quantity</span>
+                        <span className="font-bold text-slate-900 block mt-0.5">{p.crop}</span>
+                        <span className="font-mono font-bold text-emerald-800 block mt-0.5">
+                          {p.allocated_quantity_qtl} Quintals
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-medium">Sourcing Officer</span>
+                        <span className="font-bold text-slate-900 block mt-0.5">{p.procurement_officer || "Procurement Manager"}</span>
+                        <a
+                          href={`tel:${p.officer_phone}`}
+                          className="inline-flex items-center gap-1 text-sky-700 hover:text-sky-800 font-bold mt-1"
+                        >
+                          <Phone className="size-3" />
+                          <span>{p.officer_phone || "+91 863 229 4810"}</span>
+                        </a>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block font-medium">Delivery Slot</span>
+                        <span className="font-bold text-slate-900 block mt-0.5">
+                          📅 {p.delivery_date || "Today"}
+                        </span>
+                        <span className="text-[11px] text-emerald-700 font-semibold block mt-0.5">
+                          Priority Gate 1 Entry
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                        <Clock className="size-3.5 text-slate-400" />
+                        <span>Issued: {p.generated_at || "Recent"}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleUpdatePassStatus(p.pass_number, "Gate Entry Cleared")}
+                          className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 text-xs font-bold transition cursor-pointer"
+                        >
+                          Clear Gate Entry
+                        </button>
+                        <button
+                          onClick={() => handleUpdatePassStatus(p.pass_number, "Weighbridge & Quality Cleared")}
+                          className="px-3 py-1.5 rounded-xl bg-sky-50 text-sky-700 border border-sky-300 hover:bg-sky-100 text-xs font-bold transition cursor-pointer"
+                        >
+                          Verify Weighbridge & Lab
+                        </button>
+                        <button
+                          onClick={() => handleUpdatePassStatus(p.pass_number, "Unloaded & Payment Credited (Direct Bank)")}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition cursor-pointer shadow-xs"
+                        >
+                          Confirm Unload & Credit DBT
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

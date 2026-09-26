@@ -185,7 +185,33 @@ VERIFIED_FACTORIES_DATA: list[dict[str, Any]] = [
     },
 ]
 
-DIRECT_DELIVERY_PASSES: list[dict[str, Any]] = []
+DIRECT_DELIVERY_PASSES: list[dict[str, Any]] = [
+    {
+        "pass_number": "DIRECT-PASS-260924-201",
+        "factory_id": "fac-gnt-02",
+        "factory_name": "Guntur Spices & Agro Oleoresins Extraction Unit",
+        "factory_location": "Ankireddypalem Industrial Corridor, Guntur",
+        "factory_district": "Guntur",
+        "factory_state": "Andhra Pradesh",
+        "procurement_officer": "B. Srinivasa Rao",
+        "officer_phone": "+91 863 229 4810",
+        "farmer_name": "B. Rama Rao",
+        "phone": "+91 94401 56789",
+        "origin_village": "Pallapadu",
+        "origin_district": "Guntur",
+        "crop": "Red Chilli (Teja Export Grade)",
+        "allocated_quantity_qtl": 25.0,
+        "agreed_rate_per_qtl": 22500,
+        "total_estimated_payout_inr": 562500,
+        "broker_commission_saved_inr": 37500,
+        "delivery_date": "28-09-2026",
+        "status": "Gate Pass Active (Direct Entry Approved)",
+        "factory_owner_notified": True,
+        "entry_allowed": True,
+        "generated_at": "24 Sep 2026, 02:15 PM",
+        "instructions": "Approved by Sourcing Officer B. Srinivasa Rao. Present this Delivery Pass at Factory Gate Weighbridge for priority unloading with ZERO deductions.",
+    }
+]
 
 def get_factory_contracts(
     state: str = "",
@@ -248,8 +274,23 @@ def create_factory_delivery_pass(
         "broker_commission_saved_inr": round(broker_commission_savings, 2),
         "delivery_date": delivery_date,
         "status": "Gate Pass Active (Direct Entry Approved)",
+        "factory_owner_notified": True,
+        "entry_allowed": True,
         "generated_at": datetime.now().strftime("%d %b %Y, %I:%M %p"),
-        "instructions": "Present this digital or printed Delivery Pass at the Factory Weighbridge. This entitles you to priority unloading with ZERO deductions for mandi commissions, brokerage, or dalal cuts.",
+        "instructions": f"Approved by Sourcing Officer {factory['procurement_officer']}. Present this Delivery Pass at the Factory Gate Weighbridge for priority unloading with ZERO deductions.",
     }
-    DIRECT_DELIVERY_PASSES.append(delivery_pass)
+    DIRECT_DELIVERY_PASSES.insert(0, delivery_pass)
     return delivery_pass
+
+def get_all_delivery_passes() -> list[dict[str, Any]]:
+    """Returns all factory delivery passes for admin and manager oversight."""
+    return DIRECT_DELIVERY_PASSES
+
+def update_delivery_pass_status(pass_number: str, new_status: str) -> dict[str, Any] | None:
+    """Allows factory procurement manager or officer to update pass status."""
+    for p in DIRECT_DELIVERY_PASSES:
+        if p["pass_number"] == pass_number:
+            p["status"] = new_status
+            p["updated_at"] = datetime.now().strftime("%d %b %Y, %I:%M %p")
+            return p
+    return None

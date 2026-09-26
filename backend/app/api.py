@@ -637,7 +637,12 @@ def diagnose_crop_symptoms(payload: SymptomDiagnosisRequest):
 # -------------------------------------------------------------
 # 3. AC Godowns & Cold Storage Network
 # -------------------------------------------------------------
-from app.storage_engine import get_cold_storages, create_storage_booking
+from app.storage_engine import (
+    get_cold_storages,
+    create_storage_booking,
+    get_all_storage_bookings,
+    update_storage_booking_status,
+)
 
 @router.get("/storage/cold-godowns")
 def list_cold_storages(state: str = "", district: str = "", commodity: str = ""):
@@ -652,9 +657,12 @@ class StorageBookingRequest(BaseModel):
     bags_count: int = 50
     duration_months: int = 3
 
+class StatusUpdateRequest(BaseModel):
+    status: str
+
 @router.post("/storage/book-space")
 def book_cold_storage_space(payload: StorageBookingRequest):
-    """Generates official AC Godown slot reservation token and e-NWR receipt guidance."""
+    """Generates official AC Godown slot reservation token and alerts facility in-charge."""
     return create_storage_booking(
         facility_id=payload.facility_id,
         farmer_name=payload.farmer_name,
@@ -664,10 +672,27 @@ def book_cold_storage_space(payload: StorageBookingRequest):
         duration_months=payload.duration_months,
     )
 
+@router.get("/storage/bookings")
+def list_storage_bookings():
+    """Lists all incoming storage preservation requests for owners and officers."""
+    return {"bookings": get_all_storage_bookings()}
+
+@router.put("/storage/bookings/{token}/status")
+def update_booking_state(token: str, payload: StatusUpdateRequest):
+    res = update_storage_booking_status(token, payload.status)
+    if not res:
+        raise HTTPException(status_code=404, detail="Booking token not found")
+    return res
+
 # -------------------------------------------------------------
 # 4. Direct Farm-to-Factory Zero-Broker Linkage
 # -------------------------------------------------------------
-from app.direct_market_engine import get_factory_contracts, create_factory_delivery_pass
+from app.direct_market_engine import (
+    get_factory_contracts,
+    create_factory_delivery_pass,
+    get_all_delivery_passes,
+    update_delivery_pass_status,
+)
 
 @router.get("/direct-market/factories")
 def list_factory_contracts(state: str = "", district: str = "", crop: str = ""):
@@ -686,7 +711,7 @@ class FactoryDeliveryPassRequest(BaseModel):
 
 @router.post("/direct-market/delivery-pass")
 def generate_delivery_pass(payload: FactoryDeliveryPassRequest):
-    """Generates Zero-Broker Factory Gate Entry Delivery Pass."""
+    """Generates Zero-Broker Factory Gate Entry Delivery Pass with procurement approval."""
     return create_factory_delivery_pass(
         factory_id=payload.factory_id,
         farmer_name=payload.farmer_name,
@@ -697,6 +722,18 @@ def generate_delivery_pass(payload: FactoryDeliveryPassRequest):
         quantity_qtl=payload.quantity_qtl,
         delivery_date=payload.delivery_date,
     )
+
+@router.get("/direct-market/passes")
+def list_delivery_passes():
+    """Lists all factory delivery passes for factory managers and officers."""
+    return {"passes": get_all_delivery_passes()}
+
+@router.put("/direct-market/passes/{pass_number}/status")
+def update_pass_state(pass_number: str, payload: StatusUpdateRequest):
+    res = update_delivery_pass_status(pass_number, payload.status)
+    if not res:
+        raise HTTPException(status_code=404, detail="Delivery pass not found")
+    return res
 
 
 # -------------------------------------------------------------
