@@ -222,15 +222,17 @@ export function SeedVerifier({
             >
               🌾 Telangana Sona (Govt Foundation)
             </button>
-            <button
-              onClick={() => {
-                setLotInput("SPURIOUS-9999-FAKE");
-                handleVerify("SPURIOUS-9999-FAKE");
-              }}
-              className="px-3 py-1.5 bg-red-50 text-red-800 border border-red-300 rounded-lg font-medium hover:bg-red-100"
-            >
-              ⚠️ Counterfeit / Spurious Simulation
-            </button>
+            {import.meta.env.DEV && (
+              <button
+                onClick={() => {
+                  setLotInput("SPURIOUS-9999-FAKE");
+                  handleVerify("SPURIOUS-9999-FAKE");
+                }}
+                className="px-3 py-1.5 bg-red-50 text-red-800 border border-red-300 rounded-lg font-medium hover:bg-red-100"
+              >
+                ⚠️ Counterfeit / Spurious Simulation
+              </button>
+            )}
           </div>
         </div>
       </div>

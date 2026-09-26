@@ -83,7 +83,7 @@ export function Header({
       id: "mandi" as Page,
       title: t.mandiRates,
       teluguTitle: "మార్కెట్ రేట్లు (జాతులు & రకాలు)",
-      subtitle: "Real-time e-NAM APMC rates sorted High-to-Low across varieties",
+      subtitle: "Latest available APMC market rates sorted High-to-Low across varieties",
       icon: TrendingUp,
       color: "amber",
       badge: "High-to-Low",

@@ -693,7 +693,7 @@ def test_mandi_prices_database_query_and_provenance(client):
     assert "provenance" in data
     prov = data["provenance"]
     assert prov["source_type"] in ["OFFICIAL_APMC_DATABASE", "CURATED_REFERENCE"]
-    assert prov["verification_status"] == "OFFICIALLY_VERIFIED"
+    assert prov["verification_status"] in ["OFFICIALLY_VERIFIED", "BASELINE_SEEDED"]
     assert prov["confidence"] >= 0.95
     assert "source_url" in prov
 
@@ -702,7 +702,7 @@ def test_mandi_prices_database_query_and_provenance(client):
     assert "modal_price" in first_market
     assert "source" in first_market
     assert "verification_status" in first_market
-    assert first_market["verification_status"] == "OFFICIALLY_VERIFIED"
+    assert first_market["verification_status"] in ["OFFICIALLY_VERIFIED", "BASELINE_SEEDED"]
 
 
 def test_officer_mandi_price_lifecycle(client):
@@ -742,7 +742,7 @@ def test_officer_mandi_price_lifecycle(client):
     assert create_data["status"] == "success"
     record_id = create_data["record_id"]
     assert record_id is not None
-    assert create_data["verification_status"] == "OFFICIALLY_VERIFIED"
+    assert create_data["verification_status"] == "OFFICER_ENTERED"
 
     # 3. Query public endpoint and verify the published record appears
     pub_res = client.get("/api/v1/mandi/prices?crop=Cotton&district=Guntur")
@@ -815,6 +815,212 @@ def test_mandi_admin_endpoints_require_officer_role(client):
     assert client.put("/api/v1/admin/mandi/prices/1", json={"modal_price": 6000.0}, headers=farmer_headers).status_code == 403
     assert client.delete("/api/v1/admin/mandi/prices/1", headers=farmer_headers).status_code == 403
     client.cookies.clear()
+
+
+def test_csp_security_header(client):
+    """Verifies that SecurityHeadersMiddleware sets strict Content-Security-Policy header."""
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "Content-Security-Policy" in res.headers
+    csp = res.headers["Content-Security-Policy"]
+    assert "default-src 'self'" in csp
+    assert "frame-ancestors 'none'" in csp
+    assert "https://api.open-meteo.com" in csp
+    assert "https://api.data.gov.in" in csp
+
+
+def test_extended_health_endpoints(client):
+    """Verifies deep health probes for mandi pipeline, weather engine, and AI assistant."""
+    # 1. Mandi health
+    res_mandi = client.get("/health/mandi")
+    assert res_mandi.status_code == 200
+    data_mandi = res_mandi.json()
+    assert "status" in data_mandi
+    assert "pipeline" in data_mandi
+    assert "total_records" in data_mandi
+
+    # 2. Weather health
+    res_weather = client.get("/health/weather")
+    assert res_weather.status_code == 200
+    data_weather = res_weather.json()
+    assert data_weather["status"] in ("ok", "degraded")
+    assert "provider" in data_weather
+
+    # 3. AI assistant health
+    res_ai = client.get("/health/ai")
+    assert res_ai.status_code == 200
+    data_ai = res_ai.json()
+    assert "status" in data_ai
+    assert "provider" in data_ai
+    assert "model" in data_ai
+
+
+def test_crop_doctor_fallback_without_fabricated_confidence(client):
+    """Verifies that Crop Doctor fallback contains no fabricated confidence scores and includes honest disclaimers."""
+    from app.vision_engine import FALLBACK_DISEASE_DB, diagnose_symptoms, analyze_crop_leaf
+
+    # 1. Fallback database entries must not contain confidence_percent
+    for crop_name, entry in FALLBACK_DISEASE_DB.items():
+        assert "confidence_percent" not in entry, f"Fabricated confidence_percent found in {crop_name}"
+        assert "detection_basis" in entry
+        assert "advisory_note" in entry
+
+    # 2. Symptom diagnosis fallback response
+    res_symp = diagnose_symptoms(crop="Cotton", symptoms_text="Black spots with water-soaked margins on leaves")
+    assert "confidence_percent" not in res_symp
+    assert res_symp["is_ai_diagnosis"] is False
+    assert res_symp["diagnosis_method"] == "fallback_pattern_match"
+    assert "detection_basis" in res_symp
+    assert "advisory_note" in res_symp
+
+    # 3. Image analysis fallback response (when no OpenAI key configured)
+    dummy_jpeg = b"\xff\xd8\xff\xe0" + b"\x00" * 32
+    res_leaf = analyze_crop_leaf(image_bytes=dummy_jpeg, crop="Rice")
+    assert "confidence_percent" not in res_leaf
+    assert res_leaf["is_ai_diagnosis"] is False
+    assert res_leaf["diagnosis_method"] == "fallback_pattern_match"
+
+
+def test_support_ticket_lifecycle(client):
+    """Verifies creation, querying, permissions, and admin updates on support tickets."""
+    from app.core.config import settings
+    import time
+    ts = int(time.time() * 1000)
+
+    # 1. Anonymous creation without contact fails (400)
+    res_bad = client.post("/api/v1/support/tickets", json={
+        "subject": "Missing subsidy payment",
+        "description": "Have not received my Rythu Bharosa installment for Kharif 2026.",
+    })
+    assert res_bad.status_code == 400
+
+    # 2. Anonymous creation with contact phone succeeds
+    res_anon = client.post("/api/v1/support/tickets", json={
+        "subject": "Missing subsidy payment",
+        "description": "Have not received my Rythu Bharosa installment for Kharif 2026.",
+        "category": "claim",
+        "priority": "HIGH",
+        "contact_phone": "+91 98480 11223",
+    })
+    assert res_anon.status_code == 200
+    anon_ticket = res_anon.json()["ticket"]
+    anon_num = anon_ticket["ticket_number"]
+    assert anon_num.startswith("RS-SUPPORT-")
+    assert anon_ticket["status"] == "OPEN"
+    assert anon_ticket["priority"] == "HIGH"
+
+    # 3. Authenticated farmer creates ticket
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Ticket Farmer",
+        "username": f"ticket_user_{ts}",
+        "password": "Password123!",
+        "state": "Telangana",
+        "district": "Warangal",
+    })
+    farmer_token = reg.json()["access_token"]
+    headers_farmer = {"Authorization": f"Bearer {farmer_token}"}
+
+    res_auth = client.post("/api/v1/support/tickets", json={
+        "subject": "Mandi modal price clarification",
+        "description": "Is Enumamula yard accepting moisture above 12% for medium staple cotton today?",
+        "category": "mandi",
+        "priority": "NORMAL",
+    }, headers=headers_farmer)
+    assert res_auth.status_code == 200
+    auth_ticket = res_auth.json()["ticket"]
+    auth_num = auth_ticket["ticket_number"]
+
+    # 4. Farmer lists own tickets
+    my_tickets_res = client.get("/api/v1/support/tickets", headers=headers_farmer)
+    assert my_tickets_res.status_code == 200
+    my_numbers = [t["ticket_number"] for t in my_tickets_res.json()["tickets"]]
+    assert auth_num in my_numbers
+
+    # 5. Officer lists all tickets
+    admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": settings.admin_initial_password})
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    all_tickets_res = client.get("/api/v1/admin/support/tickets", headers=admin_headers)
+    assert all_tickets_res.status_code == 200
+    assert all_tickets_res.json()["total"] >= 2
+
+    # 6. Officer updates ticket status and provides response
+    update_res = client.put(f"/api/v1/admin/support/tickets/{auth_num}", json={
+        "status": "RESOLVED",
+        "admin_response": "Enumamula APMC currently accepting cotton up to 14% moisture with standard FAQ deduction.",
+        "assigned_to": "Officer Ramesh",
+    }, headers=admin_headers)
+    assert update_res.status_code == 200
+    updated_data = update_res.json()["ticket"]
+    assert updated_data["status"] == "RESOLVED"
+    assert updated_data["resolved_at"] is not None
+    assert "Officer Ramesh" in updated_data["assigned_to"]
+
+
+def test_notifications_read_all_and_filtering(client):
+    """Verifies notification filtering by is_read and read-all batch operation."""
+    import time
+    from app.db import SessionLocal
+    from app.event_engine import create_notification
+
+    ts = int(time.time() * 1000)
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Batch Notif User",
+        "username": f"notif_batch_{ts}",
+        "password": "Password123!",
+        "state": "Telangana",
+        "district": "Warangal",
+    })
+    token = reg.json()["access_token"]
+    user_id = reg.json()["user"]["id"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    db = SessionLocal()
+    try:
+        create_notification(db=db, user_id=user_id, category="weather", title="Alert 1", message="Storm alert 1")
+        create_notification(db=db, user_id=user_id, category="market", title="Alert 2", message="Price alert 2")
+        create_notification(db=db, user_id=user_id, category="scheme", title="Alert 3", message="Scheme alert 3")
+    finally:
+        db.close()
+
+    # Query unread notifications
+    res_unread = client.get("/api/v1/notifications?is_read=false", headers=headers)
+    assert res_unread.status_code == 200
+    data_unread = res_unread.json()
+    assert data_unread["unread_count"] >= 3
+
+    # Mark all as read
+    res_read_all = client.post("/api/v1/notifications/read-all", headers=headers)
+    assert res_read_all.status_code == 200
+    assert res_read_all.json()["status"] == "success"
+    assert res_read_all.json()["marked_read_count"] >= 3
+
+    # After read-all, unread count should be 0
+    res_after = client.get("/api/v1/notifications", headers=headers)
+    assert res_after.status_code == 200
+    assert res_after.json()["unread_count"] == 0
+
+
+def test_schemes_expanded_to_ten_schemes(client):
+    """Verifies that schemes catalog is expanded to at least 10 verified schemes with required schema keys."""
+    from app.scheme_engine import load_schemes
+
+    schemes = load_schemes()
+    assert len(schemes) >= 10, f"Expected at least 10 schemes, got {len(schemes)}"
+
+    scheme_ids = [s["id"] for s in schemes]
+    assert "pm-kisan" in scheme_ids
+    assert "pmfby" in scheme_ids
+    assert "kisan-credit-card" in scheme_ids
+    assert "e-nam" in scheme_ids
+    assert "soil-health-card" in scheme_ids
+
+    for s in schemes:
+        for required_key in ("id", "name", "category", "scope", "icon", "summary", "benefit", "eligibility_note", "official_url", "last_verified", "match"):
+            assert required_key in s, f"Scheme {s.get('id')} missing key '{required_key}'"
+        assert s["official_url"].startswith("https://")
+
 
 
 

@@ -26,7 +26,7 @@ export function DataSourceBadge({
     case "OFFICIAL_LATEST":
       badgeStyle = "bg-emerald-50 text-emerald-800 border-emerald-300";
       Icon = CheckCircle2;
-      statusLabel = "Government OGD / AGMARKNET (Live Session)";
+      statusLabel = "Government OGD / AGMARKNET (Market Session)";
       freshnessBadge = "bg-emerald-100 text-emerald-900";
       break;
     case "OFFICIAL_LATEST_AVAILABLE":

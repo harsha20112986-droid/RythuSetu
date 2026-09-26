@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /api/
+Disallow: /admin
+Allow: /
+Sitemap: https://rythu-setu.vercel.app/sitemap.xml

@@ -13,7 +13,7 @@ from app.assistant_engine import build_assistant_reply
 from app.benefit_engine import estimate_benefits
 from app.db import get_db
 from app.loss_engine import ALLOWED_DAMAGE_TYPES, build_next_step
-from app.models import CropLossReport, FarmerProfile, UserAccount
+from app.models import CropLossReport, FarmerProfile, UserAccount, Notification, SupportTicket
 from app.schemas import FarmerProfileCreate, FarmerProfileResponse
 from app.scheme_engine import find_matching_schemes
 from app.weather_engine import get_climate_risk
@@ -639,31 +639,274 @@ def get_me(current_user: UserAccount = Depends(get_current_user)):
     }
 
 
+class SupportTicketCreate(BaseModel):
+    subject: str = Field(..., min_length=3, max_length=200)
+    description: str = Field(..., min_length=5)
+    category: str = "general"  # general, mandi, claim, scheme, technical
+    priority: str = "NORMAL"  # LOW, NORMAL, HIGH, URGENT
+    contact_phone: str | None = None
+    contact_email: str | None = None
+
+
+class SupportTicketAdminUpdate(BaseModel):
+    status: str | None = None  # OPEN, IN_PROGRESS, WAITING_FOR_USER, RESOLVED, CLOSED
+    priority: str | None = None
+    assigned_to: str | None = None
+    admin_response: str | None = None
+
+
+def serialize_support_ticket(ticket: SupportTicket) -> dict[str, Any]:
+    return {
+        "id": ticket.id,
+        "ticket_number": ticket.ticket_number,
+        "user_id": ticket.user_id,
+        "subject": ticket.subject,
+        "description": ticket.description,
+        "category": ticket.category,
+        "status": ticket.status,
+        "priority": ticket.priority,
+        "assigned_to": ticket.assigned_to,
+        "admin_response": ticket.admin_response,
+        "resolved_at": ticket.resolved_at.isoformat() if ticket.resolved_at else None,
+        "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+        "updated_at": ticket.updated_at.isoformat() if ticket.updated_at else None,
+        "contact_phone": ticket.contact_phone,
+        "contact_email": ticket.contact_email,
+    }
+
+
 @router.get("/notifications")
 def get_notifications_endpoint(
+    is_read: bool | None = None,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     current_user: UserAccount = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Retrieves real-time event-driven notifications for authenticated user."""
-    notifications = get_user_notifications(db=db, user_id=current_user.id)
+    """Retrieves real-time event-driven notifications for authenticated user (paginated, filter by is_read)."""
+    notifications = get_user_notifications(db=db, user_id=current_user.id, is_read=is_read, limit=limit, offset=offset)
+    total_query = db.query(Notification).filter(Notification.user_id == current_user.id)
+    if is_read is not None:
+        total_query = total_query.filter(Notification.is_read == is_read)
+    total_count = total_query.count()
+    unread_count = db.query(Notification).filter(
+        Notification.user_id == current_user.id,
+        (Notification.is_read == False) | (Notification.status == "UNREAD")
+    ).count()
+
     return {
         "user_id": current_user.id,
-        "unread_count": sum(1 for n in notifications if n.get("status") == "UNREAD"),
+        "unread_count": unread_count,
+        "total": total_count,
+        "limit": limit,
+        "offset": offset,
         "notifications": notifications,
     }
 
 
-@router.post("/notifications/{notification_id}/read")
+@router.post("/notifications/{id}/read")
 def read_notification_endpoint(
-    notification_id: int,
+    id: int,
     current_user: UserAccount = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Marks a user notification as read."""
-    success = mark_notification_as_read(db=db, notification_id=notification_id, user_id=current_user.id)
+    success = mark_notification_as_read(db=db, notification_id=id, user_id=current_user.id)
     if not success:
         raise HTTPException(status_code=404, detail="Notification not found.")
-    return {"status": "success", "id": notification_id}
+    return {"status": "success", "id": id}
+
+
+@router.post("/notifications/read-all")
+def read_all_notifications_endpoint(
+    current_user: UserAccount = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Marks all unread notifications as read for current user."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    updated = db.query(Notification).filter(
+        Notification.user_id == current_user.id,
+        (Notification.is_read == False) | (Notification.status == "UNREAD")
+    ).update({"is_read": True, "status": "READ", "read_at": now}, synchronize_session=False)
+    db.commit()
+    return {"status": "success", "marked_read_count": updated}
+
+
+# --- Support Ticket Endpoints ---
+
+@router.post("/support/tickets")
+def create_support_ticket(
+    payload: SupportTicketCreate,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create a farmer support/help ticket (authenticated or anonymous with contact info)."""
+    import secrets
+    from datetime import datetime, timezone
+
+    user_id = current_user.id if current_user else None
+    if not user_id and not payload.contact_phone and not payload.contact_email:
+        raise HTTPException(
+            status_code=400,
+            detail="Contact phone or contact email is required for unauthenticated support tickets.",
+        )
+
+    # Generate unique ticket number: RS-SUPPORT-YYYYMMDD-NNNN
+    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    ticket_number = f"RS-SUPPORT-{date_str}-{secrets.randbelow(9000) + 1000}"
+    for _ in range(5):
+        if not db.query(SupportTicket).filter(SupportTicket.ticket_number == ticket_number).first():
+            break
+        ticket_number = f"RS-SUPPORT-{date_str}-{secrets.randbelow(9000) + 1000}"
+
+    ticket = SupportTicket(
+        ticket_number=ticket_number,
+        user_id=user_id,
+        subject=payload.subject.strip(),
+        description=payload.description.strip(),
+        category=payload.category.lower().strip(),
+        status="OPEN",
+        priority=payload.priority.upper().strip(),
+        contact_phone=payload.contact_phone.strip() if payload.contact_phone else (current_user.phone if current_user else None),
+        contact_email=payload.contact_email.strip() if payload.contact_email else None,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
+
+    log_audit(
+        db=db,
+        action="SUPPORT_TICKET_CREATED",
+        resource_type="support_ticket",
+        user=current_user,
+        resource_id=ticket.ticket_number,
+        details={"category": ticket.category, "priority": ticket.priority},
+    )
+
+    return {
+        "status": "success",
+        "message": f"Support ticket {ticket.ticket_number} created successfully.",
+        "ticket": serialize_support_ticket(ticket),
+    }
+
+
+@router.get("/support/tickets")
+def list_user_support_tickets(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: UserAccount = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List authenticated user's own support tickets."""
+    q = db.query(SupportTicket).filter(SupportTicket.user_id == current_user.id)
+    total = q.count()
+    tickets = q.order_by(SupportTicket.created_at.desc()).offset(offset).limit(limit).all()
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "tickets": [serialize_support_ticket(t) for t in tickets],
+    }
+
+
+@router.get("/support/tickets/{ticket_number}")
+def get_support_ticket_status(
+    ticket_number: str,
+    current_user: UserAccount | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get status and details of a support ticket."""
+    ticket = db.query(SupportTicket).filter(SupportTicket.ticket_number == ticket_number).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Support ticket not found.")
+
+    # Authorization: if ticket belongs to a user, enforce ownership or officer role
+    if ticket.user_id is not None:
+        if not current_user or (ticket.user_id != current_user.id and current_user.role not in ("officer", "admin", "super_admin")):
+            raise HTTPException(status_code=403, detail="Not authorized to view this ticket.")
+
+    return {
+        "status": "success",
+        "ticket": serialize_support_ticket(ticket),
+    }
+
+
+@router.get("/admin/support/tickets")
+def admin_list_support_tickets(
+    status: str | None = None,
+    category: str | None = None,
+    priority: str | None = None,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: UserAccount = Depends(require_officer),
+    db: Session = Depends(get_db),
+):
+    """Admin: list all support tickets with filtering (officer+ required)."""
+    q = db.query(SupportTicket)
+    if status:
+        q = q.filter(SupportTicket.status == status.upper().strip())
+    if category:
+        q = q.filter(SupportTicket.category == category.lower().strip())
+    if priority:
+        q = q.filter(SupportTicket.priority == priority.upper().strip())
+
+    total = q.count()
+    tickets = q.order_by(SupportTicket.created_at.desc()).offset(offset).limit(limit).all()
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "tickets": [serialize_support_ticket(t) for t in tickets],
+    }
+
+
+@router.put("/admin/support/tickets/{ticket_number}")
+def admin_update_support_ticket(
+    ticket_number: str,
+    payload: SupportTicketAdminUpdate,
+    current_user: UserAccount = Depends(require_officer),
+    db: Session = Depends(get_db),
+):
+    """Admin: update status, assignment, or response of a support ticket."""
+    from datetime import datetime, timezone
+    ticket = db.query(SupportTicket).filter(SupportTicket.ticket_number == ticket_number).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Support ticket not found.")
+
+    now = datetime.now(timezone.utc)
+    if payload.status is not None:
+        new_status = payload.status.upper().strip()
+        ticket.status = new_status
+        if new_status in ("RESOLVED", "CLOSED") and not ticket.resolved_at:
+            ticket.resolved_at = now
+    if payload.priority is not None:
+        ticket.priority = payload.priority.upper().strip()
+    if payload.assigned_to is not None:
+        ticket.assigned_to = payload.assigned_to.strip()
+    if payload.admin_response is not None:
+        ticket.admin_response = payload.admin_response.strip()
+
+    ticket.updated_at = now
+    db.commit()
+    db.refresh(ticket)
+
+    log_audit(
+        db=db,
+        action="SUPPORT_TICKET_UPDATED",
+        resource_type="support_ticket",
+        user=current_user,
+        resource_id=ticket.ticket_number,
+        details={"status": ticket.status, "priority": ticket.priority, "assigned_to": ticket.assigned_to},
+    )
+
+    return {
+        "status": "success",
+        "message": f"Support ticket {ticket.ticket_number} updated successfully.",
+        "ticket": serialize_support_ticket(ticket),
+    }
 
 
 @router.get("/admin/dashboard-stats")

@@ -26,7 +26,9 @@ export type Page =
   | "machinery"
   | "harvest-shield"
   | "seed-verify"
-  | "khata";
+  | "khata"
+  | "privacy"
+  | "terms";
 
 export type FormState = {
   name: string;

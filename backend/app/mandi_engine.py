@@ -710,6 +710,8 @@ def get_mandi_prices_pipeline(
             diff = r.modal_price - msp
             pct_diff = round((diff / msp) * 100, 1) if msp > 0 else 0.0
             trend_direction = "UP" if diff > 0 else ("DOWN" if diff < 0 else "STABLE")
+            is_seeded = bool(r.source_record_id and r.source_record_id.startswith("INIT-"))
+            v_status = "BASELINE_SEEDED" if is_seeded else ("OFFICIALLY_VERIFIED" if r.data_status == "VALID" else "VALIDATED_WITH_WARNING")
 
             rec_dict = {
                 "id": r.id,
@@ -737,7 +739,7 @@ def get_mandi_prices_pipeline(
                 "effective_date": r.arrival_date,
                 "arrival_date": r.arrival_date,
                 "last_verified_at": r.fetched_at.strftime("%Y-%m-%d %H:%M UTC") if r.fetched_at else r.arrival_date,
-                "verification_status": "OFFICIALLY_VERIFIED" if r.data_status == "VALID" else "VALIDATED_WITH_WARNING",
+                "verification_status": v_status,
                 "confidence": 0.98 if r.data_status == "VALID" else 0.90,
                 "data_source_status": freshness_meta["data_source_status"],
                 "freshness": freshness_meta["freshness"],
@@ -772,7 +774,7 @@ def get_mandi_prices_pipeline(
                 "effective_date": r.arrival_date,
                 "arrival_date": r.arrival_date,
                 "last_verified_at": r.fetched_at.strftime("%Y-%m-%d %H:%M UTC") if r.fetched_at else r.arrival_date,
-                "verification_status": "OFFICIALLY_VERIFIED" if r.data_status == "VALID" else "VALIDATED_WITH_WARNING",
+                "verification_status": v_status,
                 "confidence": 0.98,
                 "data_trust_label": freshness_meta["data_source_status"],
                 "data_trust_badge": freshness_meta["freshness_label"],
@@ -784,6 +786,8 @@ def get_mandi_prices_pipeline(
         avg_modal = sum(v["modal_price"] for v in sorted_varieties) / len(sorted_varieties)
         highest_v = max(sorted_varieties, key=lambda v: v["max_price"])
         lowest_v = min(sorted_varieties, key=lambda v: v["min_price"])
+        is_all_seeded = all(bool(r.source_record_id and r.source_record_id.startswith("INIT-")) for r in daily_records)
+        overall_v_status = "BASELINE_SEEDED" if is_all_seeded else "OFFICIALLY_VERIFIED"
 
         return {
             "crop": canonical_crop,
@@ -811,10 +815,10 @@ def get_mandi_prices_pipeline(
                 "effective_date": latest_arrival_date or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                 "arrival_date": latest_arrival_date,
                 "last_verified_at": freshness_meta["last_sync_timestamp"],
-                "verification_status": "OFFICIALLY_VERIFIED",
+                "verification_status": overall_v_status,
                 "confidence": 0.98,
                 "record_count": len(markets_data),
-                "trust_label": freshness_meta["freshness_label"],
+                "trust_label": "Baseline Agricultural Reference Data" if is_all_seeded else freshness_meta["freshness_label"],
                 "data_source_status": freshness_meta["data_source_status"],
                 "freshness": freshness_meta["freshness"],
                 "disclaimer": "These daily modal prices represent actual APMC auction records. The difference vs statutory MSP reflects gross spot price spread and is not guaranteed net farmer profit.",
@@ -823,7 +827,7 @@ def get_mandi_prices_pipeline(
             "source_url": "https://agmarknet.gov.in",
             "last_verified": latest_arrival_date or "September 2026",
             "last_verified_at": freshness_meta["last_sync_timestamp"],
-            "verification_status": "OFFICIALLY_VERIFIED",
+            "verification_status": overall_v_status,
             "confidence": 0.98,
         }
 
@@ -955,10 +959,10 @@ def get_mandi_prices_pipeline(
                 "effective_date": highest_variety["effective_date"],
                 "arrival_date": highest_variety["effective_date"],
                 "last_verified_at": last_verified_top,
-                "verification_status": "OFFICIALLY_VERIFIED",
+                "verification_status": highest_variety.get("verification_status", "OFFICER_ENTERED"),
                 "confidence": 0.95,
                 "record_count": len(markets_data),
-                "trust_label": "Officially Recorded Database",
+                "trust_label": "Officer Recorded APMC Benchmark" if highest_variety.get("verification_status") == "OFFICER_ENTERED" else "Officially Recorded Database",
                 "data_source_status": "OFFICIAL_LATEST_AVAILABLE",
                 "freshness": "RECENT",
                 "disclaimer": "These benchmark prices represent verified regional APMC trading ranges and statutory MSP floors. Exact spot bids depend on moisture testing and lot grading at your local yard.",
@@ -967,7 +971,7 @@ def get_mandi_prices_pipeline(
             "source_url": "https://enam.gov.in/web/dashboard/trade-data",
             "last_verified": last_verified_top,
             "last_verified_at": last_verified_top,
-            "verification_status": "OFFICIALLY_VERIFIED",
+            "verification_status": highest_variety.get("verification_status", "OFFICER_ENTERED"),
             "confidence": 0.95,
         }
 
@@ -1009,7 +1013,8 @@ def get_mandi_prices_pipeline(
             "effective_date": "2026-09-26",
             "arrival_date": "2026-09-26",
             "last_verified_at": "September 2026",
-            "verification_status": "OFFICIALLY_VERIFIED",
+            "verification_status": "CURATED_REFERENCE",
+            "trust_label": "Curated Agricultural Reference Data",
             "confidence": 0.90,
             "data_trust_label": "REFERENCE_ONLY",
             "data_trust_badge": "Reference Benchmark (e-NAM Standard)",
@@ -1044,18 +1049,19 @@ def get_mandi_prices_pipeline(
             "effective_date": "2026-09-26",
             "arrival_date": "2026-09-26",
             "last_verified_at": "September 2026",
-            "trust_label": "Curated Reference Benchmark",
+            "trust_label": "Curated Agricultural Reference Data",
             "data_source_status": "REFERENCE_ONLY",
             "freshness": "DELAYED",
             "disclaimer": "These benchmark prices represent verified regional APMC trading ranges and statutory MSP floors. Exact spot bids depend on moisture testing and lot grading at your local yard.",
-            "verification_status": "OFFICIALLY_VERIFIED",
+            "verification_status": "CURATED_REFERENCE",
             "confidence": 0.90,
         },
         "source": "e-NAM APMC Benchmark Reference & CACP MSP 2025-26 (Curated)",
         "source_url": "https://enam.gov.in/web/dashboard/trade-data",
         "last_verified": "September 2026",
         "last_verified_at": "September 2026",
-        "verification_status": "OFFICIALLY_VERIFIED",
+        "verification_status": "CURATED_REFERENCE",
+        "trust_label": "Curated Agricultural Reference Data",
         "confidence": 0.90,
     }
 
@@ -1288,7 +1294,7 @@ def create_mandi_price_record(
         effective_date=now.strftime("%Y-%m-%d"),
         retrieved_at=now,
         last_verified_at=now,
-        verification_status="OFFICIALLY_VERIFIED",
+        verification_status="OFFICER_ENTERED",
         confidence=1.0,
         is_active=True,
         created_by_user_id=officer_user_id,

@@ -726,7 +726,7 @@ function MandiCard({
           </span>
           {mandi.enam_enabled && (
             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-              e-NAM Live
+              e-NAM Market
             </span>
           )}
         </div>

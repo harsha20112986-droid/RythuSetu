@@ -35,6 +35,7 @@ const SeedVerifier = lazy(() => import("./components/SeedVerifier").then((m) => 
 const AgriKhata = lazy(() => import("./components/AgriKhata").then((m) => ({ default: m.AgriKhata })));
 const KrishiAssistant = lazy(() => import("./components/KrishiAssistant").then((m) => ({ default: m.KrishiAssistant })));
 const AdminPortal = lazy(() => import("./components/AdminPortal").then((m) => ({ default: m.AdminPortal })));
+const LegalPages = lazy(() => import("./components/LegalPages").then((m) => ({ default: m.LegalPages })));
 
 export function App() {
   const [page, setPage] = useState<Page>("home");
@@ -585,7 +586,14 @@ export function App() {
             onBack={() => setPage(farmer ? "dashboard" : "home")}
             language={assistantLanguage}
           />
-        )}\r
+        )}
+
+        {(page === "privacy" || page === "terms") && (
+          <LegalPages
+            page={page}
+            onBack={() => setPage(farmer ? "dashboard" : "home")}
+          />
+        )}
         </Suspense>
       </div>
 
@@ -629,8 +637,24 @@ export function App() {
             <span className="font-medium text-slate-600">AI Bridge to Farmer Support</span>
           </div>
 
-          <p className="text-center sm:text-right max-w-md text-slate-400 leading-relaxed text-[11px]">
-            Comprehensive agricultural decision-support with real-time e-NAM Mandi arrivals, NPK fertilizer optimization, and PMFBY claims management.
+          <div className="flex items-center gap-4 text-xs font-semibold text-slate-600">
+            <button
+              onClick={() => setPage("privacy")}
+              className="hover:text-emerald-700 transition cursor-pointer"
+            >
+              Privacy Policy
+            </button>
+            <span className="text-slate-300">•</span>
+            <button
+              onClick={() => setPage("terms")}
+              className="hover:text-emerald-700 transition cursor-pointer"
+            >
+              Terms of Service
+            </button>
+          </div>
+
+          <p className="text-center sm:text-right max-w-xs text-slate-400 leading-relaxed text-[11px]">
+            Comprehensive agricultural decision-support with verified APMC Mandi arrivals, NPK fertilizer optimization, and PMFBY claims management.
           </p>
         </div>
       </footer>

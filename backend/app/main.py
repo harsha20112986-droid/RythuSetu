@@ -24,6 +24,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self' https://api.open-meteo.com https://api.data.gov.in; "
+            "font-src 'self' data:; "
+            "frame-ancestors 'none';"
+        )
         return response
 
 
@@ -122,6 +131,73 @@ def readiness():
             "checks": checks,
         }
     )
+
+
+@app.get("/health/mandi")
+def health_mandi():
+    """Check mandi ingestion pipeline health."""
+    from app.db import SessionLocal
+    from app.models import MandiIngestionRun, MandiDailyPrice
+    db = SessionLocal()
+    try:
+        latest_run = db.query(MandiIngestionRun).order_by(MandiIngestionRun.id.desc()).first()
+        total_records = db.query(MandiDailyPrice).count()
+        status = "healthy" if (latest_run and latest_run.status == "SUCCESS") else ("degraded" if latest_run else "uninitialized")
+        return {
+            "status": status,
+            "pipeline": "Mandi Ingestion Service",
+            "api_key_configured": bool(settings.data_gov_api_key),
+            "total_records": total_records,
+            "latest_run": {
+                "id": latest_run.id if latest_run else None,
+                "status": latest_run.status if latest_run else None,
+                "source": latest_run.source if latest_run else None,
+                "started_at": latest_run.started_at.isoformat() if latest_run and latest_run.started_at else None,
+                "completed_at": latest_run.completed_at.isoformat() if latest_run and latest_run.completed_at else None,
+                "records_inserted": latest_run.records_inserted if latest_run else 0,
+                "records_updated": latest_run.records_updated if latest_run else 0,
+                "error_message": latest_run.error_message if latest_run else None,
+            } if latest_run else None,
+        }
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={"status": "error", "detail": str(exc)})
+    finally:
+        db.close()
+
+
+@app.get("/health/weather")
+def health_weather():
+    """Check weather engine health by attempting a test fetch."""
+    from app.weather_engine import get_climate_risk
+    try:
+        res = get_climate_risk(state="Telangana", district="Warangal", crop="Cotton", season="Kharif")
+        has_weather = bool(res and "weather" in res)
+        return {
+            "status": "ok" if has_weather else "degraded",
+            "provider": "Open-Meteo & IMD Agromet",
+            "test_district": "Warangal",
+            "telemetry_received": has_weather,
+        }
+    except Exception as exc:
+        return {
+            "status": "degraded",
+            "provider": "Open-Meteo & IMD Agromet",
+            "error": str(exc),
+            "fallback_available": True,
+        }
+
+
+@app.get("/health/ai")
+def health_ai():
+    """Check AI assistant configuration status."""
+    is_configured = bool(settings.openai_api_key)
+    return {
+        "status": "configured" if is_configured else "unconfigured",
+        "provider": "OpenAI" if is_configured else "Deterministic Rule-based Guardrails",
+        "model": settings.openai_model,
+        "vision_model": "gpt-4o-mini",
+        "is_live_ai_available": is_configured,
+    }
 
 
 @app.get(f"{settings.api_v1_prefix}/status")

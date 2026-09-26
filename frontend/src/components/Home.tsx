@@ -178,8 +178,8 @@ export function Home({
                     <Sprout className="size-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">Live Intelligence Desk</h3>
-                    <p className="text-[11px] text-emerald-300">Deterministic Rules + Real-Time Telemetry</p>
+                    <h3 className="text-sm font-bold text-white">Agricultural Intelligence Desk</h3>
+                    <p className="text-[11px] text-emerald-300">Deterministic Rules + District Weather Data</p>
                   </div>
                 </div>
                 <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
@@ -198,7 +198,7 @@ export function Home({
                       Weather Risk Model (Warangal)
                     </span>
                     <span className="rounded-full bg-emerald-500/20 text-emerald-300 px-2 py-0.5 font-bold text-[10px]">
-                      Open-Meteo Live
+                      Open-Meteo weather data
                     </span>
                   </div>
                   <div className="mt-2.5 flex items-baseline justify-between">
@@ -302,7 +302,7 @@ export function Home({
               One platform for every critical farm decision.
             </h2>
             <p className="mt-3 text-slate-600 text-sm sm:text-base leading-relaxed">
-              Transparent, deterministic rules paired with real-time telemetry to protect your crop and maximize your eligible government support.
+              Transparent, deterministic rules paired with weather data for your district to protect your crop and maximize your eligible government support.
             </p>
           </div>
 
@@ -321,9 +321,9 @@ export function Home({
                   </span>
                 </div>
 
-                <h3 className="mt-5 font-black text-xl text-slate-900">Live Climate Risk</h3>
+                <h3 className="mt-5 font-black text-xl text-slate-900">Climate & Weather</h3>
                 <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  Real-time weather telemetry for your district with instant heat, rain, and wind hazard scoring.
+                  Weather data for your district with instant heat, rain, and wind hazard scoring.
                 </p>
 
                 <div className="mt-4 space-y-2 text-xs text-slate-700">
@@ -374,7 +374,7 @@ export function Home({
                 <div className="mt-4 space-y-2 text-xs text-slate-700">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
-                    <span>100% deterministic eligibility</span>
+                    <span>Rule-based eligibility screening</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
@@ -603,7 +603,7 @@ export function Home({
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="size-3.5 text-cyan-600 shrink-0" />
-                    <span>Live bay availability & monthly tariffs</span>
+                    <span>Storage bay availability & monthly tariffs</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="size-3.5 text-cyan-600 shrink-0" />
@@ -773,7 +773,7 @@ export function Home({
 
                 <h3 className="mt-5 font-black text-xl text-slate-900">Harvest Weather Shield</h3>
                 <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  Protect sun-drying red chilli and paddy on open yards (కల్లాలు) from sudden rains. Real-time danger alerts and nearby tarpaulin rentals.
+                  Protect sun-drying red chilli and paddy on open yards (కల్లాలు) from sudden rains. Weather-based danger alerts and nearby tarpaulin rentals.
                 </p>
 
                 <div className="mt-4 space-y-2 text-xs text-slate-700">
@@ -896,7 +896,7 @@ export function Home({
         </div>
       </section>
 
-      {/* 4. Interactive Live Payout Simulator Teaser */}
+      {/* 4. Interactive Payout Estimator Teaser */}
       <section className="py-14 bg-white border-y border-slate-200/80">
         <div className="mx-auto max-w-6xl px-5 lg:px-8">
           <div className="rounded-3xl bg-gradient-to-br from-emerald-900 via-slate-900 to-green-950 p-8 sm:p-10 text-white shadow-xl">

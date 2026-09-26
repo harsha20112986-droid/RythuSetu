@@ -720,7 +720,7 @@ export function MandiPrices({
           <span>Statutory Minimum Support Price &amp; APMC Auction Terms</span>
         </div>
         <p className="leading-relaxed">
-          Statutory Minimum Support Price (MSP) is guaranteed by the Government of India at designated procurement centers (PPCs operated by FCI, CCI, MARKFED, and Civil Supplies) for FAQ-standard produce. APMC yard quotes reflect daily wholesale spot auction bids and fluctuate with moisture content, variety purity, and yard arrivals. Modal rates reflect gross auction sale prices and are not guaranteed net farmer margins.
+          MSP (Minimum Support Price) is the government's declared reference floor price for procurement. Actual market prices and procurement availability may vary by crop, region, and season. Verify current MSP and procurement arrangements with local agricultural authorities. APMC yard quotes reflect daily wholesale spot auction bids and fluctuate with moisture content, variety purity, and yard arrivals. Modal rates reflect gross auction sale prices and are not guaranteed net farmer margins.
         </p>
       </div>
 

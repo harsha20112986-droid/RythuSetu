@@ -18,12 +18,29 @@ def create_notification(
     message: str,
     severity: str = "info",
     action_link: str | None = None,
+    notification_type: str | None = None,
+    metadata_json: str | None = None,
 ) -> Notification:
     """Creates and persists an individual farmer notification."""
+    category_upper = (category or "").upper()
+    n_type = notification_type or (
+        "WEATHER_ALERT" if "WEATHER" in category_upper
+        else "MARKET_UPDATE" if "MARKET" in category_upper
+        else "CLAIM_UPDATE" if "CLAIM" in category_upper
+        else "SCHEME_MATCH" if "SCHEME" in category_upper
+        else "SYSTEM"
+    )
     notif = Notification(
         user_id=user_id,
-        category=category,
+        notification_type=n_type,
         title=title,
+        body=message,
+        metadata_json=metadata_json,
+        is_read=False,
+        read_at=None,
+        channel="in_app",
+        delivery_status="DELIVERED",
+        category=category,
         message=message,
         severity=severity,
         action_link=action_link,
@@ -112,23 +129,40 @@ def dispatch_mandi_price_event(
     return created
 
 
-def get_user_notifications(db: Session, user_id: int, unread_only: bool = False) -> list[dict[str, Any]]:
+def get_user_notifications(
+    db: Session,
+    user_id: int,
+    unread_only: bool = False,
+    is_read: bool | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
     """Retrieves notifications for the authenticated cultivator."""
     query = db.query(Notification).filter(Notification.user_id == user_id)
-    if unread_only:
-        query = query.filter(Notification.status == "UNREAD")
+    if is_read is not None:
+        query = query.filter(Notification.is_read == is_read)
+    elif unread_only:
+        query = query.filter((Notification.status == "UNREAD") | (Notification.is_read == False))
 
-    notifs = query.order_by(Notification.created_at.desc()).limit(50).all()
+    notifs = query.order_by(Notification.created_at.desc()).offset(offset).limit(limit).all()
     return [
         {
             "id": n.id,
-            "category": n.category,
+            "user_id": n.user_id,
+            "notification_type": n.notification_type or "SYSTEM",
+            "category": n.category or n.notification_type or "system",
             "title": n.title,
-            "message": n.message,
-            "severity": n.severity,
+            "body": n.body or n.message or "",
+            "message": n.body or n.message or "",
+            "severity": n.severity or "info",
             "action_link": n.action_link,
-            "status": n.status,
-            "created_at": n.created_at.strftime("%d %b %Y, %I:%M %p"),
+            "metadata_json": n.metadata_json,
+            "is_read": bool(n.is_read or n.status == "READ"),
+            "status": "READ" if (n.is_read or n.status == "READ") else "UNREAD",
+            "channel": n.channel or "in_app",
+            "delivery_status": n.delivery_status or "DELIVERED",
+            "read_at": n.read_at.isoformat() if n.read_at else None,
+            "created_at": n.created_at.strftime("%d %b %Y, %I:%M %p") if hasattr(n.created_at, "strftime") else str(n.created_at),
         }
         for n in notifs
     ]
@@ -139,6 +173,8 @@ def mark_notification_as_read(db: Session, notification_id: int, user_id: int) -
     notif = db.get(Notification, notification_id)
     if not notif or notif.user_id != user_id:
         return False
+    notif.is_read = True
     notif.status = "READ"
+    notif.read_at = datetime.now(timezone.utc)
     db.commit()
     return True

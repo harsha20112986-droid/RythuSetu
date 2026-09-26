@@ -6,6 +6,7 @@ Zero hardcoded plaintext passwords.
 
 import json
 from datetime import datetime, timezone
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.db import Base, engine, SessionLocal
 from app.core.config import settings
@@ -60,6 +61,29 @@ def initialize_database():
     # In non-production environments, ensure tables are created automatically
     if not settings.is_production:
         Base.metadata.create_all(bind=engine)
+        if engine.dialect.name == "sqlite":
+            with engine.connect() as conn:
+                try:
+                    res = conn.execute(text("PRAGMA table_info(notifications)"))
+                    existing_cols = {row[1] for row in res.fetchall()}
+                    if existing_cols:
+                        if "notification_type" not in existing_cols:
+                            conn.execute(text("ALTER TABLE notifications ADD COLUMN notification_type VARCHAR(60) DEFAULT 'SYSTEM'"))
+                        if "body" not in existing_cols:
+                            conn.execute(text("ALTER TABLE notifications ADD COLUMN body TEXT DEFAULT ''"))
+                        if "metadata_json" not in existing_cols:
+                            conn.execute(text("ALTER TABLE notifications ADD COLUMN metadata_json TEXT"))
+                        if "is_read" not in existing_cols:
+                            conn.execute(text("ALTER TABLE notifications ADD COLUMN is_read BOOLEAN DEFAULT 0"))
+                        if "read_at" not in existing_cols:
+                            conn.execute(text("ALTER TABLE notifications ADD COLUMN read_at DATETIME"))
+                        if "channel" not in existing_cols:
+                            conn.execute(text("ALTER TABLE notifications ADD COLUMN channel VARCHAR(30) DEFAULT 'in_app'"))
+                        if "delivery_status" not in existing_cols:
+                            conn.execute(text("ALTER TABLE notifications ADD COLUMN delivery_status VARCHAR(30) DEFAULT 'DELIVERED'"))
+                        conn.commit()
+                except Exception:
+                    pass
 
     db = SessionLocal()
     try:
@@ -429,9 +453,10 @@ def initialize_database():
                     fetched_at=now_dt,
                     normalized_at=now_dt,
                     is_active=True,
-                    data_status="VALID",
+                    # Reference baseline records for initial setup, not live OGD data
+                    data_status="BASELINE_SEEDED",
                     raw_hash=None,
-                    validation_notes="Verified baseline market arrival entry",
+                    validation_notes="Reference baseline records seeded during initialization, not live OGD data",
                 )
                 db.add(daily)
             db.commit()

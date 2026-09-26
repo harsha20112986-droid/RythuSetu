@@ -112,7 +112,7 @@ export function HarvestShield({
           <p className="text-white/90 text-sm sm:text-base leading-relaxed">
             {isTelugu
               ? "కల్లాల్లో ఆరబెట్టిన ఎర్ర మిరప, వరి, పత్తి తడిస్తే రంగుమారి ధర 50% పడిపోతుంది. రాబోయే వర్ష సూచనను గమనించి టార్పాలిన్ పట్టాలతో సిద్ధంగా ఉండండి."
-              : "Rain moisture on drying chillies or paddy destroys quality, sparks aflatoxin fungus, and slashes market rates. Get real-time rain risk & rent nearby waterproof tarpaulins."}
+              : "Rain moisture on drying chillies or paddy destroys quality, sparks aflatoxin fungus, and slashes market rates. Get weather-based rain risk & rent nearby waterproof tarpaulins."}
           </p>
         </div>
       </div>
@@ -233,7 +233,7 @@ export function HarvestShield({
               <div className="flex items-center gap-2 text-amber-900 font-bold">
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
                 <span className="text-base sm:text-lg">
-                  {isTelugu ? "ప్రత్యక్ష హెచ్చరిక & సలహా" : "Real-time Protective Action Advisory"}
+                  {isTelugu ? "ప్రత్యక్ష హెచ్చరిక & సలహా" : "Weather-based Protection Action Advisory"}
                 </span>
               </div>
 

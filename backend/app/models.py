@@ -320,20 +320,6 @@ class AuditLog(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
-class Notification(Base):
-    """Event-driven farmer alerts and notifications."""
-    __tablename__ = "notifications"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("user_accounts.id"), index=True)
-    category: Mapped[str] = mapped_column(String(40), index=True)  # weather, market, claim, advisory, pest
-    title: Mapped[str] = mapped_column(String(200))
-    message: Mapped[str] = mapped_column(Text)
-    severity: Mapped[str] = mapped_column(String(40), default="info")  # info, warning, urgent, critical
-    action_link: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    status: Mapped[str] = mapped_column(String(40), default="UNREAD", index=True)  # UNREAD, READ, DISMISSED
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-
 
 class MandiPriceRecord(Base):
     """
@@ -362,7 +348,7 @@ class MandiPriceRecord(Base):
     effective_date: Mapped[str] = mapped_column(String(50), default=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d"))
     retrieved_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_verified_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    verification_status: Mapped[str] = mapped_column(String(50), default="OFFICIALLY_VERIFIED", index=True)  # OFFICIALLY_VERIFIED, PROVISIONAL, EXPIRED
+    verification_status: Mapped[str] = mapped_column(String(50), default="OFFICER_ENTERED", index=True)  # OFFICER_ENTERED, OFFICIALLY_VERIFIED, PROVISIONAL, EXPIRED
     confidence: Mapped[float] = mapped_column(Float, default=0.98)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_by_user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("user_accounts.id"), nullable=True)
@@ -476,5 +462,59 @@ class MandiRawRecord(Base):
     raw_payload: Mapped[str] = mapped_column(Text)
     payload_hash: Mapped[str] = mapped_column(String(64), index=True)
     received_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class Notification(Base):
+    """In-app notification for farmers and officers."""
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("user_accounts.id"), index=True)
+    notification_type: Mapped[str] = mapped_column(String(60), default="SYSTEM", index=True)  # MARKET_UPDATE, CLAIM_UPDATE, SCHEME_MATCH, SYSTEM, WEATHER_ALERT
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text, default="")
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON blob for extra data
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    channel: Mapped[str] = mapped_column(String(30), default="in_app")  # in_app, email, sms
+    delivery_status: Mapped[str] = mapped_column(String(30), default="DELIVERED")  # QUEUED, DELIVERED, FAILED
+
+    # Backward compatibility attributes for legacy event_engine
+    category: Mapped[str | None] = mapped_column(String(60), nullable=True, index=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    severity: Mapped[str | None] = mapped_column(String(40), default="info", nullable=True)
+    action_link: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str | None] = mapped_column(String(40), default="UNREAD", nullable=True, index=True)
+
+    user = relationship("UserAccount", foreign_keys=[user_id])
+
+    __table_args__ = (
+        Index("ix_notifications_user_unread", "user_id", "is_read"),
+    )
+
+
+class SupportTicket(Base):
+    """Farmer support and help ticket system."""
+    __tablename__ = "support_tickets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    ticket_number: Mapped[str] = mapped_column(String(40), unique=True, index=True)  # RS-SUPPORT-YYYYMMDD-NNNN
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("user_accounts.id"), nullable=True, index=True)
+    subject: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(String(60), default="general", index=True)  # general, mandi, claim, scheme, technical
+    status: Mapped[str] = mapped_column(String(40), default="OPEN", index=True)  # OPEN, IN_PROGRESS, WAITING_FOR_USER, RESOLVED, CLOSED
+    priority: Mapped[str] = mapped_column(String(20), default="NORMAL")  # LOW, NORMAL, HIGH, URGENT
+    assigned_to: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    admin_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    user = relationship("UserAccount", foreign_keys=[user_id])
+
 
 
