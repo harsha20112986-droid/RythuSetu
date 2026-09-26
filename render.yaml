@@ -11,6 +11,13 @@ services:
         value: 3.11.9
       - key: APP_ENV
         value: production
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_REFRESH_SECRET_KEY
+        generateValue: true
+      - key: ADMIN_INITIAL_PASSWORD
+        generateValue: true
+
 
   # Frontend Static Site
   - type: web
