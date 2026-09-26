@@ -1,72 +1,51 @@
-from fastapi import FastAPI
+from __future__ import annotations
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from app.api import router as api_router
 from app.voice_api import router as voice_router
 from app.core.config import settings
-from app.db import Base, engine
+from app.db_init import initialize_database
 from app import models  # noqa: F401
 
-Base.metadata.create_all(bind=engine)
 
-def update_schema_columns():
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        try:
-            result = conn.execute(text("PRAGMA table_info(user_accounts)")).fetchall()
-            existing_cols = [row[1] for row in result]
-            if "phone" not in existing_cols:
-                conn.execute(text("ALTER TABLE user_accounts ADD COLUMN phone VARCHAR(40)"))
-            if "last_login_at" not in existing_cols:
-                conn.execute(text("ALTER TABLE user_accounts ADD COLUMN last_login_at DATETIME"))
-            if "is_online" not in existing_cols:
-                conn.execute(text("ALTER TABLE user_accounts ADD COLUMN is_online BOOLEAN DEFAULT 0"))
-            conn.commit()
-        except Exception as e:
-            print("Schema update notice:", e)
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Adds essential production security headers to all HTTP responses."""
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        return response
 
-update_schema_columns()
-
-def ensure_default_admin():
-    from app.db import SessionLocal
-    from app.models import UserAccount
-
-    db = SessionLocal()
-    try:
-        existing = db.query(UserAccount).filter(UserAccount.username == "admin").first()
-        if not existing:
-            admin_user = UserAccount(
-                username="admin",
-                password="admin123",
-                name="Agriculture Extension Officer",
-                role="admin",
-                phone="+91 98480 12345",
-                designation="Mandal Agriculture Officer (MAO)",
-                district="Warangal",
-                state="Telangana",
-            )
-            db.add(admin_user)
-            db.commit()
-    except Exception:
-        db.rollback()
-    finally:
-        db.close()
-
-ensure_default_admin()
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.2.0",
-    description="AI-powered farmer support platform for climate risk, crop loss, schemes, and benefit guidance.",
+    version="0.3.0",
+    description="Production-grade agricultural intelligence, PMFBY preparation, and farm-to-market linkage platform.",
 )
 
+# CORS Middleware with configured origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins if settings.cors_origins else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Production security headers
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Initialize database schema and idempotent seed data on startup
+@app.on_event("startup")
+def on_startup():
+    initialize_database()
+
 
 app.include_router(api_router)
 app.include_router(voice_router)
@@ -77,36 +56,16 @@ def root() -> dict[str, str]:
     return {
         "name": "RythuSetu Backend API",
         "status": "running",
-        "docs": "http://localhost:8000/docs",
-        "frontend": "http://localhost:5173",
-    }
-
-
-@app.get("/api")
-@app.get("/api/v1")
-def api_info() -> dict:
-    return {
-        "service": "RythuSetu API",
-        "version": "0.2.0",
-        "status": "ready",
-        "docs_url": "/docs",
-        "endpoints": [
-            "/api/v1/farmers",
-            "/api/v1/schemes",
-            "/api/v1/benefits/estimate",
-            "/api/v1/climate/risk",
-            "/api/v1/crop-loss",
-            "/api/v1/assistant/chat",
-        ],
+        "version": "0.3.0",
+        "docs": "/docs",
     }
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "healthy"}
+    return {"status": "healthy", "service": "rythusetu-backend"}
 
 
 @app.get(f"{settings.api_v1_prefix}/status")
 def api_status() -> dict[str, str]:
-    return {"service": "rythusetu-api", "version": "0.2.0", "status": "ready"}
-
+    return {"service": "rythusetu-api", "version": "0.3.0", "status": "ready"}

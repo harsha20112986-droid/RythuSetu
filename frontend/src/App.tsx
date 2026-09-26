@@ -90,20 +90,43 @@ export function App() {
     }
   }, [assistantLanguage]);
 
-  // Initialize farmer & auth user on mount
+  // Initialize farmer & auth user on mount with server-side JWT verification
   useEffect(() => {
-    // 1. Check saved auth user
+    const token = localStorage.getItem("rythusetu_token");
     const savedUserRaw = localStorage.getItem("rythusetu_user");
-    if (savedUserRaw) {
+
+    if (token && savedUserRaw) {
       try {
         const u = JSON.parse(savedUserRaw) as AuthUser;
         setCurrentUser(u);
         if (u.role === "admin") {
           setPage("admin");
         }
+
+        // Verify token against backend in background
+        fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((res) => {
+            if (res.ok) return res.json();
+            throw new Error("Token expired or invalid");
+          })
+          .then((verifiedUser: AuthUser) => {
+            setCurrentUser(verifiedUser);
+            localStorage.setItem("rythusetu_user", JSON.stringify(verifiedUser));
+          })
+          .catch(() => {
+            localStorage.removeItem("rythusetu_token");
+            localStorage.removeItem("rythusetu_user");
+            setCurrentUser(null);
+          });
       } catch {
         localStorage.removeItem("rythusetu_user");
+        localStorage.removeItem("rythusetu_token");
       }
+    } else {
+      localStorage.removeItem("rythusetu_user");
+      localStorage.removeItem("rythusetu_token");
     }
 
     // 2. Check saved farmer profile
@@ -119,6 +142,7 @@ export function App() {
       }
     }
   }, []);
+
 
   useEffect(() => {
     if (!farmer) return;
@@ -217,6 +241,7 @@ export function App() {
   const handleLogout = () => {
     localStorage.removeItem("rythusetu_user");
     localStorage.removeItem("rythusetu_token");
+    localStorage.removeItem("rythusetu_registered_users");
     setCurrentUser(null);
     setPage("home");
   };

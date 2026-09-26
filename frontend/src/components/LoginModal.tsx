@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Lock, User, ShieldCheck, ArrowRight, X, AlertCircle, UserPlus, LogIn } from "lucide-react";
+import { Lock, User, ShieldCheck, ArrowRight, X, AlertCircle, UserPlus, LogIn, Sprout } from "lucide-react";
 import {
   type AuthUser,
   type Farmer,
@@ -40,7 +40,6 @@ export function LoginModal({
   // Registration state
   const [regName, setRegName] = useState("");
   const [regUsername, setRegUsername] = useState("");
-  const [regRole, setRegRole] = useState<"farmer" | "admin">("farmer");
   const [regState, setRegState] = useState("Telangana");
   const [regDistrict, setRegDistrict] = useState(() => getDistrictsForState("Telangana")[0] || "Warangal");
   const [regMandal, setRegMandal] = useState(() => getMandalsForDistrict("Telangana", "Warangal")[0] || "");
@@ -133,7 +132,6 @@ export function LoginModal({
     setLoading(true);
     setError("");
 
-    // 1. Try Backend API Authentication
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
@@ -141,12 +139,14 @@ export function LoginModal({
         body: JSON.stringify({ username: rawUser, password: rawPw }),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
-        const data = await res.json();
         localStorage.setItem("rythusetu_user", JSON.stringify(data.user));
         if (data.access_token) {
           localStorage.setItem("rythusetu_token", data.access_token);
         }
+        localStorage.removeItem("rythusetu_registered_users");
 
         // If farmer, fetch their profile if linked
         let farmerObj: Farmer | undefined = undefined;
@@ -163,158 +163,19 @@ export function LoginModal({
           }
         }
 
-        // Update local session registry
-        const savedUsers = JSON.parse(localStorage.getItem("rythusetu_registered_users") || "[]");
-        const idx = savedUsers.findIndex((u: any) => 
-          u.username?.toLowerCase() === rawUser.toLowerCase() ||
-          u.name?.toLowerCase() === rawUser.toLowerCase() ||
-          (rawUser.replace(/\D/g, "").length >= 7 && u.phone?.replace(/\D/g, "").endsWith(rawUser.replace(/\D/g, "").slice(-10)))
-        );
-        if (idx !== -1) {
-          savedUsers[idx].lastLoginAt = new Date().toISOString();
-          localStorage.setItem("rythusetu_registered_users", JSON.stringify(savedUsers));
-        }
-
+        setLoading(false);
         onLoginSuccess(data.user, farmerObj);
         onClose();
         return;
+      } else {
+        setLoading(false);
+        setError(data.detail || "Invalid credentials. Please verify your username, mobile number, and password.");
+        return;
       }
     } catch {
-      // Backend may be sleeping or cold-starting; proceed to client-side resilient auth
-    }
-
-    // 2. Client-Side Resilient Local Store Authentication
-    // Ensures a farmer who registered is never locked out due to cold starts or database restarts
-    const savedUsers = JSON.parse(localStorage.getItem("rythusetu_registered_users") || "[]");
-    const normInput = rawUser.toLowerCase();
-    const cleanDigits = rawUser.replace(/\D/g, "");
-
-    const matchedLocalUser = savedUsers.find((u: any) => {
-      const matchUsername = u.username?.toLowerCase() === normInput;
-      const matchName = u.name?.toLowerCase() === normInput;
-      const uDigits = u.phone ? u.phone.replace(/\D/g, "") : "";
-      const matchPhone = cleanDigits.length >= 7 && uDigits && (uDigits.endsWith(cleanDigits.slice(-10)) || cleanDigits.endsWith(uDigits.slice(-10)));
-      const matchPw = (u.password || "").trim() === rawPw;
-      return (matchUsername || matchName || matchPhone) && matchPw;
-    });
-
-    if (matchedLocalUser) {
-      matchedLocalUser.lastLoginAt = new Date().toISOString();
-      localStorage.setItem("rythusetu_registered_users", JSON.stringify(savedUsers));
-
-      const authUser: AuthUser = {
-        username: matchedLocalUser.username,
-        name: matchedLocalUser.name,
-        role: matchedLocalUser.role || "farmer",
-        phone: matchedLocalUser.phone || "",
-        designation: matchedLocalUser.role === "admin" ? "Mandal Agriculture Officer" : "Registered Smallholder",
-        district: matchedLocalUser.district || "Warangal",
-        state: matchedLocalUser.state || "Telangana",
-        last_login_at: new Date().toLocaleString(),
-        is_online: true,
-      };
-
-      let farmerObj: Farmer | undefined = undefined;
-      if (authUser.role === "farmer") {
-        farmerObj = {
-          id: matchedLocalUser.farmer_profile_id || 1,
-          form: {
-            name: matchedLocalUser.name,
-            language: "English",
-            state: matchedLocalUser.state || "Telangana",
-            district: matchedLocalUser.district || "Warangal",
-            mandal: matchedLocalUser.mandal || "",
-            village: matchedLocalUser.village || "",
-            crop: matchedLocalUser.crop || "Cotton",
-            season: matchedLocalUser.season || "Kharif",
-            land_area_acres: matchedLocalUser.land_area_acres || "2.0",
-          },
-        };
-        localStorage.setItem("rythusetu_farmer", JSON.stringify(farmerObj));
-      }
-
-      localStorage.setItem("rythusetu_user", JSON.stringify(authUser));
-
-      // Attempt background re-sync to backend if container was restored
-      fetch(`${API_BASE}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: matchedLocalUser.name,
-          username: matchedLocalUser.username,
-          password: matchedLocalUser.password,
-          role: matchedLocalUser.role || "farmer",
-          state: matchedLocalUser.state,
-          district: matchedLocalUser.district,
-          mandal: matchedLocalUser.mandal || "",
-          village: matchedLocalUser.village || "",
-          crop: matchedLocalUser.crop || "Cotton",
-          season: matchedLocalUser.season || "Kharif",
-          land_area_acres: parseFloat(matchedLocalUser.land_area_acres) || 2.0,
-          phone: matchedLocalUser.phone || "",
-        }),
-      }).catch(() => {});
-
       setLoading(false);
-      onLoginSuccess(authUser, farmerObj);
-      onClose();
-      return;
+      setError("Unable to connect to RythuSetu authentication service. Please check your connection.");
     }
-
-    // 3. Fallback for default Admin and Farmer test accounts
-    if (normInput === "admin" && rawPw === "admin123") {
-      const adminUser: AuthUser = {
-        username: "admin",
-        name: "Agriculture Extension Officer",
-        role: "admin",
-        phone: "+91 98480 12345",
-        designation: "Mandal Agriculture Officer (MAO)",
-        district: "Warangal",
-        state: "Telangana",
-        is_online: true,
-      };
-      localStorage.setItem("rythusetu_user", JSON.stringify(adminUser));
-      setLoading(false);
-      onLoginSuccess(adminUser, undefined);
-      onClose();
-      return;
-    }
-
-    if ((normInput === "farmer" || normInput === "demo") && rawPw === "farmer123") {
-      const farmerUser: AuthUser = {
-        username: "farmer",
-        name: "Kishan Rao",
-        role: "farmer",
-        phone: "+91 98480 22338",
-        designation: "Registered Smallholder",
-        district: "Warangal",
-        state: "Telangana",
-        is_online: true,
-      };
-      const fObj: Farmer = {
-        id: 101,
-        form: {
-          name: "Kishan Rao",
-          language: "Telugu",
-          state: "Telangana",
-          district: "Warangal",
-          mandal: "Narsampet",
-          village: "Chennaraopet",
-          crop: "Cotton",
-          season: "Kharif",
-          land_area_acres: "3.5",
-        },
-      };
-      localStorage.setItem("rythusetu_user", JSON.stringify(farmerUser));
-      localStorage.setItem("rythusetu_farmer", JSON.stringify(fObj));
-      setLoading(false);
-      onLoginSuccess(farmerUser, fObj);
-      onClose();
-      return;
-    }
-
-    setLoading(false);
-    setError("Invalid credentials. Please verify your username, full name, or registered mobile number and password.");
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -323,39 +184,14 @@ export function LoginModal({
       setError("Please fill in your name, username, and password.");
       return;
     }
+    if (regPassword.trim().length < 6) {
+      setError("Password must be at least 6 characters in length.");
+      return;
+    }
 
     setLoading(true);
     setError("");
 
-    const newRegistrationPayload = {
-      name: regName.trim(),
-      username: regUsername.trim(),
-      password: regPassword.trim(),
-      role: regRole,
-      state: regState,
-      district: regDistrict,
-      mandal: regMandal.trim(),
-      village: regVillage.trim(),
-      crop: regCrop,
-      season: regSeason,
-      land_area_acres: regAcres || "2.0",
-      phone: regPhone.trim(),
-      registeredAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-    };
-
-    // 1. Save immediately to Local Store
-    const savedUsers = JSON.parse(localStorage.getItem("rythusetu_registered_users") || "[]");
-    const existingIdx = savedUsers.findIndex((u: any) => u.username?.toLowerCase() === regUsername.trim().toLowerCase());
-    if (existingIdx !== -1) {
-      savedUsers[existingIdx] = newRegistrationPayload;
-    } else {
-      savedUsers.push(newRegistrationPayload);
-    }
-    localStorage.setItem("rythusetu_registered_users", JSON.stringify(savedUsers));
-
-    // 2. Transmit to Backend API
-    let serverUser: AuthUser | null = null;
     try {
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
@@ -364,7 +200,7 @@ export function LoginModal({
           name: regName.trim(),
           username: regUsername.trim(),
           password: regPassword.trim(),
-          role: regRole,
+          role: "farmer",
           state: regState,
           district: regDistrict,
           mandal: regMandal.trim(),
@@ -376,55 +212,41 @@ export function LoginModal({
         }),
       });
 
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
-        serverUser = data.user;
+        localStorage.setItem("rythusetu_user", JSON.stringify(data.user));
         if (data.access_token) {
           localStorage.setItem("rythusetu_token", data.access_token);
         }
+        localStorage.removeItem("rythusetu_registered_users");
+
+        let farmerObj: Farmer | undefined = undefined;
+        if (data.user.farmer_profile_id) {
+          try {
+            const fRes = await fetch(`${API_BASE}/farmers/${data.user.farmer_profile_id}`);
+            if (fRes.ok) {
+              const fData = await fRes.json();
+              farmerObj = { id: fData.id, form: fData };
+              localStorage.setItem("rythusetu_farmer", JSON.stringify(farmerObj));
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        setLoading(false);
+        onLoginSuccess(data.user, farmerObj);
+        onClose();
+      } else {
+        setLoading(false);
+        setError(data.detail || "Registration failed. Please check your inputs.");
       }
     } catch {
-      // Backend temporarily offline; proceed with resilient registration
+      setLoading(false);
+      setError("Unable to register account at this time. Please check your connection.");
     }
-
-    const activeUser: AuthUser = serverUser || {
-      username: regUsername.trim(),
-      name: regName.trim(),
-      role: regRole,
-      phone: regPhone.trim(),
-      designation: regRole === "admin" ? "Mandal Agriculture Officer" : "Registered Smallholder",
-      district: regDistrict,
-      state: regState,
-      last_login_at: new Date().toLocaleString(),
-      is_online: true,
-    };
-
-    localStorage.setItem("rythusetu_user", JSON.stringify(activeUser));
-
-    // Build farmer object
-    let farmerObj: Farmer | undefined = undefined;
-    if (activeUser.role === "farmer") {
-      farmerObj = {
-        id: activeUser.farmer_profile_id || 1,
-        form: {
-          name: regName.trim(),
-          language: "English",
-          state: regState,
-          district: regDistrict,
-          mandal: regMandal.trim(),
-          village: regVillage.trim(),
-          crop: regCrop,
-          season: regSeason,
-          land_area_acres: regAcres || "2.0",
-        },
-      };
-      localStorage.setItem("rythusetu_farmer", JSON.stringify(farmerObj));
-    }
-
-    setLoading(false);
-    onLoginSuccess(activeUser, farmerObj);
-    onClose();
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -541,7 +363,7 @@ export function LoginModal({
                   onClick={() => { setActiveTab("register"); setError(""); }}
                   className="text-xs font-bold text-emerald-800 hover:underline cursor-pointer"
                 >
-                  New to RythuSetu? Create a free farmer or officer account →
+                  New to RythuSetu? Register a free farmer account →
                 </button>
               </div>
             </form>
@@ -552,14 +374,10 @@ export function LoginModal({
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Account Type
                   </label>
-                  <select
-                    value={regRole}
-                    onChange={(e) => setRegRole(e.target.value as any)}
-                    className="w-full px-3 py-2 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                  >
-                    <option value="farmer">Cultivator / Farmer</option>
-                    <option value="admin">Agriculture Officer (MAO)</option>
-                  </select>
+                  <div className="w-full px-3 py-2 text-xs font-bold border border-emerald-300 rounded-xl bg-emerald-50 text-emerald-900 flex items-center gap-1.5">
+                    <Sprout className="size-3.5 text-emerald-700" />
+                    <span>Cultivator / Farmer</span>
+                  </div>
                 </div>
 
                 <div>
@@ -642,8 +460,6 @@ export function LoginModal({
                 </div>
               </div>
 
-              {regRole === "farmer" && (
-                <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="flex items-center justify-between mb-1">
@@ -787,8 +603,7 @@ export function LoginModal({
                       />
                     </div>
                   </div>
-                </>
-              )}
+
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">

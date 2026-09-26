@@ -127,3 +127,154 @@ def test_agri_input_products_and_dealers(client):
     assert "dealers" in d_res.json()
     assert len(d_res.json()["dealers"]) > 0
 
+
+def test_password_hashing_and_verification():
+    from app.core.security import hash_password, verify_password
+    pw = "KisanSecret@2026"
+    hashed = hash_password(pw)
+    assert hashed != pw
+    assert hashed.startswith("$2b$12$")
+    assert verify_password(pw, hashed) is True
+    assert verify_password("WrongPassword", hashed) is False
+
+
+def test_auth_registration_and_jwt_tokens(client):
+    import time
+    unique_user = f"farmer_test_{int(time.time())}"
+    reg_payload = {
+        "name": "Anji Reddy",
+        "username": unique_user,
+        "password": "SecurePassword123",
+        "role": "admin",  # Attacker attempts privilege escalation
+        "state": "Telangana",
+        "district": "Warangal",
+        "phone": "+91 98480 99887",
+    }
+    res = client.post("/api/v1/auth/register", json=reg_payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+    # Ensure role is enforced to farmer
+    assert data["user"]["role"] == "farmer"
+    farmer_token = data["access_token"]
+
+    # Test login with credentials
+    login_res = client.post("/api/v1/auth/login", json={"username": unique_user, "password": "SecurePassword123"})
+    assert login_res.status_code == 200
+    assert login_res.json()["user"]["username"] == unique_user
+
+    # Test /auth/me with Bearer token
+    me_res = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {farmer_token}"})
+    assert me_res.status_code == 200
+    assert me_res.json()["username"] == unique_user
+
+
+def test_rbac_protection_on_admin_endpoints(client):
+    import time
+    # 1. Anonymous access is blocked (401)
+    res_anon = client.get("/api/v1/admin/all-claims")
+    assert res_anon.status_code == 401
+
+    # 2. Farmer access is denied (403 Forbidden)
+    unique_user = f"farmer_rbac_{int(time.time())}"
+    reg = client.post("/api/v1/auth/register", json={
+        "name": "Ramulu",
+        "username": unique_user,
+        "password": "Password123",
+        "state": "Telangana",
+        "district": "Warangal",
+    })
+    farmer_token = reg.json()["access_token"]
+    res_forbidden = client.get("/api/v1/admin/all-claims", headers={"Authorization": f"Bearer {farmer_token}"})
+    assert res_forbidden.status_code == 403
+    assert "Access denied" in res_forbidden.json()["detail"]
+
+    # 3. Admin access succeeds (200 OK)
+    from app.core.config import settings
+    admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": settings.admin_initial_password})
+    admin_token = admin_login.json()["access_token"]
+    res_admin = client.get("/api/v1/admin/all-claims", headers={"Authorization": f"Bearer {admin_token}"})
+    assert res_admin.status_code == 200
+    assert "claims" in res_admin.json()
+
+
+def test_pmfby_claim_preparation_and_db_persistence(client):
+    import datetime
+    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+    form_data = {
+        "farmer_id": 101,
+        "crop": "Cotton",
+        "damage_type": "Flood / Heavy Rain",
+        "loss_date": now_str,
+        "affected_area_acres": 2.5,
+        "damage_percent": 65.0,
+        "description": "Continuous heavy downpour submerged the fields for 48 hours.",
+    }
+    res = client.post("/api/v1/crop-loss", data=form_data)
+    assert res.status_code == 201
+    claim = res.json()
+    assert "reference_number" in claim
+    assert claim["reference_number"].startswith("RYTHU-CLAIM-2026-")
+    assert claim["is_within_window"] is True
+    assert claim["status"] == "Submitted"
+
+    # Track claim status
+    ref = claim["reference_number"]
+    status_res = client.get(f"/api/v1/claims/status/{ref}")
+    assert status_res.status_code == 200
+    status_data = status_res.json()
+    assert status_data["reference_number"] == ref
+    assert status_data["current_status"] == "Submitted"
+    assert len(status_data["stages"]) == 4
+    assert len(status_data["audit_events"]) >= 1
+
+
+def test_storage_and_direct_market_persistence(client):
+    from app.core.config import settings
+    admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": settings.admin_initial_password})
+    admin_token = admin_login.json()["access_token"]
+
+    # 1. Cold storage booking
+    book_res = client.post("/api/v1/storage/book-space", json={
+        "facility_id": "cs-gtr-01",
+        "farmer_name": "Nageswara Rao",
+        "phone": "+91 98480 33445",
+        "commodity": "Red Chilli (Teja)",
+        "bags_count": 80,
+        "duration_months": 4,
+    })
+    assert book_res.status_code == 200
+    booking = book_res.json()
+    token = booking["booking_token"]
+    assert token.startswith("RS-GODOWN-")
+
+    # Verify listing via officer token
+    list_res = client.get("/api/v1/storage/bookings", headers={"Authorization": f"Bearer {admin_token}"})
+    assert list_res.status_code == 200
+    tokens = [b["booking_token"] for b in list_res.json()["bookings"]]
+    assert token in tokens
+
+    # 2. Factory delivery pass
+    pass_res = client.post("/api/v1/direct-market/delivery-pass", json={
+        "factory_id": "fac-spn-01",
+        "farmer_name": "Venkatesh",
+        "phone": "+91 94400 11223",
+        "district": "Warangal",
+        "village": "Chennaraopet",
+        "crop": "Cotton",
+        "quantity_qtl": 25.0,
+        "delivery_date": "2026-10-02",
+    })
+    assert pass_res.status_code == 200
+    pass_data = pass_res.json()
+    pass_num = pass_data["pass_number"]
+    assert pass_num.startswith("DIRECT-PASS-")
+
+    # Verify pass list via officer token
+    passes_res = client.get("/api/v1/direct-market/passes", headers={"Authorization": f"Bearer {admin_token}"})
+    assert passes_res.status_code == 200
+    all_passes = [p["pass_number"] for p in passes_res.json()["passes"]]
+    assert pass_num in all_passes
+
+

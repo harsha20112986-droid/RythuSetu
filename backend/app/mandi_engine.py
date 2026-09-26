@@ -537,7 +537,7 @@ def get_mandi_prices_for_farmer(crop: str, district: str = "") -> dict[str, Any]
     highest_variety = sorted_varieties[0]
     lowest_variety = sorted_varieties[-1]
     
-    # Create market entries for the UI cards
+    # Create market entries for the UI cards with transparent provenance
     markets_data = []
     for v in sorted_varieties:
         diff = v["modal_price"] - msp
@@ -554,13 +554,14 @@ def get_mandi_prices_for_farmer(crop: str, district: str = "") -> dict[str, Any]
             "modal_price": v["modal_price"],
             "msp_benchmark": round(msp),
             "extra_profit_vs_msp": round(diff),
-            "arrival_quintals": 1200 + (v["modal_price"] % 800),
             "price_trend": "bullish" if diff >= 0 else "bearish",
             "trend_percent": round(abs(diff / msp) * 100, 1),
             "recommendation": v["recommendation"],
             "action": v["action"],
             "key_trait": v["key_trait"],
-            "verified_date": datetime.date.today().strftime("%d %b %Y"),
+            "data_trust_label": "CURATED",
+            "data_trust_badge": "Reference Benchmark (e-NAM Standard)",
+            "last_verified": "September 2026",
         })
 
     return {
@@ -576,6 +577,13 @@ def get_mandi_prices_for_farmer(crop: str, district: str = "") -> dict[str, Any]
         "msp_status": "Above MSP" if avg_modal >= msp else "Below MSP",
         "varieties": sorted_varieties,
         "markets": markets_data,
-        "source": "e-NAM (National Agriculture Market) & State Agricultural Marketing Directorate",
-        "timestamp": datetime.datetime.now().strftime("%d %b %Y, %I:%M %p"),
+        "provenance": {
+            "source_type": "CURATED_REFERENCE",
+            "source_name": "e-NAM APMC Benchmark Reference & CACP Statutory MSP 2025-26",
+            "last_verified": "September 2026",
+            "trust_label": "Curated Reference Data",
+            "disclaimer": "These benchmark prices represent verified regional APMC trading ranges and statutory MSP floors. Exact spot bids depend on moisture testing and lot grading at your local yard.",
+        },
+        "source": "e-NAM APMC Benchmark Reference & CACP MSP 2025-26 (Curated)",
+        "last_verified": "September 2026",
     }

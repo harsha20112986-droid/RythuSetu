@@ -1,11 +1,11 @@
-from fastapi.responses import Response
-from app.vision_engine import analyze_crop_leaf
-from app.claims_engine import generate_claim_pack
-from app.telephony_engine import process_ivr_step, generate_twiml_response
+from __future__ import annotations
+
 from pathlib import Path
 from uuid import uuid4
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -13,10 +13,75 @@ from app.assistant_engine import build_assistant_reply
 from app.benefit_engine import estimate_benefits
 from app.db import get_db
 from app.loss_engine import ALLOWED_DAMAGE_TYPES, build_next_step
-from app.models import CropLossReport, FarmerProfile
+from app.models import CropLossReport, FarmerProfile, UserAccount
 from app.schemas import FarmerProfileCreate, FarmerProfileResponse
 from app.scheme_engine import find_matching_schemes
 from app.weather_engine import get_climate_risk
+from app.vision_engine import analyze_crop_leaf, diagnose_symptoms
+from app.claims_engine import (
+    generate_claim_pack,
+    save_claim_intimation,
+    get_claim_lifecycle_status,
+)
+from app.telephony_engine import process_ivr_step, generate_twiml_response
+from app.core.auth import (
+    get_current_user,
+    get_optional_current_user,
+    require_role,
+    require_farmer,
+    require_officer,
+    require_admin,
+)
+from app.auth_engine import (
+    register_user,
+    get_all_registered_farmers,
+    get_all_admin_users,
+    authenticate_user,
+    get_admin_dashboard_stats,
+    get_all_admin_claims,
+    update_claim_status_by_officer,
+    add_broadcast_alert,
+    get_all_broadcast_alerts,
+)
+from app.storage_engine import (
+    get_cold_storages,
+    create_storage_booking,
+    get_all_storage_bookings,
+    update_storage_booking_status,
+)
+from app.direct_market_engine import (
+    get_factory_contracts,
+    create_factory_delivery_pass,
+    get_all_delivery_passes,
+    update_delivery_pass_status,
+)
+from app.machinery_engine import (
+    get_machinery_rentals,
+    create_machinery_booking,
+)
+from app.seed_verifier_engine import (
+    verify_seed_lot,
+    file_seed_grievance,
+)
+from app.khata_engine import (
+    get_crop_cost_template,
+    calculate_breakeven_cost,
+    get_saved_khata_entries,
+)
+from app.mandi_engine import get_mandi_prices_for_farmer
+from app.soil_engine import calculate_fertilizer_plan
+from app.recommendation_engine import recommend_crops
+from app.location_engine import (
+    get_states as lgd_get_states,
+    get_districts as lgd_get_districts,
+    get_mandals as lgd_get_mandals,
+    get_villages as lgd_get_villages,
+    search_locations as lgd_search_locations,
+    get_location_stats as lgd_get_stats,
+)
+from app.nearby_engine import get_nearby_infrastructure
+from app.input_market_engine import search_agri_products, get_nearby_dealers
+from app.harvest_shield_engine import get_harvest_drying_risk
 
 router = APIRouter(prefix="/api/v1")
 UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads"
@@ -135,7 +200,6 @@ def get_farmer_profile(farmer_id: int, db: Session = Depends(get_db)):
     return farmer
 
 
-
 @router.get("/schemes")
 def get_schemes(
     state: str = Query(..., min_length=2),
@@ -218,6 +282,10 @@ def assistant_chat(payload: AssistantRequest, db: Session = Depends(get_db)):
     )
 
 
+# -------------------------------------------------------------
+# PMFBY Crop Loss Reports & Claim Preparation
+# -------------------------------------------------------------
+
 @router.post("/crop-loss", status_code=201)
 async def create_crop_loss_report(
     farmer_id: int = Form(...),
@@ -250,7 +318,8 @@ async def create_crop_loss_report(
             raise HTTPException(status_code=400, detail="Evidence image must be 8 MB or smaller")
         destination.write_bytes(contents)
 
-    report = CropLossReport(
+    report = save_claim_intimation(
+        db=db,
         farmer_id=farmer_id,
         crop=crop,
         damage_type=damage_type,
@@ -259,14 +328,11 @@ async def create_crop_loss_report(
         damage_percent=damage_percent,
         description=description,
         evidence_filename=saved_filename,
-        status="Submitted",
     )
-    db.add(report)
-    db.commit()
-    db.refresh(report)
 
     return {
         "id": report.id,
+        "reference_number": report.reference_number,
         "farmer_id": report.farmer_id,
         "crop": report.crop,
         "damage_type": report.damage_type,
@@ -276,9 +342,11 @@ async def create_crop_loss_report(
         "description": report.description,
         "evidence_filename": report.evidence_filename,
         "status": report.status,
+        "is_within_window": report.is_within_window,
+        "reporting_window_hours": report.reporting_window_hours,
         "submitted_at": report.submitted_at,
         "next_step": build_next_step(report.status),
-        "disclaimer": "Farmer-reported damage is not an official loss assessment.",
+        "disclaimer": "PMFBY Claim Intimation prepared and recorded. Official loss assessment conducted by Agriculture Department.",
     }
 
 
@@ -297,6 +365,7 @@ def get_crop_loss_reports(farmer_id: int = Query(..., gt=0), db: Session = Depen
         "reports": [
             {
                 "id": report.id,
+                "reference_number": report.reference_number,
                 "crop": report.crop,
                 "damage_type": report.damage_type,
                 "loss_date": report.loss_date,
@@ -305,18 +374,17 @@ def get_crop_loss_reports(farmer_id: int = Query(..., gt=0), db: Session = Depen
                 "description": report.description,
                 "evidence_filename": report.evidence_filename,
                 "status": report.status,
+                "is_within_window": report.is_within_window,
+                "reporting_window_hours": report.reporting_window_hours,
+                "officer_notes": report.officer_notes or "",
                 "submitted_at": report.submitted_at,
                 "next_step": build_next_step(report.status),
             }
             for report in reports
         ],
-        "disclaimer": "Farmer-reported damage is not an official loss assessment.",
+        "disclaimer": "PMFBY Claim Intimations. Official loss assessment is conducted by the Department of Agriculture.",
     }
 
-
-# -------------------------------------------------------------
-# Advanced Features: Vision AI, Govt Claim Pack, Telephony
-# -------------------------------------------------------------
 
 @router.post("/crop-doctor/analyze")
 async def crop_doctor_analyze(
@@ -327,11 +395,11 @@ async def crop_doctor_analyze(
     """Computer Vision plant pathology analysis for leaf disease diagnosis."""
     if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="Leaf image must be JPG, PNG, or WebP")
-    
+
     image_bytes = await file.read()
     if len(image_bytes) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image must be under 10MB")
-        
+
     result = analyze_crop_leaf(image_bytes, crop=crop, language=language)
     return result
 
@@ -348,7 +416,7 @@ class ClaimPackRequest(BaseModel):
 
 @router.post("/claims/generate-pack")
 def generate_official_claim_pack(payload: ClaimPackRequest, db: Session = Depends(get_db)):
-    """Generates standardized official PMFBY claim packet with 4-stage tracking ID."""
+    """Generates standardized official PMFBY claim preparation dossier."""
     farmer = get_or_create_farmer(db, payload.farmer_id)
     pack = generate_claim_pack(
         farmer=farmer,
@@ -363,21 +431,15 @@ def generate_official_claim_pack(payload: ClaimPackRequest, db: Session = Depend
 
 
 @router.get("/claims/status/{reference_number}")
-def get_claim_lifecycle_status(reference_number: str):
-    """Lifecycle tracking for an existing official claim reference."""
-    import datetime
-    now = datetime.datetime.utcnow()
-    return {
-        "reference_number": reference_number,
-        "current_status": "Joint Field Survey Scheduled",
-        "last_updated": now.strftime("%Y-%m-%d %H:%M UTC"),
-        "stages": [
-            {"step": 1, "title": "Claim Intimation Registered", "status": "Completed", "date": (now - datetime.timedelta(days=2)).strftime("%Y-%m-%d")},
-            {"step": 2, "title": "Block Officer (BAO) Assigned", "status": "Completed", "date": (now - datetime.timedelta(days=1)).strftime("%Y-%m-%d")},
-            {"step": 3, "title": "Joint Field Survey & Geo-tagging", "status": "In Progress", "date": now.strftime("%Y-%m-%d")},
-            {"step": 4, "title": "Direct Benefit Transfer (DBT)", "status": "Pending", "date": (now + datetime.timedelta(days=10)).strftime("%Y-%m-%d")},
-        ]
-    }
+def get_claim_lifecycle_status_endpoint(reference_number: str, db: Session = Depends(get_db)):
+    """Authentic lifecycle tracking for an existing PMFBY claim reference from database."""
+    status_data = get_claim_lifecycle_status(db=db, reference_number=reference_number)
+    if not status_data:
+        raise HTTPException(
+            status_code=404,
+            detail=f"PMFBY Claim Intimation '{reference_number}' not found in registry."
+        )
+    return status_data
 
 
 class IvrStepRequest(BaseModel):
@@ -413,23 +475,12 @@ def telephony_ivr_webhook(Digits: str | None = Form(default=None)):
 
 # -------------------------------------------------------------
 # Role-Based Authentication & Agriculture Officer (Admin) Portal
-# Role-Based Authentication & Agriculture Officer (Admin) Portal
 # -------------------------------------------------------------
-from app.auth_engine import (
-    register_user,
-    get_all_registered_farmers,
-    get_all_admin_users,
-    authenticate_user,
-    get_admin_dashboard_stats,
-    get_all_admin_claims,
-    update_claim_status_by_officer,
-    add_broadcast_alert,
-    BROADCAST_ALERTS,
-)
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+
 
 class RegisterRequest(BaseModel):
     username: str
@@ -445,16 +496,17 @@ class RegisterRequest(BaseModel):
     land_area_acres: float = 2.0
     phone: str = ""
 
+
 @router.post("/auth/register")
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    """Registers a new Cultivator or Agriculture Officer."""
+    """Registers a new Cultivator."""
     try:
-        user = register_user(
+        return register_user(
             db=db,
             username=payload.username,
             password=payload.password,
             name=payload.name,
-            role=payload.role,
+            role="farmer",  # Public registration is strictly restricted to cultivators
             state=payload.state,
             district=payload.district,
             mandal=payload.mandal,
@@ -464,48 +516,62 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
             land_area_acres=payload.land_area_acres,
             phone=payload.phone,
         )
-        return {
-            "access_token": f"rythusetu_{user['role']}_token_{user['id']}",
-            "token_type": "bearer",
-            "user": user,
-        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.post("/auth/login")
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate Farmer or Agriculture Officer by username, full name, or phone."""
-    user = authenticate_user(db=db, username=payload.username, password=payload.password)
-    if not user:
+    result = authenticate_user(db=db, username=payload.username, password=payload.password)
+    if not result:
         raise HTTPException(
             status_code=401,
-            detail="Invalid credentials. Please verify your username or registered mobile number and password."
+            detail="Invalid credentials. Please verify your username/phone and password."
         )
+    return result
+
+
+@router.get("/auth/me")
+def get_me(current_user: UserAccount = Depends(get_current_user)):
+    """Returns authenticated user profile details from validated JWT."""
     return {
-        "access_token": f"rythusetu_{user['role']}_token_{user['id']}",
-        "token_type": "bearer",
-        "user": user,
+        "id": current_user.id,
+        "username": current_user.username,
+        "name": current_user.name,
+        "role": current_user.role,
+        "phone": current_user.phone or "",
+        "designation": current_user.designation or ("Cultivator" if current_user.role == "farmer" else "Agriculture Officer"),
+        "district": current_user.district or "Warangal",
+        "state": current_user.state or "Telangana",
+        "farmer_profile_id": current_user.farmer_profile_id,
+        "is_online": True,
     }
 
+
 @router.get("/admin/dashboard-stats")
-def admin_stats(db: Session = Depends(get_db)):
+def admin_stats(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_admin)):
     """Aggregated district agricultural statistics for Officer Command Center."""
     return get_admin_dashboard_stats(db)
 
+
 @router.get("/admin/farmers")
-def admin_farmers(db: Session = Depends(get_db)):
+def admin_farmers(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_admin)):
     """Returns actual registered smallholders from database."""
     return {"farmers": get_all_registered_farmers(db)}
 
+
 @router.get("/admin/users")
-def admin_users(db: Session = Depends(get_db)):
+def admin_users(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_admin)):
     """Returns all registered Cultivators and Agriculture Officers with active login status."""
     return {"users": get_all_admin_users(db)}
 
+
 @router.get("/admin/all-claims")
-def admin_all_claims(db: Session = Depends(get_db)):
+def admin_all_claims(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_admin)):
     """Master registry of all farmer crop damage claims for audit and approval."""
     return {"claims": get_all_admin_claims(db)}
+
 
 class ClaimStatusUpdate(BaseModel):
     new_status: str = ""
@@ -513,8 +579,14 @@ class ClaimStatusUpdate(BaseModel):
     officer_notes: str = ""
     officer_note: str = ""
 
+
 @router.post("/admin/claims/{claim_id}/update")
-def admin_update_claim(claim_id: str, payload: ClaimStatusUpdate, db: Session = Depends(get_db)):
+def admin_update_claim(
+    claim_id: str,
+    payload: ClaimStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
     """Officer approves, advances, or rejects farmer PMFBY claim."""
     action = payload.action or ""
     notes = payload.officer_notes or payload.officer_note or ""
@@ -524,10 +596,12 @@ def admin_update_claim(claim_id: str, payload: ClaimStatusUpdate, db: Session = 
         action=action,
         new_status=payload.new_status,
         officer_notes=notes,
+        current_officer=current_user,
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Crop loss claim record not found")
     return updated
+
 
 class BroadcastAlertRequest(BaseModel):
     title: str
@@ -539,41 +613,50 @@ class BroadcastAlertRequest(BaseModel):
     message: str = ""
     issued_by: str = "Mandal Agriculture Officer"
 
+
 @router.post("/admin/broadcast-alert")
-def create_alert(payload: BroadcastAlertRequest):
+def create_alert(
+    payload: BroadcastAlertRequest,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
     """Dispatches emergency weather or pest epidemic broadcast alert across district."""
     crop = payload.target_crop or payload.crop or "All Crops"
     msg = payload.advisory or payload.message or ""
     alert = add_broadcast_alert(
+        db=db,
         title=payload.title,
         district=payload.district,
         severity=payload.severity,
         target_crop=crop,
         advisory=msg,
         issued_by=payload.issued_by,
+        current_officer=current_user,
     )
     return {"message": f"Emergency alert '{payload.title}' dispatched to district farmers!", "alert": alert}
 
+
 @router.get("/admin/broadcast-alerts")
-def get_alerts():
+def get_alerts(db: Session = Depends(get_db)):
     """Fetches active emergency broadcasts for farmers and officers."""
-    return {"alerts": BROADCAST_ALERTS}
+    return {"alerts": get_all_broadcast_alerts(db)}
+
 
 # -------------------------------------------------------------
 # Mandi APMC Market Prices & Soil Health Fertilizer Optimizer
 # -------------------------------------------------------------
-from app.mandi_engine import get_mandi_prices_for_farmer
-from app.soil_engine import calculate_fertilizer_plan
 
 @router.get("/mandi/prices")
 def mandi_prices(crop: str = "Cotton", district: str = "Warangal"):
-    """Fetches live e-NAM APMC market arrivals, modal rates, and MSP comparison."""
+    """Fetches e-NAM APMC market arrivals, modal rates, and MSP comparison."""
     return get_mandi_prices_for_farmer(crop=crop, district=district)
+
 
 class FertilizerPlanRequest(BaseModel):
     crop: str = "Cotton"
     soil_type: str = "Black Cotton Clay"
     land_area_acres: float = 3.5
+
 
 @router.post("/soil/fertilizer-plan")
 def fertilizer_plan(payload: FertilizerPlanRequest):
@@ -588,7 +671,6 @@ def fertilizer_plan(payload: FertilizerPlanRequest):
 # -------------------------------------------------------------
 # 1. Smart Crop Recommendation & POP Protocol
 # -------------------------------------------------------------
-from app.recommendation_engine import recommend_crops
 
 class CropRecommendationRequest(BaseModel):
     state: str = "Telangana"
@@ -596,6 +678,7 @@ class CropRecommendationRequest(BaseModel):
     soil_type: str = "Black Cotton Clay"
     season: str = "Kharif"
     water_source: str = "Borewell / Semi-irrigated"
+
 
 @router.post("/crops/recommend")
 def get_crop_recommendations(payload: CropRecommendationRequest):
@@ -615,15 +698,16 @@ def get_crop_recommendations(payload: CropRecommendationRequest):
         ),
     }
 
+
 # -------------------------------------------------------------
 # 2. Dual-Mode Crop Doctor: Symptom & Pathogen Diagnosis
 # -------------------------------------------------------------
-from app.vision_engine import diagnose_symptoms
 
 class SymptomDiagnosisRequest(BaseModel):
     crop: str = "Cotton"
     symptoms: str
     language: str = "English"
+
 
 @router.post("/crop-doctor/diagnose-symptoms")
 def diagnose_crop_symptoms(payload: SymptomDiagnosisRequest):
@@ -634,20 +718,10 @@ def diagnose_crop_symptoms(payload: SymptomDiagnosisRequest):
         language=payload.language,
     )
 
+
 # -------------------------------------------------------------
 # 3. AC Godowns & Cold Storage Network
 # -------------------------------------------------------------
-from app.storage_engine import (
-    get_cold_storages,
-    create_storage_booking,
-    get_all_storage_bookings,
-    update_storage_booking_status,
-)
-
-@router.get("/storage/cold-godowns")
-def list_cold_storages(state: str = "", district: str = "", commodity: str = ""):
-    """Lists certified AC Godowns and cold storages across AP and Telangana."""
-    return {"facilities": get_cold_storages(state=state, district=district, commodity=commodity)}
 
 class StorageBookingRequest(BaseModel):
     facility_id: str
@@ -657,13 +731,27 @@ class StorageBookingRequest(BaseModel):
     bags_count: int = 50
     duration_months: int = 3
 
+
 class StatusUpdateRequest(BaseModel):
     status: str
 
+
+@router.get("/storage/cold-godowns")
+def list_cold_storages(
+    state: str = "",
+    district: str = "",
+    commodity: str = "",
+    db: Session = Depends(get_db),
+):
+    """Lists certified AC Godowns and cold storages across AP and Telangana."""
+    return {"facilities": get_cold_storages(db=db, state=state, district=district, commodity=commodity)}
+
+
 @router.post("/storage/book-space")
-def book_cold_storage_space(payload: StorageBookingRequest):
+def book_cold_storage_space(payload: StorageBookingRequest, db: Session = Depends(get_db)):
     """Generates official AC Godown slot reservation token and alerts facility in-charge."""
     return create_storage_booking(
+        db=db,
         facility_id=payload.facility_id,
         farmer_name=payload.farmer_name,
         phone=payload.phone,
@@ -672,32 +760,34 @@ def book_cold_storage_space(payload: StorageBookingRequest):
         duration_months=payload.duration_months,
     )
 
+
 @router.get("/storage/bookings")
-def list_storage_bookings():
+def list_storage_bookings(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_officer)):
     """Lists all incoming storage preservation requests for owners and officers."""
-    return {"bookings": get_all_storage_bookings()}
+    return {"bookings": get_all_storage_bookings(db=db)}
+
 
 @router.put("/storage/bookings/{token}/status")
-def update_booking_state(token: str, payload: StatusUpdateRequest):
-    res = update_storage_booking_status(token, payload.status)
+def update_booking_state(
+    token: str,
+    payload: StatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
+    res = update_storage_booking_status(
+        db=db,
+        token=token,
+        new_status=payload.status,
+        current_officer=current_user,
+    )
     if not res:
         raise HTTPException(status_code=404, detail="Booking token not found")
     return res
 
+
 # -------------------------------------------------------------
 # 4. Direct Farm-to-Factory Zero-Broker Linkage
 # -------------------------------------------------------------
-from app.direct_market_engine import (
-    get_factory_contracts,
-    create_factory_delivery_pass,
-    get_all_delivery_passes,
-    update_delivery_pass_status,
-)
-
-@router.get("/direct-market/factories")
-def list_factory_contracts(state: str = "", district: str = "", crop: str = ""):
-    """Lists verified factory procurement tenders and broker-free profit comparisons."""
-    return {"contracts": get_factory_contracts(state=state, district=district, crop=crop)}
 
 class FactoryDeliveryPassRequest(BaseModel):
     factory_id: str
@@ -709,10 +799,18 @@ class FactoryDeliveryPassRequest(BaseModel):
     quantity_qtl: float
     delivery_date: str
 
+
+@router.get("/direct-market/factories")
+def list_factory_contracts(state: str = "", district: str = "", crop: str = ""):
+    """Lists verified factory procurement tenders and broker-free profit comparisons."""
+    return {"contracts": get_factory_contracts(state=state, district=district, crop=crop)}
+
+
 @router.post("/direct-market/delivery-pass")
-def generate_delivery_pass(payload: FactoryDeliveryPassRequest):
+def generate_delivery_pass(payload: FactoryDeliveryPassRequest, db: Session = Depends(get_db)):
     """Generates Zero-Broker Factory Gate Entry Delivery Pass with procurement approval."""
     return create_factory_delivery_pass(
+        db=db,
         factory_id=payload.factory_id,
         farmer_name=payload.farmer_name,
         phone=payload.phone,
@@ -723,14 +821,26 @@ def generate_delivery_pass(payload: FactoryDeliveryPassRequest):
         delivery_date=payload.delivery_date,
     )
 
+
 @router.get("/direct-market/passes")
-def list_delivery_passes():
+def list_delivery_passes(db: Session = Depends(get_db), current_user: UserAccount = Depends(require_officer)):
     """Lists all factory delivery passes for factory managers and officers."""
-    return {"passes": get_all_delivery_passes()}
+    return {"passes": get_all_delivery_passes(db=db)}
+
 
 @router.put("/direct-market/passes/{pass_number}/status")
-def update_pass_state(pass_number: str, payload: StatusUpdateRequest):
-    res = update_delivery_pass_status(pass_number, payload.status)
+def update_pass_state(
+    pass_number: str,
+    payload: StatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: UserAccount = Depends(require_officer),
+):
+    res = update_delivery_pass_status(
+        db=db,
+        pass_number=pass_number,
+        new_status=payload.status,
+        current_officer=current_user,
+    )
     if not res:
         raise HTTPException(status_code=404, detail="Delivery pass not found")
     return res
@@ -739,24 +849,18 @@ def update_pass_state(pass_number: str, payload: StatusUpdateRequest):
 # -------------------------------------------------------------
 # 5. Local Government Directory (LGD) Official Location APIs
 # -------------------------------------------------------------
-from app.location_engine import (
-    get_states as lgd_get_states,
-    get_districts as lgd_get_districts,
-    get_mandals as lgd_get_mandals,
-    get_villages as lgd_get_villages,
-    search_locations as lgd_search_locations,
-    get_location_stats as lgd_get_stats
-)
 
 @router.get("/locations/states")
 def api_list_states():
     """Lists all official states from LGD."""
     return {"states": lgd_get_states()}
 
+
 @router.get("/locations/districts")
 def api_list_districts(state: str = Query(..., min_length=1)):
     """Lists all official districts for a state."""
     return {"state": state, "districts": lgd_get_districts(state)}
+
 
 @router.get("/locations/mandals")
 def api_list_mandals(state: str = Query(..., min_length=1), district: str = Query(..., min_length=1)):
@@ -764,30 +868,33 @@ def api_list_mandals(state: str = Query(..., min_length=1), district: str = Quer
     return {
         "state": state,
         "district": district,
-        "mandals": lgd_get_mandals(state, district)
+        "mandals": lgd_get_mandals(state, district),
     }
+
 
 @router.get("/locations/villages")
 def api_list_villages(
     state: str = Query(..., min_length=1),
     district: str = Query(..., min_length=1),
-    mandal: str = Query(..., min_length=1)
+    mandal: str = Query(..., min_length=1),
 ):
     """Lists all official villages for a mandal with native name, pincode, and LGD code."""
     return {
         "state": state,
         "district": district,
         "mandal": mandal,
-        "villages": lgd_get_villages(state, district, mandal)
+        "villages": lgd_get_villages(state, district, mandal),
     }
+
 
 @router.get("/locations/search")
 def api_search_locations(q: str = Query(..., min_length=1), state: str = ""):
     """Live search across villages, mandals, and pincodes."""
     return {
         "query": q,
-        "results": lgd_search_locations(q, state=state if state else None)
+        "results": lgd_search_locations(q, state=state if state else None),
     }
+
 
 @router.get("/locations/stats")
 def api_location_stats():
@@ -798,7 +905,6 @@ def api_location_stats():
 # -------------------------------------------------------------
 # 6. Hyperlocal Nearby Infrastructure & Market Hub
 # -------------------------------------------------------------
-from app.nearby_engine import get_nearby_infrastructure
 
 @router.get("/nearby/hub")
 def api_nearby_infrastructure(
@@ -806,7 +912,7 @@ def api_nearby_infrastructure(
     district: str = Query(..., min_length=1),
     mandal: str = Query("", max_length=100),
     crop: str = Query("", max_length=100),
-    max_distance_km: float = Query(200.0, gt=0, le=1000)
+    max_distance_km: float = Query(200.0, gt=0, le=1000),
 ):
     """
     Returns ranked nearby APMC mandis, direct purchase processing mills/factories,
@@ -817,21 +923,20 @@ def api_nearby_infrastructure(
         district=district,
         mandal=mandal,
         crop=crop,
-        max_distance_km=max_distance_km
+        max_distance_km=max_distance_km,
     )
 
 
 # -------------------------------------------------------------
 # 7. Agri Inputs, Branded Chemical Formulas & Dealer Directory
 # -------------------------------------------------------------
-from app.input_market_engine import search_agri_products, get_nearby_dealers
 
 @router.get("/inputs/products")
 def api_search_products(
     crop: str = Query("", max_length=100),
     disease: str = Query("", max_length=150),
     category: str = Query("", max_length=100),
-    q: str = Query("", max_length=100)
+    q: str = Query("", max_length=100),
 ):
     """
     Returns verified agri chemicals & fertilizers with packaging packshots,
@@ -842,15 +947,16 @@ def api_search_products(
             crop=crop,
             disease_or_pest=disease,
             category=category,
-            query=q
+            query=q,
         )
     }
+
 
 @router.get("/inputs/dealers")
 def api_nearby_dealers(
     state: str = Query("", max_length=100),
     district: str = Query("", max_length=100),
-    mandal: str = Query("", max_length=100)
+    mandal: str = Query("", max_length=100),
 ):
     """
     Returns authorized fertilizer & pesticide dealers with license numbers,
@@ -860,7 +966,7 @@ def api_nearby_dealers(
         "dealers": get_nearby_dealers(
             state=state,
             district=district,
-            mandal=mandal
+            mandal=mandal,
         )
     }
 
@@ -868,7 +974,6 @@ def api_nearby_dealers(
 # -------------------------------------------------------------
 # 8. Farm Machinery Custom Hiring Center (CHC) Hub
 # -------------------------------------------------------------
-from app.machinery_engine import get_machinery_rentals, create_machinery_booking
 
 class MachineryBookingRequest(BaseModel):
     machinery_id: str
@@ -879,25 +984,30 @@ class MachineryBookingRequest(BaseModel):
     acres_or_hours: float
     required_date: str
 
+
 @router.get("/machinery/rentals")
 def api_machinery_rentals(
     district: str = Query("", max_length=100),
     category: str = Query("", max_length=100),
-    state: str = Query("", max_length=100)
+    state: str = Query("", max_length=100),
+    db: Session = Depends(get_db),
 ):
     """Returns available farm machinery custom hiring center equipment."""
     return {
         "equipment": get_machinery_rentals(
+            db=db,
             district=district,
             category=category,
-            state=state
+            state=state,
         )
     }
 
+
 @router.post("/machinery/book")
-def api_book_machinery(payload: MachineryBookingRequest):
+def api_book_machinery(payload: MachineryBookingRequest, db: Session = Depends(get_db)):
     """Reserves farm machinery and issues confirmation dispatch token."""
     return create_machinery_booking(
+        db=db,
         machinery_id=payload.machinery_id,
         farmer_name=payload.farmer_name,
         phone=payload.phone,
@@ -911,12 +1021,11 @@ def api_book_machinery(payload: MachineryBookingRequest):
 # -------------------------------------------------------------
 # 9. Kallam (Drying Yard) Harvest Weather Shield & Tarpaulins
 # -------------------------------------------------------------
-from app.harvest_shield_engine import get_harvest_drying_risk
 
 @router.get("/weather/harvest-shield")
 def api_harvest_drying_risk(
     district: str = Query("Guntur", max_length=100),
-    crop: str = Query("Red Chilli", max_length=100)
+    crop: str = Query("Red Chilli", max_length=100),
 ):
     """Calculates open yard crop moisture danger score and nearest tarpaulin centers."""
     return get_harvest_drying_risk(district=district, crop=crop)
@@ -925,7 +1034,6 @@ def api_harvest_drying_risk(
 # -------------------------------------------------------------
 # 10. Seed & Input Authenticity Batch Verifier & Anti-Spurious
 # -------------------------------------------------------------
-from app.seed_verifier_engine import verify_seed_lot, file_seed_grievance
 
 class SeedGrievanceRequest(BaseModel):
     farmer_name: str
@@ -938,15 +1046,18 @@ class SeedGrievanceRequest(BaseModel):
     germination_failed_percent: float
     notes: str = ""
 
+
 @router.get("/seeds/verify-batch")
 def api_verify_seed_lot(lot_number: str = Query(..., min_length=2)):
-    """Cross-verifies seed lot number against official state certification database."""
+    """Cross-verifies seed lot number against official state certification reference."""
     return verify_seed_lot(lot_number)
 
+
 @router.post("/seeds/report-spurious")
-def api_report_spurious_seed(payload: SeedGrievanceRequest):
+def api_report_spurious_seed(payload: SeedGrievanceRequest, db: Session = Depends(get_db)):
     """Files formal spurious seed complaint with Mandal Agriculture Officer (MAO)."""
     return file_seed_grievance(
+        db=db,
         farmer_name=payload.farmer_name,
         phone=payload.phone,
         village=payload.village,
@@ -962,11 +1073,6 @@ def api_report_spurious_seed(payload: SeedGrievanceRequest):
 # -------------------------------------------------------------
 # 11. Digital Agri Khata & Breakeven Price Calculator
 # -------------------------------------------------------------
-from app.khata_engine import (
-    get_crop_cost_template,
-    calculate_breakeven_cost,
-    get_saved_khata_entries
-)
 
 class KhataCalculationRequest(BaseModel):
     crop: str
@@ -975,15 +1081,18 @@ class KhataCalculationRequest(BaseModel):
     expected_yield_quintals: float
     expected_market_price_per_qtl: float = 0.0
 
+
 @router.get("/khata/template")
 def api_khata_template(crop: str = Query("Red Chilli")):
     """Returns baseline cultivation expense template for specified crop."""
     return get_crop_cost_template(crop)
 
+
 @router.post("/khata/calculate-breakeven")
-def api_calculate_breakeven(payload: KhataCalculationRequest):
+def api_calculate_breakeven(payload: KhataCalculationRequest, db: Session = Depends(get_db)):
     """Calculates cost of cultivation per acre, breakeven price/qtl, and anti-distress sale advisory."""
     return calculate_breakeven_cost(
+        db=db,
         crop=payload.crop,
         acres=payload.acres,
         expenses=payload.expenses,
@@ -991,9 +1100,8 @@ def api_calculate_breakeven(payload: KhataCalculationRequest):
         expected_market_price_per_qtl=payload.expected_market_price_per_qtl,
     )
 
+
 @router.get("/khata/history")
-def api_khata_history():
+def api_khata_history(db: Session = Depends(get_db)):
     """Returns farmer's saved crop expense ledger records."""
-    return {"entries": get_saved_khata_entries()}
-
-
+    return {"entries": get_saved_khata_entries(db=db)}

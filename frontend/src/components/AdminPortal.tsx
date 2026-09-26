@@ -61,17 +61,26 @@ export function AdminPortal({
   const [broadcastAdvisory, setBroadcastAdvisory] = useState("");
   const [dispatching, setDispatching] = useState(false);
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("rythusetu_token");
+    return {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  };
+
   const fetchAdminData = async () => {
     try {
       setRefreshing(true);
+      const headers = getAuthHeaders();
       const [statsRes, claimsRes, alertsRes, farmersRes, usersRes, storageRes, factoryRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/dashboard-stats`),
-        fetch(`${API_BASE}/admin/all-claims`),
-        fetch(`${API_BASE}/admin/broadcast-alerts`),
-        fetch(`${API_BASE}/admin/farmers`),
-        fetch(`${API_BASE}/admin/users`).catch(() => null),
-        fetch(`${API_BASE}/storage/bookings`).catch(() => null),
-        fetch(`${API_BASE}/direct-market/passes`).catch(() => null),
+        fetch(`${API_BASE}/admin/dashboard-stats`, { headers }),
+        fetch(`${API_BASE}/admin/all-claims`, { headers }),
+        fetch(`${API_BASE}/admin/broadcast-alerts`, { headers }),
+        fetch(`${API_BASE}/admin/farmers`, { headers }),
+        fetch(`${API_BASE}/admin/users`, { headers }).catch(() => null),
+        fetch(`${API_BASE}/storage/bookings`, { headers }).catch(() => null),
+        fetch(`${API_BASE}/direct-market/passes`, { headers }).catch(() => null),
       ]);
 
       if (statsRes.ok) {
@@ -99,68 +108,11 @@ export function AdminPortal({
         setFactoryPasses(fData.passes || []);
       }
 
-      // Process User Accounts (combining backend + local storage for instant sync)
-      let serverUsers: AdminUserItem[] = [];
+      // Process authentic User Accounts from database
       if (usersRes && usersRes.ok) {
         const uData = await usersRes.json();
-        serverUsers = uData.users || [];
+        setUserAccounts(uData.users || []);
       }
-
-      const localUsers: any[] = JSON.parse(localStorage.getItem("rythusetu_registered_users") || "[]");
-      const userMap = new Map<string, AdminUserItem>();
-
-      // Put server users first
-      serverUsers.forEach((u) => {
-        userMap.set(u.username.toLowerCase(), u);
-      });
-
-      // Merge local users
-      localUsers.forEach((lu: any, idx: number) => {
-        const key = (lu.username || "").toLowerCase();
-        if (!userMap.has(key)) {
-          userMap.set(key, {
-            id: 2000 + idx,
-            username: lu.username,
-            name: lu.name,
-            role: lu.role || "farmer",
-            phone: lu.phone || "Not registered",
-            designation: lu.role === "admin" ? "Mandal Agriculture Officer" : "Registered Smallholder",
-            district: lu.district || "Warangal",
-            state: lu.state || "Telangana",
-            created_at: lu.registeredAt ? new Date(lu.registeredAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Recently",
-            last_login_at: lu.lastLoginAt ? new Date(lu.lastLoginAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) + ", Today" : "Active Now",
-            is_online: true,
-            status: "Online Now 🟢",
-            farmer_profile: {
-              crop: lu.crop || "Cotton",
-              land_area_acres: parseFloat(lu.land_area_acres) || 2.0,
-              village: lu.village || "",
-              mandal: lu.mandal || "",
-              season: lu.season || "Kharif",
-            },
-          });
-        }
-      });
-
-      // Also ensure current admin user is represented
-      if (!userMap.has(user.username.toLowerCase())) {
-        userMap.set(user.username.toLowerCase(), {
-          id: 1,
-          username: user.username,
-          name: user.name,
-          role: user.role,
-          phone: user.phone || "+91 98480 12345",
-          designation: user.designation || "Mandal Agriculture Officer",
-          district: user.district || "Warangal",
-          state: user.state || "Telangana",
-          created_at: "Platform Launch",
-          last_login_at: "Active Now",
-          is_online: true,
-          status: "Online Now 🟢",
-        });
-      }
-
-      setUserAccounts(Array.from(userMap.values()));
     } catch (e) {
       console.error("Failed to load admin telemetry", e);
     } finally {
@@ -177,7 +129,7 @@ export function AdminPortal({
     try {
       const res = await fetch(`${API_BASE}/admin/claims/${claimId}/update`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ action, officer_note: `Action executed by ${user.name}` }),
       });
       const data = await res.json();
@@ -199,7 +151,7 @@ export function AdminPortal({
       setDispatching(true);
       const res = await fetch(`${API_BASE}/admin/broadcast-alert`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           title: broadcastTitle.trim(),
           district: user.district,
@@ -227,7 +179,7 @@ export function AdminPortal({
     try {
       const res = await fetch(`${API_BASE}/storage/bookings/${token}/status`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status: newStatus }),
       });
       if (res.ok) {
@@ -244,7 +196,7 @@ export function AdminPortal({
     try {
       const res = await fetch(`${API_BASE}/direct-market/passes/${passNumber}/status`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status: newStatus }),
       });
       if (res.ok) {

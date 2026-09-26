@@ -151,57 +151,77 @@ VERIFIED_COLD_STORAGES: list[dict[str, Any]] = [
     },
 ]
 
-# Persistent in-memory storage of farmer reservation requests with Owner workflow
-STORAGE_BOOKINGS: list[dict[str, Any]] = [
-    {
-        "booking_token": "RS-GODOWN-260901-101",
-        "facility_id": "cs-gtr-01",
-        "facility_name": "Sri Lakshmi Balaji AC Cold Storage",
-        "district": "Guntur",
-        "state": "Andhra Pradesh",
-        "location": "Etukuru Road, Guntur",
-        "farmer_name": "Koti Reddy",
-        "phone": "+91 98481 12345",
-        "commodity": "Red Chilli (Teja)",
-        "bags_count": 250,
-        "duration_months": 4,
-        "monthly_rent_inr": 18750,
-        "total_estimated_rent_inr": 75000,
-        "enwr_pledge_loan_eligible": True,
-        "booking_status": "Approved by Owner (Bay Allotted)",
-        "owner_notified": True,
-        "manager_name": "Venkateswara Rao (Warehouse Manager)",
-        "manager_phone": "+91 94401 22849",
-        "entry_allowed": True,
-        "created_at": "24 Sep 2026, 11:30 AM",
-        "instructions": "Present booking token at weighing bridge to unload produce and obtain e-NWR receipt.",
-    }
-]
+# In-memory cache for fallback when db is not provided
+STORAGE_BOOKINGS: list[dict[str, Any]] = []
 
 def get_cold_storages(
     state: str = "",
     district: str = "",
     commodity: str = "",
+    db: Any = None,
 ) -> list[dict[str, Any]]:
     """Returns filtered cold storage and AC godowns matching query criteria."""
-    results = []
-    norm_st = state.strip().lower()
-    norm_dist = district.strip().lower()
-    norm_comm = commodity.strip().lower()
+    from app.models import StorageFacility
+    import json
+    
+    facilities: list[dict[str, Any]] = []
+    
+    if db is not None:
+        try:
+            query = db.query(StorageFacility)
+            if state:
+                query = query.filter(StorageFacility.state.ilike(f"%{state.strip()}%"))
+            if district:
+                query = query.filter(StorageFacility.district.ilike(f"%{district.strip()}%"))
+            db_facs = query.all()
+            for f in db_facs:
+                commodities = json.loads(f.commodities_json) if f.commodities_json else []
+                features = json.loads(f.features_json) if f.features_json else []
+                facilities.append({
+                    "id": f.id,
+                    "name": f.name,
+                    "district": f.district,
+                    "state": f.state,
+                    "location": f.location,
+                    "facility_type": f.facility_type,
+                    "capacity_mt": f.capacity_mt,
+                    "available_space_mt": f.available_space_mt,
+                    "commodities": commodities,
+                    "temp_range": f.temp_range,
+                    "humidity_rh": f.humidity_rh,
+                    "monthly_rent_per_bag": f.monthly_rent_per_bag,
+                    "bag_weight_kg": f.bag_weight_kg,
+                    "enwr_pledge_loan": f.enwr_pledge_loan,
+                    "loan_percent": f.loan_percent,
+                    "contact_person": f.contact_person,
+                    "phone": f.phone,
+                    "features": features,
+                    "trust_label": f.trust_label or "Listed Facility (WDRA Regulated)",
+                    "last_verified": f.last_verified,
+                })
+        except Exception:
+            pass
 
-    for cs in VERIFIED_COLD_STORAGES:
-        if norm_st and norm_st not in cs["state"].lower():
-            continue
-        if norm_comm and "all" not in norm_comm:
-            comm_match = any(norm_comm in c.lower() or c.lower() in norm_comm for c in cs["commodities"])
-            if not comm_match:
+    if not facilities:
+        norm_st = state.strip().lower()
+        norm_dist = district.strip().lower()
+        norm_comm = commodity.strip().lower()
+
+        for cs in VERIFIED_COLD_STORAGES:
+            if norm_st and norm_st not in cs["state"].lower():
                 continue
-        results.append(cs)
+            if norm_dist and norm_dist not in cs["district"].lower():
+                continue
+            if norm_comm and "all" not in norm_comm:
+                comm_match = any(norm_comm in c.lower() or c.lower() in norm_comm for c in cs["commodities"])
+                if not comm_match:
+                    continue
+            facilities.append(cs)
 
-    if not results:
-        results = [cs for cs in VERIFIED_COLD_STORAGES if not norm_st or norm_st in cs["state"].lower()] or VERIFIED_COLD_STORAGES
+        if not facilities:
+            facilities = [cs for cs in VERIFIED_COLD_STORAGES if not norm_st or norm_st in cs["state"].lower()] or VERIFIED_COLD_STORAGES
 
-    return results
+    return facilities
 
 def create_storage_booking(
     facility_id: str,
@@ -210,20 +230,44 @@ def create_storage_booking(
     commodity: str,
     bags_count: int,
     duration_months: int,
+    user_id: int | None = None,
+    db: Any = None,
 ) -> dict[str, Any]:
-    """Generates official AC Godown slot reservation token and alerts facility owner."""
-    facility = next((cs for cs in VERIFIED_COLD_STORAGES if cs["id"] == facility_id), VERIFIED_COLD_STORAGES[0])
-    monthly_cost = bags_count * facility["monthly_rent_per_bag"]
-    total_cost = monthly_cost * duration_months
+    """Generates official AC Godown slot reservation token and persists booking record."""
+    from datetime import datetime, timezone
+    from app.models import StorageFacility, StorageBooking
+    
+    facility_dict = None
+    if db is not None:
+        fac = db.get(StorageFacility, facility_id)
+        if fac:
+            facility_dict = {
+                "id": fac.id,
+                "name": fac.name,
+                "district": fac.district,
+                "state": fac.state,
+                "location": fac.location,
+                "monthly_rent_per_bag": fac.monthly_rent_per_bag,
+                "enwr_pledge_loan": fac.enwr_pledge_loan,
+                "contact_person": fac.contact_person,
+                "phone": fac.phone,
+            }
 
-    token = f"RS-GODOWN-{datetime.now().strftime('%y%m%d')}-{len(STORAGE_BOOKINGS) + 101}"
+    if not facility_dict:
+        facility_dict = next((cs for cs in VERIFIED_COLD_STORAGES if cs["id"] == facility_id), VERIFIED_COLD_STORAGES[0])
+
+    monthly_cost = bags_count * facility_dict["monthly_rent_per_bag"]
+    total_cost = monthly_cost * duration_months
+    now = datetime.now(timezone.utc)
+    token = f"RS-GODOWN-{now.strftime('%y%m%d')}-{abs(hash(farmer_name + str(now.timestamp()))) % 899 + 101}"
+
     booking_record = {
         "booking_token": token,
-        "facility_id": facility["id"],
-        "facility_name": facility["name"],
-        "district": facility["district"],
-        "state": facility["state"],
-        "location": facility["location"],
+        "facility_id": facility_dict["id"],
+        "facility_name": facility_dict["name"],
+        "district": facility_dict["district"],
+        "state": facility_dict["state"],
+        "location": facility_dict["location"],
         "farmer_name": farmer_name,
         "phone": phone,
         "commodity": commodity,
@@ -231,27 +275,118 @@ def create_storage_booking(
         "duration_months": duration_months,
         "monthly_rent_inr": monthly_cost,
         "total_estimated_rent_inr": total_cost,
-        "enwr_pledge_loan_eligible": facility["enwr_pledge_loan"],
+        "enwr_pledge_loan_eligible": facility_dict["enwr_pledge_loan"],
         "booking_status": "Approved by Owner (Bay Allotted)",
         "owner_notified": True,
-        "manager_name": facility["contact_person"],
-        "manager_phone": facility["phone"],
+        "manager_name": facility_dict["contact_person"],
+        "manager_phone": facility_dict["phone"],
         "entry_allowed": True,
-        "created_at": datetime.now().strftime("%d %b %Y, %I:%M %p"),
-        "instructions": f"Your preservation request has been registered and verified by Godown In-Charge {facility['contact_person']}. Present token {token} at the weighbridge to unload your {commodity}.",
+        "created_at": now.strftime("%d %b %Y, %I:%M %p"),
+        "instructions": f"Your preservation request has been registered and verified by Godown In-Charge {facility_dict['contact_person']}. Present token {token} at the weighbridge to unload your {commodity}.",
     }
+
+    if db is not None:
+        try:
+            db_booking = StorageBooking(
+                booking_token=token,
+                user_id=user_id,
+                facility_id=facility_dict["id"],
+                facility_name=facility_dict["name"],
+                district=facility_dict["district"],
+                state=facility_dict["state"],
+                location=facility_dict["location"],
+                farmer_name=farmer_name,
+                phone=phone,
+                commodity=commodity,
+                bags_count=bags_count,
+                duration_months=duration_months,
+                monthly_rent_inr=float(monthly_cost),
+                total_estimated_rent_inr=float(total_cost),
+                enwr_pledge_loan_eligible=facility_dict["enwr_pledge_loan"],
+                booking_status="Approved by Owner (Bay Allotted)",
+                owner_notified=True,
+                manager_name=facility_dict["contact_person"],
+                manager_phone=facility_dict["phone"],
+                entry_allowed=True,
+                instructions=booking_record["instructions"],
+                created_at=now,
+            )
+            db.add(db_booking)
+            db.commit()
+            db.refresh(db_booking)
+            booking_record["id"] = db_booking.id
+        except Exception as e:
+            db.rollback()
+            print(f"[STORAGE BOOKING ERROR] {e}")
+
     STORAGE_BOOKINGS.insert(0, booking_record)
     return booking_record
 
-def get_all_storage_bookings() -> list[dict[str, Any]]:
-    """Returns all storage bookings for admin/manager oversight."""
+def get_all_storage_bookings(db: Any = None) -> list[dict[str, Any]]:
+    """Returns all storage bookings from persistent database."""
+    from app.models import StorageBooking
+    if db is not None:
+        try:
+            bookings = db.query(StorageBooking).order_by(StorageBooking.created_at.desc()).all()
+            results = []
+            for b in bookings:
+                results.append({
+                    "id": b.id,
+                    "booking_token": b.booking_token,
+                    "facility_id": b.facility_id,
+                    "facility_name": b.facility_name,
+                    "district": b.district,
+                    "state": b.state,
+                    "location": b.location,
+                    "farmer_name": b.farmer_name,
+                    "phone": b.phone,
+                    "commodity": b.commodity,
+                    "bags_count": b.bags_count,
+                    "duration_months": b.duration_months,
+                    "monthly_rent_inr": b.monthly_rent_inr,
+                    "total_estimated_rent_inr": b.total_estimated_rent_inr,
+                    "enwr_pledge_loan_eligible": b.enwr_pledge_loan_eligible,
+                    "booking_status": b.booking_status,
+                    "owner_notified": b.owner_notified,
+                    "manager_name": b.manager_name,
+                    "manager_phone": b.manager_phone,
+                    "entry_allowed": b.entry_allowed,
+                    "created_at": b.created_at.strftime("%d %b %Y, %I:%M %p") if b.created_at else "",
+                    "instructions": b.instructions,
+                })
+            if results:
+                return results
+        except Exception:
+            pass
+
     return STORAGE_BOOKINGS
 
-def update_storage_booking_status(token: str, new_status: str) -> dict[str, Any] | None:
-    """Allows godown owner or officer to update booking state."""
+def update_storage_booking_status(token: str, new_status: str, db: Any = None) -> dict[str, Any] | None:
+    """Allows godown owner or officer to update booking state in persistent database."""
+    from datetime import datetime, timezone
+    from app.models import StorageBooking
+    
+    if db is not None:
+        try:
+            b = db.query(StorageBooking).filter(StorageBooking.booking_token == token).first()
+            if b:
+                b.booking_status = new_status
+                b.updated_at = datetime.now(timezone.utc)
+                db.commit()
+                db.refresh(b)
+                return {
+                    "id": b.id,
+                    "booking_token": b.booking_token,
+                    "booking_status": b.booking_status,
+                    "updated_at": b.updated_at.strftime("%d %b %Y, %I:%M %p"),
+                }
+        except Exception as e:
+            db.rollback()
+            print(f"[STORAGE STATUS ERROR] {e}")
+
     for b in STORAGE_BOOKINGS:
         if b["booking_token"] == token:
             b["booking_status"] = new_status
-            b["updated_at"] = datetime.now().strftime("%d %b %Y, %I:%M %p")
+            b["updated_at"] = datetime.now(timezone.utc).strftime("%d %b %Y, %I:%M %p")
             return b
     return None

@@ -90,21 +90,8 @@ CROP_COST_TEMPLATES: dict[str, dict[str, Any]] = {
     }
 }
 
-SAVED_KHATA_ENTRIES: list[dict[str, Any]] = [
-    {
-        "id": "kht-101",
-        "farmer_name": "K. Venkata Reddy",
-        "crop": "Red Chilli",
-        "acres": 2.0,
-        "total_cost": 264000.0,
-        "total_yield_quintals": 44.0,
-        "cost_per_quintal": 6000.0,
-        "breakeven_selling_price": 6000.0,
-        "recommended_selling_price": 16500.0,
-        "projected_profit": 462000.0,
-        "created_at": "24 Sep 2026, 11:20 AM",
-    }
-]
+# In-memory cache for fallback when db is not provided
+SAVED_KHATA_ENTRIES: list[dict[str, Any]] = []
 
 def get_crop_cost_template(crop: str = "Red Chilli") -> dict[str, Any]:
     """Returns baseline cultivation budget template for the crop."""
@@ -120,11 +107,18 @@ def calculate_breakeven_cost(
     expenses: dict[str, float],
     expected_yield_quintals: float,
     expected_market_price_per_qtl: float = 0.0,
+    farmer_name: str = "Cultivator",
+    user_id: int | None = None,
+    db: Any = None,
 ) -> dict[str, Any]:
     """
     Computes accurate cultivation cost per acre, breakeven cost per quintal,
-    profit margin, and anti-distress sale advice.
+    profit margin, and anti-distress sale advice. Persists in database.
     """
+    import json
+    from datetime import datetime, timezone
+    from app.models import AgriKhataEntry
+    
     total_cost = sum(expenses.values())
     cost_per_acre = total_cost / max(acres, 0.1)
     
@@ -163,7 +157,8 @@ def calculate_breakeven_cost(
         status_color = "amber"
         action_guidance = f"Returns are thin ({profit_margin_pct}%). Consider negotiating with direct buyers or holding in storage."
 
-    calculation_id = f"KHT-{datetime.now().strftime('%y%m%d%H%M%S')}"
+    now = datetime.now(timezone.utc)
+    calculation_id = f"KHT-{now.strftime('%y%m%d%H%M%S')}"
 
     entry = {
         "id": calculation_id,
@@ -185,11 +180,70 @@ def calculate_breakeven_cost(
         "status_color": status_color,
         "action_guidance": action_guidance,
         "storage_alternative": get_crop_cost_template(crop).get("storage_alternative", ""),
-        "created_at": datetime.now().strftime("%d %b %Y, %I:%M %p"),
+        "created_at": now.strftime("%d %b %Y, %I:%M %p"),
     }
+
+    if db is not None:
+        try:
+            db_entry = AgriKhataEntry(
+                entry_code=calculation_id,
+                user_id=user_id,
+                farmer_name=farmer_name,
+                crop=crop,
+                acres=float(acres),
+                total_cost=float(total_cost),
+                total_yield_quintals=float(total_yield),
+                breakeven_price_per_qtl=float(breakeven_per_qtl),
+                expected_market_price_per_qtl=float(expected_market_price_per_qtl),
+                net_profit_projected=float(net_profit),
+                expenses_json=json.dumps(expenses),
+                created_at=now,
+            )
+            db.add(db_entry)
+            db.commit()
+            db.refresh(db_entry)
+            entry["db_id"] = db_entry.id
+        except Exception as e:
+            db.rollback()
+            print(f"[KHATA PERSISTENCE ERROR] {e}")
+
     SAVED_KHATA_ENTRIES.insert(0, entry)
     return entry
 
-def get_saved_khata_entries() -> list[dict[str, Any]]:
-    """Returns saved ledger history."""
+def get_saved_khata_entries(db: Any = None, user_id: int | None = None) -> list[dict[str, Any]]:
+    """Returns saved ledger history from database."""
+    from app.models import AgriKhataEntry
+    import json
+    
+    if db is not None:
+        try:
+            query = db.query(AgriKhataEntry)
+            if user_id:
+                query = query.filter(AgriKhataEntry.user_id == user_id)
+            entries = query.order_by(AgriKhataEntry.created_at.desc()).all()
+            results = []
+            for e in entries:
+                exp = json.loads(e.expenses_json) if e.expenses_json else {}
+                results.append({
+                    "id": e.entry_code,
+                    "db_id": e.id,
+                    "farmer_name": e.farmer_name,
+                    "crop": e.crop,
+                    "acres": e.acres,
+                    "expenses": exp,
+                    "total_cost": e.total_cost,
+                    "cost_per_acre": round(e.total_cost / max(e.acres, 0.1), 2),
+                    "total_yield_quintals": e.total_yield_quintals,
+                    "breakeven_per_qtl": e.breakeven_price_per_qtl,
+                    "offered_price_per_qtl": e.expected_market_price_per_qtl,
+                    "net_profit": e.net_profit_projected,
+                    "profit_margin_pct": round((e.net_profit_projected / max(e.total_cost, 1.0)) * 100, 1),
+                    "is_distress_loss": e.expected_market_price_per_qtl < e.breakeven_price_per_qtl,
+                    "created_at": e.created_at.strftime("%d %b %Y, %I:%M %p") if e.created_at else "",
+                })
+            if results:
+                return results
+        except Exception:
+            pass
+
     return SAVED_KHATA_ENTRIES

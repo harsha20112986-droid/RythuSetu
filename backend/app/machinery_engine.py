@@ -177,34 +177,76 @@ MACHINERY_BOOKINGS: list[dict[str, Any]] = [
         "required_date": "28-09-2026",
         "estimated_cost_inr": 1330,
         "status": "Confirmed by Operator (Drone Pilot Dispatched)",
-        "operator_name": "Rythu Mitra Drone Cooperative",
-        "operator_phone": "+91 863 224 9910",
-        "booked_at": "25 Sep 2026, 04:30 PM",
     }
 ]
+
 
 def get_machinery_rentals(
     district: str = "",
     category: str = "",
-    state: str = ""
+    state: str = "",
+    db: Any = None,
 ) -> list[dict[str, Any]]:
-    """Returns available machinery custom hiring listings."""
-    norm_dist = district.strip().lower()
-    norm_cat = category.strip().lower()
-    norm_st = state.strip().lower()
-
-    results = []
-    for m in VERIFIED_MACHINERY_REGISTRY:
-        if norm_st and norm_st not in m["state"].lower():
-            continue
-        if norm_dist and norm_dist not in m["district"].lower():
-            continue
-        if norm_cat and norm_cat != "all" and norm_cat not in m["category"].lower():
-            continue
-        results.append(m)
+    """Returns available machinery custom hiring listings from persistent database."""
+    from app.models import MachineryListing
+    import json
+    
+    results: list[dict[str, Any]] = []
+    
+    if db is not None:
+        try:
+            query = db.query(MachineryListing).filter(MachineryListing.available == True)
+            if state:
+                query = query.filter(MachineryListing.state.ilike(f"%{state.strip()}%"))
+            if district:
+                query = query.filter(MachineryListing.district.ilike(f"%{district.strip()}%"))
+            if category and category != "all":
+                query = query.filter(MachineryListing.category.ilike(f"%{category.strip()}%"))
+            
+            db_machinery = query.all()
+            for m in db_machinery:
+                ops = json.loads(m.suitable_operations_json) if m.suitable_operations_json else []
+                results.append({
+                    "id": m.id,
+                    "machinery_type": m.machinery_type,
+                    "telugu_name": m.telugu_name,
+                    "brand_model": m.brand_model,
+                    "category": m.category,
+                    "owner_name": m.owner_name,
+                    "owner_phone": m.owner_phone,
+                    "district": m.district,
+                    "state": m.state,
+                    "mandal": m.mandal,
+                    "village": m.village,
+                    "distance_km": m.distance_km,
+                    "pricing_type": m.pricing_type,
+                    "rate_inr": m.rate_inr,
+                    "rate_unit": m.rate_unit or f"₹{m.rate_inr} / {m.pricing_type.replace('per_', '')}",
+                    "suitable_operations": ops,
+                    "availability_status": "Available Today 🟢",
+                    "image_url": m.image_url,
+                    "rating": m.rating,
+                    "trust_label": m.trust_label or "Listed CHC Equipment",
+                })
+        except Exception:
+            pass
 
     if not results:
-        results = [m for m in VERIFIED_MACHINERY_REGISTRY if not norm_st or norm_st in m["state"].lower()] or VERIFIED_MACHINERY_REGISTRY
+        norm_dist = district.strip().lower()
+        norm_cat = category.strip().lower()
+        norm_st = state.strip().lower()
+
+        for m in VERIFIED_MACHINERY_REGISTRY:
+            if norm_st and norm_st not in m["state"].lower():
+                continue
+            if norm_dist and norm_dist not in m["district"].lower():
+                continue
+            if norm_cat and norm_cat != "all" and norm_cat not in m["category"].lower():
+                continue
+            results.append(m)
+
+        if not results:
+            results = [m for m in VERIFIED_MACHINERY_REGISTRY if not norm_st or norm_st in m["state"].lower()] or VERIFIED_MACHINERY_REGISTRY
 
     results.sort(key=lambda x: x.get("distance_km", 99.0))
     return results
@@ -217,12 +259,33 @@ def create_machinery_booking(
     village: str,
     acres_or_hours: float,
     required_date: str,
+    user_id: int | None = None,
+    db: Any = None,
 ) -> dict[str, Any]:
-    """Books farm machinery with instant confirmation and operator notification."""
-    machinery = next((m for m in VERIFIED_MACHINERY_REGISTRY if m["id"] == machinery_id), VERIFIED_MACHINERY_REGISTRY[0])
+    """Books farm machinery with instant confirmation and database persistence."""
+    from datetime import datetime, timezone
+    from app.models import MachineryListing, MachineryBooking
+    
+    machinery = None
+    if db is not None:
+        m = db.get(MachineryListing, machinery_id)
+        if m:
+            machinery = {
+                "id": m.id,
+                "machinery_type": m.machinery_type,
+                "telugu_name": m.telugu_name,
+                "rate_inr": m.rate_inr,
+                "pricing_type": m.pricing_type,
+                "owner_name": m.owner_name,
+                "owner_phone": m.owner_phone,
+            }
+
+    if not machinery:
+        machinery = next((m for m in VERIFIED_MACHINERY_REGISTRY if m["id"] == machinery_id), VERIFIED_MACHINERY_REGISTRY[0])
     
     total_cost = acres_or_hours * machinery["rate_inr"]
-    token = f"RS-MCH-{datetime.now().strftime('%y%m%d')}-{len(MACHINERY_BOOKINGS) + 101}"
+    now = datetime.now(timezone.utc)
+    token = f"RS-MCH-{now.strftime('%y%m%d')}-{abs(hash(farmer_name + str(now.timestamp()))) % 899 + 101}"
 
     booking = {
         "booking_token": token,
@@ -241,8 +304,76 @@ def create_machinery_booking(
         "status": "Confirmed (Operator Notified for On-Field Dispatch)",
         "operator_name": machinery["owner_name"],
         "operator_phone": machinery["owner_phone"],
-        "booked_at": datetime.now().strftime("%d %b %Y, %I:%M %p"),
+        "booked_at": now.strftime("%d %b %Y, %I:%M %p"),
         "instructions": f"Operator {machinery['owner_name']} will arrive at your field in {village} on {required_date}. Pay directly upon completion.",
     }
+
+    if db is not None:
+        try:
+            db_booking = MachineryBooking(
+                booking_token=token,
+                user_id=user_id,
+                machinery_id=machinery["id"],
+                machinery_type=machinery["machinery_type"],
+                telugu_name=machinery.get("telugu_name"),
+                farmer_name=farmer_name,
+                phone=phone,
+                district=district,
+                village=village,
+                acres_or_hours=float(acres_or_hours),
+                pricing_type=machinery["pricing_type"],
+                rate_inr=float(machinery["rate_inr"]),
+                estimated_cost_inr=round(float(total_cost), 2),
+                required_date=required_date,
+                status="Confirmed (Operator Notified for Dispatch)",
+                operator_name=machinery["owner_name"],
+                operator_phone=machinery["owner_phone"],
+                instructions=booking["instructions"],
+                booked_at=now,
+            )
+            db.add(db_booking)
+            db.commit()
+            db.refresh(db_booking)
+            booking["id"] = db_booking.id
+        except Exception as e:
+            db.rollback()
+            print(f"[MACHINERY BOOKING ERROR] {e}")
+
     MACHINERY_BOOKINGS.insert(0, booking)
     return booking
+
+def get_all_machinery_bookings(db: Any = None) -> list[dict[str, Any]]:
+    """Returns all machinery bookings from persistent database."""
+    from app.models import MachineryBooking
+    if db is not None:
+        try:
+            bookings = db.query(MachineryBooking).order_by(MachineryBooking.booked_at.desc()).all()
+            results = []
+            for b in bookings:
+                results.append({
+                    "id": b.id,
+                    "booking_token": b.booking_token,
+                    "machinery_id": b.machinery_id,
+                    "machinery_type": b.machinery_type,
+                    "telugu_name": b.telugu_name,
+                    "farmer_name": b.farmer_name,
+                    "phone": b.phone,
+                    "district": b.district,
+                    "village": b.village,
+                    "acres_or_hours": b.acres_or_hours,
+                    "pricing_type": b.pricing_type,
+                    "rate_inr": b.rate_inr,
+                    "estimated_cost_inr": b.estimated_cost_inr,
+                    "required_date": b.required_date,
+                    "status": b.status,
+                    "operator_name": b.operator_name,
+                    "operator_phone": b.operator_phone,
+                    "booked_at": b.booked_at.strftime("%d %b %Y, %I:%M %p") if b.booked_at else "",
+                    "instructions": b.instructions,
+                })
+            if results:
+                return results
+        except Exception:
+            pass
+
+    return MACHINERY_BOOKINGS

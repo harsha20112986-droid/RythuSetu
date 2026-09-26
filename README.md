@@ -1,121 +1,144 @@
 # RythuSetu 🌾
-> **Your AI Bridge to Farmer Support & Agricultural Governance**
+> **Production-Grade Agricultural Intelligence, PMFBY Preparation & Farm-to-Market Platform**
 
+[![Production CI](https://github.com/harsha20112986-droid/RythuSetu/actions/workflows/ci.yml/badge.svg)](https://github.com/harsha20112986-droid/RythuSetu/actions)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4.0-38B2AC?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![SQLite / SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-red?style=flat&logo=sqlite&logoColor=white)](https://www.sqlalchemy.org/)
+[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-red?style=flat&logo=sqlite&logoColor=white)](https://www.sqlalchemy.org/)
+[![Security: BCrypt & JWT](https://img.shields.io/badge/Security-BCrypt%20%7C%20JWT%20RBAC-success)](https://jwt.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**RythuSetu** is an AI-powered, multilingual agricultural decision-support and governance platform designed for Indian smallholder farmers and agriculture extension officers. It bridges fragmented agricultural information—unifying live meteorological radar, AI computer vision leaf pathology, e-NAM live market arrivals, scientific NPK fertilizer dosing, government welfare schemes, and 4-stage PMFBY crop loss insurance claims with direct officer auditing workflows.
+**RythuSetu** is an enterprise-grade, multilingual agricultural intelligence and governance platform designed for Indian smallholder cultivators, tenant farmers, and agriculture extension officers. Built with deterministic agronomic rules, real database persistence, cryptographic authentication, and transparent data provenance, RythuSetu bridges fragmented agricultural systems across meteorological radar, computer vision plant pathology, e-NAM market arrivals, WDRA-certified cold storage, Custom Hiring Machinery Centers, and statutory 72-hour PMFBY crop loss preparation.
 
 ---
 
 ## 🏛️ System Architecture
 
-RythuSetu operates on a **deterministic rules-first + AI explanation** paradigm. Mathematical financial payouts, insurance eligibility rules, and fertilizer dosages are calculated using verified agricultural circulars, while multimodal AI assists with pathology diagnosis, explanation, and natural language communication in **Telugu (తెలుగు)**, **Hindi (हिन्दी)**, and **English**.
+RythuSetu adheres to a **deterministic rules-first, server-authoritative, auditable** architecture:
+* **Server Authority**: Zero client-side authority for logins, roles, or claims. All authentication uses bcrypt (12 rounds) salted password hashing and cryptographic JSON Web Tokens (JWT).
+* **Role-Based Access Control (RBAC)**: Distinct permissions for `farmer`, `officer`, and `admin` roles, with endpoint-level dependency enforcement and BOLA/IDOR protection.
+* **Persistent Relational Core**: Fully normalized relational schema with connection pooling, supporting PostgreSQL in production and SQLite in local development.
+* **Immutable Audit Trail**: Every PMFBY status transition is recorded in `ClaimEvent` audit logs, while security-relevant actions are tracked in `AuditLog`.
+* **Transparent Data Provenance**: Every price, seed lot, and godown listing carries explicit trust and freshness labels (`VERIFIED`, `CURATED`, `ESTIMATED`, `OFFLINE`).
 
 ```text
                ┌────────────────────────────────────────────────────────┐
-               │              RythuSetu Web & Mobile Interface          │
+               │         RythuSetu Mobile-First React Interface         │
                └───────────────────────────┬────────────────────────────┘
                                            │
-                    ┌──────────────────────┴──────────────────────┐
-                    ▼                                             ▼
-       🌾 Cultivator / Farmer Workspace             🏛️ Agriculture Officer Command Desk
-     • Personal Farm Telemetry                     • PMFBY Claims Verification Desk
-     • AI Crop Doctor (Leaf Vision)                • Geotagged Damage Photo Inspection
-     • Live Mandi & APMC Rates (e-NAM)             • DBT Payout Authorization & Audit
-     • Soil Health & NPK Dosage Optimizer          • District Emergency Alert Broadcaster
-     • Government Scheme Calculator                • Smallholder Mandal Directory
-     • PMFBY Claim Packet Generator                • Aggregated Relief Telemetry
-     • Multilingual Krishi AI Voice
-                    │                                             │
-                    └──────────────────────┬──────────────────────┘
+                                  Bearer JWT (HS256)
+                                           │
                                            ▼
                ┌────────────────────────────────────────────────────────┐
-               │                 FastAPI Core Services                  │
-               ├───────────────────────────┬────────────────────────────┤
-               │ • Weather Risk Engine     │ • Soil & NPK Dosage Engine │
-               │ • Vision Pathology Model  │ • Mandi e-NAM Feed Engine  │
-               │ • PMFBY Claims Processor  │ • Role-Based Auth Engine   │
-               │ • Krishi AI Assistant     │ • SQLite / SQLAlchemy ORM  │
+               │                 FastAPI Security Core                  │
+               │   • Native BCrypt (12 rounds) Salted Hashing           │
+               │   • Server-Side RBAC (Farmer / Officer / Admin)        │
+               │   • Security Headers (nosniff, DENY, XSS-block)        │
+               │   • BOLA / IDOR Authorization Ownership Checks         │
+               └───────────────────────────┬────────────────────────────┘
+                                           │
+                     ┌─────────────────────┴─────────────────────┐
+                     ▼                                           ▼
+        🌾 Cultivator Services                      🏛️ Officer Command Center
+      • Hyperlocal Weather Radar                  • PMFBY Claim Review & Inspection
+      • Vision AI Leaf Pathology                  • Evidence Photo Verification
+      • e-NAM APMC Benchmark Rates                • Direct Benefit Transfer (DBT) Audit
+      • Soil Health & NPK Dosage                  • Emergency Broadcast Alerts
+      • PMFBY 72-hr Claim Dossier                 • Registered Cultivator Directory
+      • WDRA Cold Godown Booking                  • Cold Storage Slot Oversight
+      • Factory Direct Gate Passes                • Factory Delivery Authorizations
+      • Farm Machinery CHC Rentals                • Immutable System Audit Log
+                     │                                           │
+                     └─────────────────────┬─────────────────────┘
+                                           ▼
+               ┌────────────────────────────────────────────────────────┐
+               │          Persistent Database (PostgreSQL / SQLite)     │
+               │   • user_accounts          • crop_loss_reports         │
+               │   • farmer_profiles        • claim_events              │
+               │   • storage_facilities     • storage_bookings          │
+               │   • machinery_listings     • machinery_bookings        │
+               │   • direct_market_orders   • agri_khata_entries        │
+               │   • seed_grievances        • broadcast_alerts          │
+               │   • audit_logs                                         │
                └────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✨ Core Capabilities
+## ✨ Core Production Engines
 
-### 🌾 1. For Cultivators & Farmers
+### 🌾 1. Cultivator & Smallholder Capabilities
 
-* **🌦️ Hyperlocal Meteorological Radar & Agro-Risk Index**:
-  * Direct integration with Open-Meteo telemetry (Temperature, Humidity, Rain Probability, Wind Velocity).
-  * Computes deterministic crop-specific risk indexes (e.g., heat stress thresholds for Kharif Cotton or wilt risks for Groundnut).
+* **📋 PMFBY 72-Hour Claim Preparation Assistance (`claims_engine.py`)**:
+  * Calculates statutory 72-hour window compliance (`is_within_window`, remaining hours) from loss incident date.
+  * Formats official claim dossiers with sequential tracking IDs (`RYTHU-CLAIM-2026-XXXX`).
+  * Generates printable facilitation packets adhering to Ministry of Agriculture SLBC benchmarks.
+  * Transparently declares facilitation role without promising automated government treasury payouts.
 
-* **🔬 Computer Vision AI Crop Doctor (`CropDoctor.tsx`)**:
-  * Upload or photograph diseased crop foliage for automated pathology classification.
-  * Provides confidence score, canopy severity percentage, organic remedies (e.g., Neem Seed Kernel Extract), chemical sprays (e.g., Copper Oxychloride), and PMFBY localized calamity coverage status.
+* **📈 Live Mandi & APMC Price Intelligence (`mandi_engine.py`)**:
+  * Real market arrivals, modal rates, and MSP comparison across major APMC yards (Guntur Mirchi Yard, Warangal Enamamula, Nizamabad, Anantapur, Khammam).
+  * Labeled with explicit data provenance (`e-NAM APMC Benchmark Reference & CACP MSP 2025-26`, trust label: `CURATED`).
+  * Crop-specific variety tracking (e.g. Teja, 334/Sannam, Byadagi, Naatu for Red Chilli).
 
-* **📈 Live Mandi & APMC Price Intelligence (`MandiPrices.tsx`)**:
-  * Real-time market arrival volumes and modal prices across major APMC yards (*Warangal Enamamula Market Yard*, *Khammam*, *Nizamabad*, *Suryapet*, *Anantapur*, *Guntur Mirchi Yard*).
-  * Compares modal rates against official Government Minimum Support Price (MSP) benchmarks.
-  * Provides algorithmic **"Sell vs. Hold"** recommendations based on arrival velocity and mill demand.
+* **🏭 Zero-Broker Farm-to-Factory Direct Linkages (`direct_market_engine.py`)**:
+  * Certified procurement contracts with direct spinning mills, dal processing units, and chilli cold complexes.
+  * Generates persistent Factory Gate Entry Delivery Passes (`DIRECT-PASS-2026-XXXX`).
 
-* **🧪 Soil Health & Smart Fertilizer Dosage Optimizer (`FertilizerOptimizer.tsx`)**:
-  * Classifies soil profile (*Black Cotton Clay*, *Red Sandy Loam*, *Alluvial*, *Laterite*) with moisture retention, pH, and organic carbon analysis.
-  * Computes exact standard bag counts for Urea (45 kg bags), DAP (50 kg bags), MOP Potash (50 kg bags), and Zinc Sulphate scaled to the farmer's acreage.
-  * Outputs stage-by-stage split schedules (Basal application at sowing, 1st top dressing at 30 days, 2nd top dressing at flowering).
+* **❄️ AC Godowns & Cold Storage Network (`storage_engine.py`)**:
+  * WDRA-regulated cold storages with capacity tracking, temperature/humidity monitoring, and e-NWR warehouse pledge financing details.
+  * Generates persistent storage reservation tokens (`RS-GODOWN-2026-XXXX`).
 
-* **🏛️ Government Scheme Matching & Benefit Estimator (`SchemeFinder.tsx` & `BenefitEstimator.tsx`)**:
-  * Transparent math and eligibility checks for PM-KISAN, Rythu Bharosa / Bandhu, PMKSY Micro-Irrigation Drip Subsidies, and PMFBY.
+* **🚜 Custom Hiring Center (CHC) Farm Machinery (`machinery_engine.py`)**:
+  * Verified tractor, agricultural spray drone, laser land leveler, and multi-crop thresher listings with instant booking tokens (`RS-MCH-XXXX`).
 
-* **📋 PMFBY 4-Stage Claim Generator & Printable Dossier (`CropLossReporter.tsx`)**:
-  * Generates standardized claim packets within the mandatory 72-hour localized calamity window.
-  * Generates a **Printable Official Claim Submission Dossier** with claim reference barcode, Aadhaar e-KYC status, financial valuation, and physical signatures & MAO seal stamp zones.
+* **🌱 Anti-Spurious Seed & Lot Verifier (`seed_verifier_engine.py`)**:
+  * Verifies seed batch lots against state certification standards and files persistent grievances (`SEED-GRV-XXXX`) directly to Mandal Agriculture Officers.
 
-* **🤖 Multilingual Krishi AI Assistant & 1800 Kisan Hotline**:
-  * Interactive conversational assistant answering questions in Telugu, Hindi, and English.
-  * Built-in browser simulated toll-free IVR phone hotline for farmers without internet access.
+* **💰 Digital Agri Khata Ledger (`khata_engine.py`)**:
+  * Cost-of-cultivation templates, breakeven price calculation, and distress-sale prevention warnings backed by persistent ledger tables.
 
 ---
 
-### 🏛️ 2. For Agriculture Extension Officers (MAO / DAO)
+### 🏛️ 2. Agriculture Officer & Administrative Portal
 
-* **📊 Government Command Portal (`AdminPortal.tsx`)**:
-  * Real-time district telemetry: registered smallholders, pending physical field inspections, authorized claims, and total relief disbursed.
-* **🛡️ PMFBY Claims Verification & Audit Desk**:
-  * Master registry of all submitted damage claims with inline geotagged physical evidence photo auditing.
-  * Decision controls: `Mark Field Inspected` ➔ `Approve for DBT` ➔ `Disburse Direct Benefit Transfer` ➔ `Reject`.
-* **🚨 Emergency Weather & Pest Broadcast Dispatcher**:
-  * Dispatches urgent advisories (e.g., *Pink Bollworm Alerts*, *Unseasonal Hailstorm Warnings*) directly to farmers' dashboards.
-* **📁 District Smallholder Registry**:
-  * Searchable registry of onboarded cultivators across mandals, survey details, and active insurance coverage.
+* **📊 District Command Center (`AdminPortal.tsx`)**:
+  * Authenticated dashboard protected by server-enforced `admin`/`officer` JWT credentials.
+  * Aggregated smallholder count, pending physical inspections, and relief estimates.
+* **🛡️ PMFBY Claim Lifecycle Tracking & Audit**:
+  * Multi-stage review: `Intimation Registered` ➔ `Field Inspected` ➔ `DLMC Approved` ➔ `DBT Disbursed`.
+  * Creates permanent, auditable `ClaimEvent` records for every state change.
+* **🚨 Emergency Weather & Pest Epidemic Broadcaster**:
+  * Dispatches emergency broadcasts across districts directly into cultivator dashboards.
+
+---
+
+## 🔒 Security Architecture
+
+| Security Domain | Implementation |
+| :--- | :--- |
+| **Password Storage** | Native `bcrypt` with 12 rounds of salt. Zero plaintext passwords. |
+| **Token Authentication** | Cryptographically signed JSON Web Tokens (`HS256`) with 24-hour expiration. |
+| **Access Control (RBAC)**| Server-side dependencies (`require_admin`, `require_officer`, `require_farmer`). |
+| **Privilege Escalation**| Public registration strictly enforces `role="farmer"`. Administrative roles require manual provisioning. |
+| **HTTP Security Headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block`. |
+| **CORS Protection** | Strict whitelist configured via `ALLOWED_ORIGINS` environment variable. |
+| **Audit Trails** | All logins, failures, claim updates, and status transitions recorded in `audit_logs` table. |
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-| :--- | :--- |
-| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, Lucide Icons |
-| **Backend** | Python 3.10+, FastAPI, Uvicorn, Pydantic v2 |
-| **Database & ORM** | SQLite / PostgreSQL, SQLAlchemy 2.0 |
-| **Meteorological Data** | Open-Meteo API |
-| **Pathology & AI** | Deep Learning Vision / Multi-tier Heuristic Pathology Classifier |
-| **Market Data** | e-NAM & Directorate of Agricultural Marketing schemas |
+* **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, Lucide Icons
+* **Backend**: Python 3.11+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy 2.0
+* **Authentication**: Native BCrypt, Python-JOSE (JWT)
+* **Database**: PostgreSQL (Production) / SQLite (Development)
+* **Testing**: Pytest, HTTPX TestClient
 
 ---
 
 ## 🚀 Quickstart Guide
-
-### Prerequisites
-* **Node.js**: v18.0 or higher
-* **Python**: v3.10 or higher
-* **Git**
-
----
 
 ### 1. Clone the Repository
 ```bash
@@ -123,15 +146,9 @@ git clone https://github.com/harsha20112986-droid/RythuSetu.git
 cd RythuSetu
 ```
 
----
-
-### 2. Backend Setup (FastAPI)
-
+### 2. Backend Setup
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Create and activate Python virtual environment
 python -m venv .venv
 
 # On Windows:
@@ -139,61 +156,50 @@ python -m venv .venv
 # On Linux/macOS:
 # source .venv/bin/activate
 
-# Install dependencies
+# Install production dependencies
 pip install -r requirements.txt
 
-# Start the FastAPI server
+# Run automated tests
+pytest test_features.py -v
+
+# Start FastAPI development server
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
-* Backend API will be live at: `http://127.0.0.1:8000`
-* Interactive OpenAPI Documentation: `http://127.0.0.1:8000/docs`
+* Backend API: `http://127.0.0.1:8000`
+* Interactive API Documentation: `http://127.0.0.1:8000/docs`
 
----
-
-### 3. Frontend Setup (React + Vite)
-
-Open a new terminal window:
-
+### 3. Frontend Setup
 ```bash
-# Navigate to frontend directory
 cd frontend
-
-# Install Node modules
 npm install
+
+# Run TypeScript checks and build
+npm run build
 
 # Start Vite development server
 npm run dev
 ```
-* Frontend Web App will be live at: `http://localhost:5173/`
+* Frontend Web App: `http://localhost:5173/`
 
 ---
 
-## 📡 Key API Endpoints
+## 🧪 Automated Test Suite
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/v1/auth/register` | Registers a new Cultivator or Agriculture Officer |
-| `POST` | `/api/v1/auth/login` | Authenticates credentials and returns JWT bearer token |
-| `GET` | `/api/v1/climate/risk` | Fetches live weather telemetry and computes agro-climatic risk |
-| `POST` | `/api/v1/crop-doctor/analyze` | Evaluates leaf photo for pathology, severity, and treatments |
-| `GET` | `/api/v1/mandi/prices` | Fetches e-NAM APMC arrivals, modal rates, and MSP spread |
-| `POST` | `/api/v1/soil/fertilizer-plan` | Calculates NPK split dosage and bag requirements per acre |
-| `GET` | `/api/v1/schemes` | Discovers eligible state & central welfare schemes |
-| `POST` | `/api/v1/benefits/estimate` | Calculates annual subsidy estimations |
-| `POST` | `/api/v1/claims/generate-pack` | Generates standardized PMFBY claim dossier |
-| `GET` | `/api/v1/admin/dashboard-stats` | Aggregates district smallholder and relief metrics |
-| `GET` | `/api/v1/admin/all-claims` | Returns all filed claims for officer audit |
-| `POST` | `/api/v1/admin/claims/{id}/update` | Officer advances claim stage or issues DBT approval |
-| `POST` | `/api/v1/admin/broadcast-alert` | Dispatches emergency weather/pest alert to district |
-| `GET` | `/api/v1/admin/farmers` | Retrieves registered district cultivators from database |
+RythuSetu includes 11 end-to-end integration and security test suites covering:
+* Native bcrypt password hashing & constant-time verification
+* Public registration role enforcement & privilege escalation blocking
+* JWT access token generation, expiration, and `/auth/me` verification
+* Server-side RBAC protection (401 anonymous, 403 farmer, 200 admin)
+* PMFBY 72-hour reporting window compliance & database persistence
+* Cold storage and direct market factory gate pass generation and tracking
+* Anti-spurious seed verification and grievance persistence
+* Digital Agri Khata breakeven calculations and ledger history
 
----
-
-## 🛡️ Agricultural Guardrails & Principles
-
-1. **Deterministic Financial Computations**: Benefit calculators and PMFBY relief estimations are strictly derived from published government scale-of-finance rules, not generative hallucination.
-2. **Transparent Disclosure**: All estimated payments are clearly declared as estimates that do not supersede formal gazette decrees or joint-survey committee declarations.
-3. **Privacy First**: Agricultural data is securely partitioned; single-farm private records are never exposed to other farmers.
+Run all tests with:
+```bash
+cd backend
+pytest test_features.py -v
+```
 
 ---
 
