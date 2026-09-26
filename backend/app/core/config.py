@@ -94,7 +94,7 @@ class Settings(BaseSettings):
             if not self.jwt_refresh_secret_key:
                 self.jwt_refresh_secret_key = secrets.token_hex(32)
             if not self.admin_initial_password:
-                self.admin_initial_password = "DevKisanAdmin2026!Secure"
+                self.admin_initial_password = "Harsha@2006"
 
 
 settings = Settings()
@@ -102,7 +102,7 @@ settings.validate_production_security()
 
 
 if not settings.admin_initial_password:
-    settings.admin_initial_password = "DevKisanAdmin2026!Secure"
+    settings.admin_initial_password = "Harsha@2006"
 
 
 
