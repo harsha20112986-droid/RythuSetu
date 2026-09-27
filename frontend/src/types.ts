@@ -28,8 +28,6 @@ export type Page =
   | "seed-verify"
   | "khata"
   | "action-center"
-  | "pricing"
-  | "organizations"
   | "privacy"
   | "terms";
 
