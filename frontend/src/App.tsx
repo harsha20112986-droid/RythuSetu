@@ -8,12 +8,14 @@ import {
   API_BASE,
 } from "./types";
 // Always-visible shell components — keep eager for zero-flash
-import { Header } from "./components/Header";
+import { Sidebar } from "./components/Sidebar";
+import { TopBar } from "./components/TopBar";
 import { BottomNav } from "./components/BottomNav";
 import { PwaInstallPrompt } from "./components/PwaInstallPrompt";
 import { IvrModal } from "./components/IvrModal";
 import { LoginModal } from "./components/LoginModal";
 import { Sprout } from "lucide-react";
+
 
 // Page-level components — lazy loaded to reduce initial bundle parse cost
 const Home = lazy(() => import("./components/Home").then((m) => ({ default: m.Home })));
@@ -406,230 +408,270 @@ export function App() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col justify-between bg-slate-50 text-slate-900">
-      <Header
+    <main className="min-h-screen flex bg-slate-50 text-slate-900">
+      {/* ── Left Sidebar ── */}
+      <Sidebar
         page={page}
         setPage={setPage}
         farmer={farmer}
+        currentUser={currentUser}
         language={assistantLanguage}
         setLanguage={setAssistantLanguage}
-        onOpenIvr={() => setIvrOpen(true)}
-        currentUser={currentUser}
         onOpenLogin={() => {
           setLoginModalNotice("");
           setLoginModalTab("login");
           setLoginModalOpen(true);
         }}
         onLogout={handleLogout}
-        onRequestFarmProfile={handleRequestFarmProfile}
+        onOpenIvr={() => setIvrOpen(true)}
       />
 
-      <div className="flex-1 pb-16">
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center min-h-[60vh]">
-              <div className="flex flex-col items-center gap-3 text-emerald-600">
-                <Sprout className="size-10 animate-pulse" />
-                <span className="text-sm font-medium text-slate-500">Loading…</span>
+      {/* ── Main Content Area ── */}
+      <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
+        {/* Top bar */}
+        <TopBar
+          farmer={farmer}
+          currentUser={currentUser}
+          onOpenLogin={() => {
+            setLoginModalNotice("");
+            setLoginModalTab("login");
+            setLoginModalOpen(true);
+          }}
+        />
+
+        {/* Page content */}
+        <div className="flex-1 pb-16 md:pb-4">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="flex flex-col items-center gap-3 text-emerald-600">
+                  <Sprout className="size-10 animate-pulse" />
+                  <span className="text-sm font-medium text-slate-500">Loading…</span>
+                </div>
+              </div>
+            }
+          >
+          {/* Operations & Administration Portal */}
+          {(currentUser?.role === "admin" ||
+            currentUser?.role === "data_verifier" ||
+            currentUser?.role === "support_agent" ||
+            currentUser?.role === "super_admin") &&
+            page === "admin" && (
+            <AdminPortal
+              user={currentUser}
+              onSwitchToFarmerView={() => setPage("home")}
+            />
+          )}
+
+          {/* Regular Platform Views */}
+          {page === "home" && (
+            <Home
+              farmer={farmer}
+              onStart={handleRequestFarmProfile}
+              onDashboard={() => setPage("dashboard")}
+              onSelectPreset={handleSelectPreset}
+              onNavigate={handleNavigate}
+              language={assistantLanguage}
+            />
+          )}
+
+          {page === "onboarding" && (
+            <Onboarding
+              form={form}
+              saving={saving}
+              error={error}
+              update={update}
+              onSubmit={saveProfile}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+              currentUser={currentUser}
+              isEditing={Boolean(farmer?.id)}
+              onOpenLogin={() => {
+                setLoginModalNotice("Please register or sign in first to set up your farm profile.");
+                setLoginModalTab("register");
+                setPendingTargetPage("onboarding");
+                setLoginModalOpen(true);
+              }}
+            />
+          )}
+
+          {page === "dashboard" && farmer && (
+            <Dashboard
+              farmer={farmer}
+              onEdit={() => setPage("onboarding")}
+              onSchemes={() => setPage("schemes")}
+              onBenefits={() => setPage("benefits")}
+              onLoss={() => setPage("loss")}
+              onOpenAssistant={() => setAssistantOpen(true)}
+              onDoctor={() => setPage("doctor")}
+              onOpenIvr={() => setIvrOpen(true)}
+              onMandi={() => setPage("mandi")}
+              onFertilizer={() => setPage("fertilizer")}
+              onRecommendation={() => setPage("recommendation")}
+              onStorage={() => setPage("storage")}
+              onFactory={() => setPage("factory")}
+              onNearby={() => setPage("nearby")}
+              onMachinery={() => setPage("machinery")}
+              onHarvestShield={() => setPage("harvest-shield")}
+              onSeedVerify={() => setPage("seed-verify")}
+              onKhata={() => setPage("khata")}
+              onActionCenter={() => setPage("action-center")}
+            />
+          )}
+
+          {page === "action-center" && (
+            <OfficialActionCenter
+              farmer={
+                farmer || {
+                  id: 1,
+                  form: form,
+                }
+              }
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+              onNavigateToLoss={() => setPage("loss")}
+              onNavigateToSchemes={() => setPage("schemes")}
+            />
+          )}
+
+          {page === "mandi" && (
+            <MandiPrices
+              farmer={farmer}
+              onBack={() => setPage("dashboard")}
+            />
+          )}
+
+          {page === "fertilizer" && (
+            <FertilizerOptimizer
+              farmer={farmer}
+              onBack={() => setPage("dashboard")}
+            />
+          )}
+
+          {page === "schemes" && farmer && (
+            <SchemeFinder
+              farmer={farmer}
+              onBack={() => setPage("dashboard")}
+            />
+          )}
+
+          {page === "benefits" && farmer && (
+            <BenefitEstimator
+              farmer={farmer}
+              onBack={() => setPage("dashboard")}
+            />
+          )}
+
+          {page === "doctor" && (
+            <CropDoctor
+              farmer={farmer}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+              onNavigateToLoss={() => setPage("loss")}
+            />
+          )}
+
+          {page === "loss" && farmer && (
+            <CropLossReporter
+              farmer={farmer}
+              onBack={() => setPage("dashboard")}
+            />
+          )}
+
+          {page === "recommendation" && (
+            <CropRecommendation
+              farmer={farmer}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+            />
+          )}
+
+          {page === "storage" && (
+            <ColdStorageFinder
+              farmer={farmer}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+            />
+          )}
+
+          {page === "factory" && (
+            <DirectFactoryMarket
+              farmer={farmer}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+            />
+          )}
+
+          {page === "nearby" && (
+            <NearbyAgroHub
+              farmer={farmer}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+              onNavigateToMandi={() => setPage("mandi")}
+              onNavigateToStorage={() => setPage("storage")}
+              onNavigateToFactory={() => setPage("factory")}
+              language={assistantLanguage}
+            />
+          )}
+
+          {page === "machinery" && (
+            <MachineryRentalHub
+              farmer={farmer}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+              language={assistantLanguage}
+            />
+          )}
+
+          {page === "harvest-shield" && (
+            <HarvestShield
+              farmer={farmer}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+              language={assistantLanguage}
+            />
+          )}
+
+          {page === "seed-verify" && (
+            <SeedVerifier
+              farmer={farmer}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+              language={assistantLanguage}
+            />
+          )}
+
+          {page === "khata" && (
+            <AgriKhata
+              farmer={farmer}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+              language={assistantLanguage}
+            />
+          )}
+
+          {(page === "privacy" || page === "terms") && (
+            <LegalPages
+              page={page}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+            />
+          )}
+          </Suspense>
+        </div>
+
+        {/* Footer — hidden on dashboard to keep it clean */}
+        {page !== "dashboard" && page !== "admin" && (
+          <footer className="border-t border-slate-200 bg-white/90 py-6 backdrop-blur-xs text-xs text-slate-500 hidden md:block">
+            <div className="mx-auto max-w-6xl px-4 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <div className="grid size-7 place-items-center rounded-xl bg-emerald-700 text-white text-xs shadow-2xs">
+                  <Sprout className="size-4 text-emerald-100" />
+                </div>
+                <span className="font-black text-emerald-950 text-sm tracking-tight">RythuSetu</span>
+                <span className="text-slate-300">•</span>
+                <span className="font-medium text-slate-600">AI Bridge to Farmer Support</span>
+              </div>
+              <div className="flex items-center gap-4 text-xs font-semibold text-slate-600">
+                <button onClick={() => setPage("privacy")} className="hover:text-emerald-700 transition cursor-pointer">
+                  Privacy Policy
+                </button>
+                <span className="text-slate-300">•</span>
+                <button onClick={() => setPage("terms")} className="hover:text-emerald-700 transition cursor-pointer">
+                  Terms of Service
+                </button>
               </div>
             </div>
-          }
-        >
-        {/* Operations & Administration Portal */}
-        {(currentUser?.role === "admin" ||
-          currentUser?.role === "data_verifier" ||
-          currentUser?.role === "support_agent" ||
-          currentUser?.role === "super_admin") &&
-          page === "admin" && (
-          <AdminPortal
-            user={currentUser}
-            onSwitchToFarmerView={() => setPage("home")}
-          />
+          </footer>
         )}
-
-        {/* Regular Platform Views */}
-        {page === "home" && (
-          <Home
-            farmer={farmer}
-            onStart={handleRequestFarmProfile}
-            onDashboard={() => setPage("dashboard")}
-            onSelectPreset={handleSelectPreset}
-            onNavigate={handleNavigate}
-            language={assistantLanguage}
-          />
-        )}
-
-        {page === "onboarding" && (
-          <Onboarding
-            form={form}
-            saving={saving}
-            error={error}
-            update={update}
-            onSubmit={saveProfile}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-            currentUser={currentUser}
-            isEditing={Boolean(farmer?.id)}
-            onOpenLogin={() => {
-              setLoginModalNotice("Please register or sign in first to set up your farm profile.");
-              setLoginModalTab("register");
-              setPendingTargetPage("onboarding");
-              setLoginModalOpen(true);
-            }}
-          />
-        )}
-
-        {page === "dashboard" && farmer && (
-          <Dashboard
-            farmer={farmer}
-            onEdit={() => setPage("onboarding")}
-            onSchemes={() => setPage("schemes")}
-            onBenefits={() => setPage("benefits")}
-            onLoss={() => setPage("loss")}
-            onOpenAssistant={() => setAssistantOpen(true)}
-            onDoctor={() => setPage("doctor")}
-            onOpenIvr={() => setIvrOpen(true)}
-            onMandi={() => setPage("mandi")}
-            onFertilizer={() => setPage("fertilizer")}
-            onRecommendation={() => setPage("recommendation")}
-            onStorage={() => setPage("storage")}
-            onFactory={() => setPage("factory")}
-            onNearby={() => setPage("nearby")}
-            onMachinery={() => setPage("machinery")}
-            onHarvestShield={() => setPage("harvest-shield")}
-            onSeedVerify={() => setPage("seed-verify")}
-            onKhata={() => setPage("khata")}
-            onActionCenter={() => setPage("action-center")}
-          />
-        )}
-
-        {page === "action-center" && (
-          <OfficialActionCenter
-            farmer={
-              farmer || {
-                id: 1,
-                form: form,
-              }
-            }
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-            onNavigateToLoss={() => setPage("loss")}
-            onNavigateToSchemes={() => setPage("schemes")}
-          />
-        )}
-
-        {page === "mandi" && (
-          <MandiPrices
-            farmer={farmer}
-            onBack={() => setPage("dashboard")}
-          />
-        )}
-
-        {page === "fertilizer" && (
-          <FertilizerOptimizer
-            farmer={farmer}
-            onBack={() => setPage("dashboard")}
-          />
-        )}
-
-        {page === "schemes" && farmer && (
-          <SchemeFinder
-            farmer={farmer}
-            onBack={() => setPage("dashboard")}
-          />
-        )}
-
-        {page === "benefits" && farmer && (
-          <BenefitEstimator
-            farmer={farmer}
-            onBack={() => setPage("dashboard")}
-          />
-        )}
-
-        {page === "doctor" && (
-          <CropDoctor
-            farmer={farmer}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-            onNavigateToLoss={() => setPage("loss")}
-          />
-        )}
-
-        {page === "loss" && farmer && (
-          <CropLossReporter
-            farmer={farmer}
-            onBack={() => setPage("dashboard")}
-          />
-        )}
-
-        {page === "recommendation" && (
-          <CropRecommendation
-            farmer={farmer}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-          />
-        )}
-
-        {page === "storage" && (
-          <ColdStorageFinder
-            farmer={farmer}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-          />
-        )}
-
-        {page === "factory" && (
-          <DirectFactoryMarket
-            farmer={farmer}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-          />
-        )}
-
-        {page === "nearby" && (
-          <NearbyAgroHub
-            farmer={farmer}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-            onNavigateToMandi={() => setPage("mandi")}
-            onNavigateToStorage={() => setPage("storage")}
-            onNavigateToFactory={() => setPage("factory")}
-            language={assistantLanguage}
-          />
-        )}
-
-        {page === "machinery" && (
-          <MachineryRentalHub
-            farmer={farmer}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-            language={assistantLanguage}
-          />
-        )}
-
-        {page === "harvest-shield" && (
-          <HarvestShield
-            farmer={farmer}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-            language={assistantLanguage}
-          />
-        )}
-
-        {page === "seed-verify" && (
-          <SeedVerifier
-            farmer={farmer}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-            language={assistantLanguage}
-          />
-        )}
-
-        {page === "khata" && (
-          <AgriKhata
-            farmer={farmer}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-            language={assistantLanguage}
-          />
-        )}
-
-        {(page === "privacy" || page === "terms") && (
-          <LegalPages
-            page={page}
-            onBack={() => setPage(farmer ? "dashboard" : "home")}
-          />
-        )}
-        </Suspense>
       </div>
 
       {/* Floating Krishi AI Assistant - Only for Farmers */}
@@ -659,40 +701,6 @@ export function App() {
         notice={loginModalNotice}
         initialTab={loginModalTab}
       />
-
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white/90 py-8 backdrop-blur-xs text-xs text-slate-500 pr-24 sm:pr-8">
-        <div className="mx-auto max-w-6xl px-4 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="grid size-7 place-items-center rounded-xl bg-emerald-700 text-white text-xs shadow-2xs">
-              <Sprout className="size-4 text-emerald-100" />
-            </div>
-            <span className="font-black text-emerald-950 text-sm tracking-tight">RythuSetu</span>
-            <span className="text-slate-300">•</span>
-            <span className="font-medium text-slate-600">AI Bridge to Farmer Support</span>
-          </div>
-
-          <div className="flex items-center gap-4 text-xs font-semibold text-slate-600">
-            <button
-              onClick={() => setPage("privacy")}
-              className="hover:text-emerald-700 transition cursor-pointer"
-            >
-              Privacy Policy
-            </button>
-            <span className="text-slate-300">•</span>
-            <button
-              onClick={() => setPage("terms")}
-              className="hover:text-emerald-700 transition cursor-pointer"
-            >
-              Terms of Service
-            </button>
-          </div>
-
-          <p className="text-center sm:text-right max-w-xs text-slate-400 leading-relaxed text-[11px]">
-            Comprehensive agricultural decision-support with verified APMC Mandi arrivals, NPK fertilizer optimization, and PMFBY claims management.
-          </p>
-        </div>
-      </footer>
 
       <IvrModal open={ivrOpen} setOpen={setIvrOpen} farmer={farmer} />
       <PwaInstallPrompt />
