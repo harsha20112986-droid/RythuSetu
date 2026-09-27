@@ -39,6 +39,7 @@ const KrishiAssistant = lazy(() => import("./components/KrishiAssistant").then((
 const AdminPortal = lazy(() => import("./components/AdminPortal").then((m) => ({ default: m.AdminPortal })));
 const LegalPages = lazy(() => import("./components/LegalPages").then((m) => ({ default: m.LegalPages })));
 const OfficialActionCenter = lazy(() => import("./components/OfficialActionCenter").then((m) => ({ default: m.OfficialActionCenter })));
+const CommercialPricing = lazy(() => import("./components/CommercialPricing").then((m) => ({ default: m.CommercialPricing })));
 
 export function App() {
   const [page, setPage] = useState<Page>("home");
@@ -514,6 +515,12 @@ export function App() {
               onSelectPreset={handleSelectPreset}
               onNavigate={handleNavigate}
               language={assistantLanguage}
+              onOpenLogin={() => {
+                setLoginModalNotice("");
+                setLoginModalTab("login");
+                setLoginModalOpen(true);
+              }}
+              onOpenIvr={() => setIvrOpen(true)}
             />
           )}
 
@@ -678,6 +685,14 @@ export function App() {
               farmer={farmer}
               onBack={() => setPage(farmer ? "dashboard" : "home")}
               language={assistantLanguage}
+            />
+          )}
+
+          {(page === "pricing" || page === "organizations") && (
+            <CommercialPricing
+              initialTab={page === "organizations" ? "organizations" : "pricing"}
+              onBack={() => setPage(farmer ? "dashboard" : "home")}
+              onOpenDemo={() => setIvrOpen(true)}
             />
           )}
 
