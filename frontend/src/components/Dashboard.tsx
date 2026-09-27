@@ -499,7 +499,7 @@ export function Dashboard({
         </div>
 
         {/* ── Live Weather Card ── */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+        <div id="weather-station" className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 scroll-mt-20">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <CloudRain className="size-4 text-sky-600" />

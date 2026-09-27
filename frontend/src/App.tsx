@@ -75,6 +75,42 @@ export function App() {
   const [assistantError, setAssistantError] = useState("");
   const [assistantMessages, setAssistantMessages] = useState<ChatMessage[]>([]);
 
+  // Responsive and collapsible sidebar state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("rythusetu_sidebar_collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const toggleSidebar = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setMobileSidebarOpen((prev) => !prev);
+    } else {
+      setSidebarCollapsed((prev) => {
+        const next = !prev;
+        try {
+          localStorage.setItem("rythusetu_sidebar_collapsed", String(next));
+        } catch {}
+        return next;
+      });
+    }
+  };
+
+  // Keyboard shortcut (Ctrl+B / Cmd+B) to collapse / expand sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // Dynamically update document language and font classes
   useEffect(() => {
     localStorage.setItem("rythusetu_language", assistantLanguage);
@@ -409,7 +445,7 @@ export function App() {
 
   return (
     <main className="min-h-screen flex bg-slate-50 text-slate-900">
-      {/* ── Left Sidebar ── */}
+      {/* ── Left Sidebar (collapsible thin / expanded desktop & mobile drawer) ── */}
       <Sidebar
         page={page}
         setPage={setPage}
@@ -423,12 +459,15 @@ export function App() {
           setLoginModalOpen(true);
         }}
         onLogout={handleLogout}
-        onOpenIvr={() => setIvrOpen(true)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebar}
+        mobileOpen={mobileSidebarOpen}
+        setMobileOpen={setMobileSidebarOpen}
       />
 
       {/* ── Main Content Area ── */}
       <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
-        {/* Top bar */}
+        {/* Top bar with 3-line hamburger menu toggle */}
         <TopBar
           farmer={farmer}
           currentUser={currentUser}
@@ -437,6 +476,9 @@ export function App() {
             setLoginModalTab("login");
             setLoginModalOpen(true);
           }}
+          onToggleSidebar={toggleSidebar}
+          sidebarCollapsed={sidebarCollapsed}
+          onOpenIvr={() => setIvrOpen(true)}
         />
 
         {/* Page content */}
