@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   LayoutDashboard,
   User,
@@ -18,8 +19,6 @@ import {
   Truck,
   MapPin,
   FlaskConical,
-  PanelLeftClose,
-  PanelLeftOpen,
 } from "lucide-react";
 import type { Page, Farmer, AuthUser } from "../types";
 
@@ -60,7 +59,6 @@ export function Sidebar({
   onOpenLogin,
   onLogout,
   collapsed,
-  onToggleCollapse,
   mobileOpen,
   setMobileOpen,
 }: {
@@ -73,10 +71,18 @@ export function Sidebar({
   onOpenLogin: () => void;
   onLogout: () => void;
   collapsed: boolean;
-  onToggleCollapse: () => void;
+  onToggleCollapse?: () => void;
   mobileOpen: boolean;
   setMobileOpen: (open: boolean) => void;
 }) {
+  // State for floating tooltip in thin (closed) mode - uses fixed coordinates to escape overflow clipping
+  const [hoveredTooltip, setHoveredTooltip] = useState<{
+    label: string;
+    teluguLabel?: string;
+    badge?: string;
+    top: number;
+  } | null>(null);
+
   const isStaff =
     currentUser?.role === "admin" ||
     currentUser?.role === "data_verifier" ||
@@ -84,6 +90,7 @@ export function Sidebar({
     currentUser?.role === "super_admin";
 
   const handleNavigate = (item: NavItemConfig) => {
+    setHoveredTooltip(null);
     if (item.isWeather) {
       if (page !== "dashboard") {
         setPage("dashboard");
@@ -137,8 +144,8 @@ export function Sidebar({
     const isThin = collapsed && !isDrawer;
 
     return (
-      <div className="flex flex-col h-full select-none">
-        {/* ── Brand Header ── */}
+      <div className="flex flex-col h-full select-none relative">
+        {/* ── Brand Header (Clean logo, no extra collapse/open buttons) ── */}
         <div className={`flex items-center ${isThin ? "justify-center px-2 py-4" : "justify-between px-4 py-4"} border-b border-emerald-800/40 shrink-0`}>
           <button
             onClick={() => setPage(isStaff ? "admin" : "home")}
@@ -169,18 +176,7 @@ export function Sidebar({
             )}
           </button>
 
-          {/* Toggle button inside sidebar (expanded desktop or mobile close) */}
-          {!isThin && !isDrawer && (
-            <button
-              onClick={onToggleCollapse}
-              className="size-8 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-200 hover:text-white flex items-center justify-center transition cursor-pointer"
-              title="Collapse Sidebar (Ctrl+B)"
-              aria-label="Collapse Sidebar"
-            >
-              <PanelLeftClose className="size-4.5" />
-            </button>
-          )}
-
+          {/* Close button ONLY on mobile drawer overlay */}
           {isDrawer && (
             <button
               onClick={() => setMobileOpen(false)}
@@ -192,22 +188,11 @@ export function Sidebar({
           )}
         </div>
 
-        {/* ── Thin Mode Quick Expand Button ── */}
-        {isThin && (
-          <div className="pt-2 pb-1 flex justify-center">
-            <button
-              onClick={onToggleCollapse}
-              className="size-9 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-200 hover:text-white flex items-center justify-center transition cursor-pointer"
-              title="Expand Sidebar (Ctrl+B)"
-              aria-label="Expand Sidebar"
-            >
-              <PanelLeftOpen className="size-4" />
-            </button>
-          </div>
-        )}
-
         {/* ── Navigation Items ── */}
-        <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-emerald-800 scrollbar-track-transparent">
+        <nav
+          className="flex-1 px-2 py-3 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-emerald-800 scrollbar-track-transparent"
+          onScroll={() => setHoveredTooltip(null)}
+        >
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = item.isWeather
@@ -215,9 +200,22 @@ export function Sidebar({
               : page === item.id;
 
             return (
-              <div key={item.id} className="relative group">
+              <div key={item.id} className="relative">
                 <button
                   onClick={() => handleNavigate(item)}
+                  onMouseEnter={(e) => {
+                    if (isThin) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setHoveredTooltip({
+                        label: item.label,
+                        teluguLabel: item.teluguLabel,
+                        badge: item.badge,
+                        top: rect.top + rect.height / 2,
+                      });
+                    }
+                  }}
+                  onMouseLeave={() => setHoveredTooltip(null)}
+                  title={isThin ? item.label : undefined}
                   className={`w-full flex items-center transition-all duration-150 rounded-xl cursor-pointer ${
                     isThin
                       ? "justify-center size-11 mx-auto"
@@ -255,22 +253,6 @@ export function Sidebar({
                     </div>
                   )}
                 </button>
-
-                {/* Floating Tooltip in Thin/Collapsed Mode */}
-                {isThin && (
-                  <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-slate-900/95 backdrop-blur-md text-white text-xs font-bold rounded-xl shadow-xl whitespace-nowrap z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0 border border-slate-700/50 flex items-center gap-2">
-                    <span>{item.label}</span>
-                    {language === "Telugu" && (
-                      <span className="text-[10px] text-emerald-300 font-normal">({item.teluguLabel})</span>
-                    )}
-                    {item.badge && (
-                      <span className="px-1 py-0.5 rounded text-[8px] bg-emerald-500 text-slate-950 font-black">
-                        {item.badge}
-                      </span>
-                    )}
-                    <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-4 border-transparent border-r-slate-900" />
-                  </div>
-                )}
               </div>
             );
           })}
@@ -279,21 +261,23 @@ export function Sidebar({
         {/* ── Language Switcher ── */}
         <div className={`border-t border-emerald-800/40 shrink-0 ${isThin ? "p-2 flex justify-center" : "px-3 py-2.5"}`}>
           {isThin ? (
-            <div className="relative group">
-              <button
-                onClick={cycleLanguage}
-                className="size-10 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-100 hover:text-white flex items-center justify-center font-bold text-xs transition cursor-pointer border border-emerald-700/30"
-                title={`Language: ${getLanguageLabel()} (Click to change)`}
-                aria-label="Change Language"
-              >
-                {getLanguageShortCode()}
-              </button>
-              {/* Tooltip */}
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-xl whitespace-nowrap z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-all">
-                Language: {getLanguageLabel()}
-                <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-4 border-transparent border-r-slate-900" />
-              </div>
-            </div>
+            <button
+              onClick={cycleLanguage}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredTooltip({
+                  label: `Language: ${getLanguageLabel()}`,
+                  teluguLabel: "భాష మార్చండి",
+                  top: rect.top + rect.height / 2,
+                });
+              }}
+              onMouseLeave={() => setHoveredTooltip(null)}
+              className="size-10 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-100 hover:text-white flex items-center justify-center font-bold text-xs transition cursor-pointer border border-emerald-700/30"
+              title={`Language: ${getLanguageLabel()}`}
+              aria-label="Change Language"
+            >
+              {getLanguageShortCode()}
+            </button>
           ) : (
             <div className="rounded-xl bg-black/20 p-1 flex items-center gap-1 border border-white/10">
               <Languages className="size-3.5 text-emerald-200/70 ml-1.5 shrink-0" />
@@ -322,23 +306,21 @@ export function Sidebar({
         <div className={`border-t border-emerald-800/40 bg-black/10 shrink-0 ${isThin ? "p-2 flex justify-center" : "p-3"}`}>
           {currentUser ? (
             isThin ? (
-              <div className="relative group">
-                <div className="size-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-700 text-white flex items-center justify-center text-xs font-black shadow-sm ring-1 ring-white/20 cursor-default">
-                  {currentUser.name.charAt(0).toUpperCase()}
-                </div>
-                {/* Tooltip with user info & logout */}
-                <div className="absolute left-full bottom-2 ml-3 p-3 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-xl shadow-xl whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-all pointer-events-auto border border-slate-700/60 min-w-[140px]">
-                  <div className="font-bold text-slate-100">{currentUser.name}</div>
-                  <div className="text-[10px] text-emerald-300 capitalize">{currentUser.role.replace("_", " ")}</div>
-                  <button
-                    onClick={onLogout}
-                    className="mt-2 w-full flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 text-[11px] font-bold transition cursor-pointer"
-                  >
-                    <LogOut className="size-3" />
-                    <span>Sign Out</span>
-                  </button>
-                  <div className="absolute bottom-4 -left-1 border-4 border-transparent border-r-slate-900" />
-                </div>
+              <div
+                className="size-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-700 text-white flex items-center justify-center text-xs font-black shadow-sm ring-1 ring-white/20 cursor-pointer"
+                onMouseEnter={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setHoveredTooltip({
+                    label: currentUser.name,
+                    teluguLabel: currentUser.role.replace("_", " "),
+                    top: rect.top + rect.height / 2,
+                  });
+                }}
+                onMouseLeave={() => setHoveredTooltip(null)}
+                onClick={onLogout}
+                title={`${currentUser.name} (Click to Sign Out)`}
+              >
+                {currentUser.name.charAt(0).toUpperCase()}
               </div>
             ) : (
               <div className="flex items-center justify-between gap-2.5 bg-white/10 rounded-xl p-2.5 border border-white/10">
@@ -365,19 +347,22 @@ export function Sidebar({
               </div>
             )
           ) : isThin ? (
-            <div className="relative group">
-              <button
-                onClick={onOpenLogin}
-                className="size-10 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition cursor-pointer"
-                title="Sign In / Register"
-              >
-                <LogIn className="size-4" />
-              </button>
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1 bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-xl whitespace-nowrap z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-all">
-                Sign In / Register
-                <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-4 border-transparent border-r-slate-900" />
-              </div>
-            </div>
+            <button
+              onClick={onOpenLogin}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredTooltip({
+                  label: "Sign In / Register",
+                  teluguLabel: "లాగిన్ / రిజిస్టర్",
+                  top: rect.top + rect.height / 2,
+                });
+              }}
+              onMouseLeave={() => setHoveredTooltip(null)}
+              className="size-10 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition cursor-pointer"
+              title="Sign In / Register"
+            >
+              <LogIn className="size-4" />
+            </button>
           ) : (
             <button
               onClick={onOpenLogin}
@@ -388,6 +373,32 @@ export function Sidebar({
             </button>
           )}
         </div>
+
+        {/* ── Fixed Floating Tooltip (escapes all overflow/scroll clipping) ── */}
+        {isThin && hoveredTooltip && (
+          <div
+            className="fixed z-50 pointer-events-none px-3 py-1.5 bg-slate-900/95 backdrop-blur-md text-white text-xs font-bold rounded-xl shadow-2xl border border-slate-700/60 flex items-center gap-2 animate-in fade-in zoom-in-95 duration-100 whitespace-nowrap"
+            style={{
+              left: 78,
+              top: hoveredTooltip.top,
+              transform: "translateY(-50%)",
+            }}
+          >
+            <span>{hoveredTooltip.label}</span>
+            {language === "Telugu" && hoveredTooltip.teluguLabel && (
+              <span className="text-[10px] text-emerald-300 font-normal">
+                ({hoveredTooltip.teluguLabel})
+              </span>
+            )}
+            {hoveredTooltip.badge && (
+              <span className="px-1.5 py-0.5 rounded text-[8px] bg-emerald-500 text-slate-950 font-black">
+                {hoveredTooltip.badge}
+              </span>
+            )}
+            {/* Arrow pointer */}
+            <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 border-y-4 border-y-transparent border-r-6 border-r-slate-900/95" />
+          </div>
+        )}
       </div>
     );
   };
@@ -396,7 +407,7 @@ export function Sidebar({
     <>
       {/* ─── Desktop & Tablet Sticky Sidebar ─── */}
       <aside
-        className={`hidden md:flex flex-col shrink-0 bg-gradient-to-b from-[#064e3b] via-[#043d2e] to-[#022c22] h-screen sticky top-0 overflow-hidden shadow-2xl transition-all duration-300 ease-in-out border-r border-emerald-900/60 z-30 ${
+        className={`hidden md:flex flex-col shrink-0 bg-gradient-to-b from-[#064e3b] via-[#043d2e] to-[#022c22] h-screen sticky top-0 shadow-2xl transition-all duration-300 ease-in-out border-r border-emerald-900/60 z-30 ${
           collapsed ? "w-18" : "w-60 lg:w-64"
         }`}
       >
