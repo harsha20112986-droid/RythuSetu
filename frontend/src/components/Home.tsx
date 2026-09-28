@@ -150,7 +150,7 @@ export function Home({
             </div>
 
             {/* Headline with Multi-Color Gradient Text */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.12]">
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.15] sm:leading-[1.12]">
               Smarter Farming.{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-amber-300">
                 Higher Profits.
@@ -384,38 +384,38 @@ export function Home({
       </section>
 
       {/* ── 3. High-Impact Stats Grid ── */}
-      <section className="bg-slate-50 py-10 border-b border-slate-200/80">
+      <section className="bg-slate-50 py-8 sm:py-10 border-b border-slate-200/80">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-md transition text-center group">
-              <div className="text-3xl sm:text-4xl font-black text-emerald-800 group-hover:scale-105 transition-transform">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+            <div className="p-3.5 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-md transition text-center group">
+              <div className="text-2xl sm:text-4xl font-black text-emerald-800 group-hover:scale-105 transition-transform">
                 ₹12,000
               </div>
-              <div className="text-xs font-bold text-slate-600 mt-1">Per Acre State Support</div>
+              <div className="text-xs font-bold text-slate-700 mt-1">Per Acre State Support</div>
               <div className="text-[10px] text-slate-400 mt-0.5">Rythu Bharosa / Raithu Bandhu</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-md transition text-center group">
-              <div className="text-3xl sm:text-4xl font-black text-amber-700 group-hover:scale-105 transition-transform">
+            <div className="p-3.5 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-md transition text-center group">
+              <div className="text-2xl sm:text-4xl font-black text-amber-700 group-hover:scale-105 transition-transform">
                 0%
               </div>
-              <div className="text-xs font-bold text-slate-600 mt-1">Broker Commissions</div>
+              <div className="text-xs font-bold text-slate-700 mt-1">Broker Commissions</div>
               <div className="text-[10px] text-slate-400 mt-0.5">Rythu Direct Farm-to-Factory</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-md transition text-center group">
-              <div className="text-3xl sm:text-4xl font-black text-rose-700 group-hover:scale-105 transition-transform">
+            <div className="p-3.5 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-md transition text-center group">
+              <div className="text-2xl sm:text-4xl font-black text-rose-700 group-hover:scale-105 transition-transform">
                 72 Hours
               </div>
-              <div className="text-xs font-bold text-slate-600 mt-1">PMFBY Intimation Alert</div>
+              <div className="text-xs font-bold text-slate-700 mt-1">PMFBY Intimation Alert</div>
               <div className="text-[10px] text-slate-400 mt-0.5">Statutory Preparation Dossier</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-md transition text-center group">
-              <div className="text-3xl sm:text-4xl font-black text-indigo-700 group-hover:scale-105 transition-transform">
+            <div className="p-3.5 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-md transition text-center group">
+              <div className="text-2xl sm:text-4xl font-black text-indigo-700 group-hover:scale-105 transition-transform">
                 3 Languages
               </div>
-              <div className="text-xs font-bold text-slate-600 mt-1">English, తెలుగు & हिन्दी</div>
+              <div className="text-xs font-bold text-slate-700 mt-1">English, తెలుగు & हिन्दी</div>
               <div className="text-[10px] text-slate-400 mt-0.5">Multilingual Voice & UI</div>
             </div>
           </div>
@@ -440,7 +440,7 @@ export function Home({
             </div>
 
             {/* Category Filter Tabs */}
-            <div className="flex flex-wrap gap-1.5 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/80 shrink-0">
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar p-1 rounded-2xl bg-slate-100/90 border border-slate-200/80 shrink-0 max-w-full sm:flex-wrap">
               {[
                 { id: "all" as const, label: "All 13 Modules" },
                 { id: "intel" as const, label: "🌾 Intelligence" },
@@ -451,7 +451,7 @@ export function Home({
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                     activeCategory === cat.id
                       ? "bg-emerald-800 text-white shadow-xs"
                       : "text-slate-600 hover:text-slate-900"
@@ -464,7 +464,7 @@ export function Home({
           </div>
 
           {/* 13 Feature Cards Grid */}
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-8 sm:mt-12 grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {/* Card 1: Climate (intel) */}
             {(activeCategory === "all" || activeCategory === "intel") && (
               <article className="rounded-3xl border border-slate-200 bg-slate-50/50 hover:bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group">

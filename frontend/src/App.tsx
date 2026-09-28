@@ -482,7 +482,7 @@ export function App() {
         />
 
         {/* Page content */}
-        <div className="flex-1 pb-16 md:pb-4">
+        <div className="flex-1 pb-24 sm:pb-8">
           <Suspense
             fallback={
               <div className="flex items-center justify-center min-h-[60vh]">
@@ -716,8 +716,8 @@ export function App() {
         )}
       </div>
 
-      {/* Floating Krishi AI Assistant - Only for Farmers */}
-      {currentUser?.role !== "admin" && farmer && (
+      {/* Floating Rythu AI Assistant - Available across platform for farmers & visitors */}
+      {currentUser?.role !== "admin" && (
         <KrishiAssistant
           open={assistantOpen}
           setOpen={setAssistantOpen}

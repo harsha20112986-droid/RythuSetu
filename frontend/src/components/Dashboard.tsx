@@ -70,12 +70,14 @@ function QuickCard({
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-emerald-300 transition cursor-pointer group"
+      className="flex sm:flex-col items-center gap-2.5 sm:gap-2 p-2.5 sm:p-3 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all duration-150 active:scale-95 cursor-pointer group text-left sm:text-center w-full"
     >
-      <div className={`size-12 rounded-2xl flex items-center justify-center ${iconBg} group-hover:scale-110 transition`}>
+      <div className={`size-10 sm:size-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 ${iconBg} group-hover:scale-105 transition-transform`}>
         {icon}
       </div>
-      <span className="text-[11px] font-bold text-slate-700 text-center leading-tight">{label}</span>
+      <span className="text-xs sm:text-[11px] font-bold text-slate-800 sm:text-slate-700 leading-tight truncate sm:whitespace-normal">
+        {label}
+      </span>
     </button>
   );
 }
@@ -100,13 +102,13 @@ function HeroStatCard({
   return (
     <button
       onClick={onClick}
-      className={`relative flex-1 min-w-[140px] rounded-2xl ${gradient} text-white p-4 text-left shadow-md overflow-hidden group hover:brightness-110 transition cursor-pointer`}
+      className={`relative flex-1 min-w-[130px] sm:min-w-[150px] rounded-2xl ${gradient} text-white p-3.5 sm:p-4 text-left shadow-sm hover:shadow-md overflow-hidden group hover:brightness-105 active:scale-95 transition-all duration-200 cursor-pointer`}
     >
-      <div className="absolute right-3 top-3 opacity-30 group-hover:opacity-50 transition">{icon}</div>
-      <div className="text-[10px] font-bold uppercase tracking-wider opacity-80 mb-1">{badge}</div>
-      <div className="text-2xl font-black leading-tight">{value}</div>
-      <div className="text-[11px] opacity-80 mt-0.5">{sub}</div>
-      <ChevronRight className="absolute bottom-3 right-3 size-3.5 opacity-60" />
+      <div className="absolute right-2.5 top-2.5 opacity-25 group-hover:opacity-40 transition-opacity">{icon}</div>
+      <div className="text-[10px] font-bold uppercase tracking-wider opacity-85 mb-1">{badge}</div>
+      <div className="text-xl sm:text-2xl font-black leading-tight truncate">{value}</div>
+      <div className="text-[10px] sm:text-[11px] opacity-85 mt-0.5 truncate">{sub}</div>
+      <ChevronRight className="absolute bottom-2.5 right-2.5 size-3.5 opacity-60 group-hover:translate-x-0.5 transition-transform" />
     </button>
   );
 }
@@ -331,7 +333,7 @@ export function Dashboard({
         </div>
 
         {/* ── Hero Stat Cards (Current Crop / Weather / Market Price) ── */}
-        <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
           {/* Current Crop card */}
           <HeroStatCard
             badge="Current Crop"
@@ -401,7 +403,7 @@ export function Dashboard({
         {/* ── Quick Actions ── */}
         <div>
           <h2 className="text-sm font-black text-slate-900 mb-3">Quick Actions</h2>
-          <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2.5">
+          <div className="grid grid-cols-2 min-[480px]:grid-cols-4 lg:grid-cols-8 gap-2.5 sm:gap-3">
             <QuickCard
               label="Crop Advisory"
               icon={<Sprout className="size-5 text-emerald-700" />}

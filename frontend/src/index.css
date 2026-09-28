@@ -107,3 +107,19 @@ button {
   animation: glow-pulse 3s ease-in-out infinite;
 }
 
+/* Hide scrollbar for clean mobile horizontal carousels */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Mobile tap optimization */
+@media (hover: none) and (pointer: coarse) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+

@@ -149,18 +149,31 @@ export function KrishiAssistant({
 
   return (
     <>
-      {/* Floating launcher */}
+      {/* Floating launcher: Pure circular icon button without full text on screen */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-full bg-gradient-to-r from-emerald-700 to-green-800 px-5 py-3.5 text-sm font-bold text-white shadow-2xl shadow-emerald-900/40 hover:scale-105 active:scale-95 transition cursor-pointer"
+          aria-label="Open Rythu AI"
+          className="group fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center justify-center size-13 sm:size-14 rounded-full bg-gradient-to-tr from-emerald-800 via-emerald-700 to-teal-600 text-white shadow-xl shadow-emerald-950/40 hover:shadow-2xl hover:shadow-emerald-900/50 hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-emerald-400/40 cursor-pointer focus:outline-none focus:ring-4 focus:ring-emerald-500/30"
+          title="Rythu AI"
         >
-          <span className="relative flex size-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full size-2.5 bg-emerald-300"></span>
+          {/* Live pulsing status badge */}
+          <span className="absolute top-1 right-1 flex size-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex rounded-full size-3 bg-amber-300 border border-emerald-950" />
           </span>
-          <Bot className="size-4" />
-          <span>Ask Krishi Assistant</span>
+
+          {/* Assistant Icon with Sparkle */}
+          <div className="relative">
+            <Bot className="size-6 sm:size-7 text-white transition-transform group-hover:scale-110" />
+            <Sparkles className="size-3 text-amber-300 absolute -top-1 -right-1.5 animate-pulse" />
+          </div>
+
+          {/* Desktop-only hover tooltip pill (completely hidden on mobile, NO persistent label on screen) */}
+          <div className="hidden sm:group-hover:flex absolute right-full mr-3 items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/95 text-white text-xs font-bold whitespace-nowrap shadow-xl border border-slate-700 pointer-events-none transition-opacity">
+            <span className="text-emerald-400">Rythu AI</span>
+            <span className="text-slate-400 text-[10px]">(రైతు AI)</span>
+          </div>
         </button>
       )}
 
@@ -172,12 +185,17 @@ export function KrishiAssistant({
             <div className="bg-gradient-to-br from-emerald-800 via-emerald-900 to-green-950 p-5 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="grid size-10 place-items-center rounded-2xl bg-white/10 text-white">
+                  <div className="grid size-10 place-items-center rounded-2xl bg-white/10 text-white shadow-inner">
                     <Bot className="size-6 text-emerald-300" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-black leading-tight">Krishi Assistant</h2>
-                    <p className="text-[11px] text-emerald-200">
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="text-lg font-black leading-tight">Rythu AI</h2>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-700/80 text-emerald-200 border border-emerald-500/40">
+                        {language === "Telugu" ? "రైతు AI" : language === "Hindi" ? "कृषि AI" : "Smart Agro AI"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-emerald-200/90 mt-0.5">
                       Grounded in verified data & your farm context
                     </p>
                   </div>
